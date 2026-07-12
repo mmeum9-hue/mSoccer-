@@ -1,0 +1,6 @@
+{
+  "name": "mSoccer",
+  "description": "Aplicativo de resultados de futebol em tempo real, com estatísticas, escalações, classificação, notícias e painel administrativo completo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
