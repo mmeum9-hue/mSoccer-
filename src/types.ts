@@ -214,3 +214,13 @@ export interface AppFavorites {
   championships: string[]; // ids
   matches: string[]; // ids
 }
+
+export interface UserPresence {
+  uid: string;
+  name: string;
+  photoUrl: string;
+  status: 'online' | 'offline';
+  typingIn: string | null;
+  lastActive?: any;
+}
+

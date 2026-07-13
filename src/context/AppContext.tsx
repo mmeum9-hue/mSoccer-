@@ -10,6 +10,7 @@ import {
   AppNotification,
   AppFavorites,
   MatchEvent,
+  UserPresence,
 } from '../types';
 import {
   INITIAL_CLUBS,
@@ -18,7 +19,7 @@ import {
   INITIAL_MATCHES,
   INITIAL_NEWS,
 } from '../mockData';
-import { collection, doc, setDoc as originalSetDoc, onSnapshot, deleteDoc, getDoc, getDocs, runTransaction } from 'firebase/firestore';
+import { collection, doc, setDoc as originalSetDoc, onSnapshot, deleteDoc, getDoc, getDocs, runTransaction, updateDoc, serverTimestamp, addDoc, query, orderBy, limit } from 'firebase/firestore';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -214,6 +215,13 @@ interface AppContextType {
   clearAllDatabase: () => Promise<void>;
   restoreDefaultDatabase: () => Promise<void>;
   
+  // Chat & Presence addition
+  chatUnreadCounts: { [room: string]: number };
+  activeChatRoom: 'geral' | 'mocambola' | 'transferencias';
+  setActiveChatRoom: (room: 'geral' | 'mocambola' | 'transferencias') => void;
+  onlineUsers: UserPresence[];
+  setMyTypingState: (room: 'geral' | 'mocambola' | 'transferencias' | null) => Promise<void>;
+  
   // Admin triggers
   addMatch: (match: Match) => void;
   updateMatch: (match: Match) => void;
@@ -375,6 +383,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [dbConfig, setDbConfig] = useState<{ initialized?: boolean; cleared?: boolean } | null>(null);
+
+  // Chat & Presence States
+  const [chatUnreadCounts, setChatUnreadCounts] = useState<{ [room: string]: number }>({
+    geral: 0,
+    mocambola: 0,
+    transferencias: 0
+  });
+  const [activeChatRoom, setActiveChatRoom] = useState<'geral' | 'mocambola' | 'transferencias'>('geral');
+  const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([]);
+
+  const [lastReadTimestamps, setLastReadTimestamps] = useState<{ [room: string]: number }>(() => {
+    try {
+      return {
+        geral: Number(safeLocalStorage.getItem('msoccer_last_read_geral') || '0'),
+        mocambola: Number(safeLocalStorage.getItem('msoccer_last_read_mocambola') || '0'),
+        transferencias: Number(safeLocalStorage.getItem('msoccer_last_read_transferencias') || '0')
+      };
+    } catch (e) {
+      return { geral: 0, mocambola: 0, transferencias: 0 };
+    }
+  });
 
   // Sync DB Config
   useEffect(() => {
@@ -574,6 +603,184 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => unsubscribe();
   }, []);
+
+  // 1. Mark active room as read and clear unread counts
+  useEffect(() => {
+    if (currentView.type === 'chat') {
+      const room = activeChatRoom;
+      const now = Date.now();
+      setLastReadTimestamps(prev => ({ ...prev, [room]: now }));
+      safeLocalStorage.setItem(`msoccer_last_read_${room}`, String(now));
+      setChatUnreadCounts(prev => ({ ...prev, [room]: 0 }));
+    }
+  }, [currentView, activeChatRoom]);
+
+  // 2. Background Chat Messages Listener (unread tracker, statuses, and Toast alerts)
+  const notifiedMessagesRef = React.useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'chat_messages'),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs: any[] = [];
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data();
+        msgs.push({ id: docSnap.id, ...d });
+      });
+
+      // Group messages by room
+      const messagesByRoom: { [room: string]: any[] } = { geral: [], mocambola: [], transferencias: [] };
+      msgs.forEach((m) => {
+        if (m.room && messagesByRoom[m.room] !== undefined) {
+          messagesByRoom[m.room].push(m);
+        }
+      });
+
+      // Recalculate unread counts
+      const counts = { geral: 0, mocambola: 0, transferencias: 0 };
+      Object.keys(messagesByRoom).forEach((r) => {
+        const roomMsgs = messagesByRoom[r];
+        const lastRead = lastReadTimestamps[r] || 0;
+        let unread = 0;
+
+        roomMsgs.forEach((m) => {
+          const mTime = m.createdAt?.toMillis ? m.createdAt.toMillis() : Date.now();
+          const isFromMe = m.senderName === user?.name;
+          if (!isFromMe && mTime > lastRead) {
+            unread++;
+          }
+        });
+        counts[r as 'geral' | 'mocambola' | 'transferencias'] = unread;
+      });
+
+      // If viewing chat, active room has 0 unread
+      if (currentView.type === 'chat') {
+        counts[activeChatRoom] = 0;
+      }
+      setChatUnreadCounts(counts);
+
+      // Status updates & in-app Toast notifications
+      msgs.forEach((m) => {
+        const isFromMe = m.senderName === user?.name;
+        if (!isFromMe && user?.uid) {
+          const isViewingThisRoom = currentView.type === 'chat' && activeChatRoom === m.room;
+          if (isViewingThisRoom) {
+            if (m.status !== 'read') {
+              updateDoc(doc(db, 'chat_messages', m.id), { status: 'read' }).catch(() => {});
+            }
+          } else {
+            if (m.status === 'sent') {
+              updateDoc(doc(db, 'chat_messages', m.id), { status: 'delivered' }).catch(() => {});
+            }
+          }
+        }
+
+        // New message Toast alert
+        if (!isFromMe && !notifiedMessagesRef.current.has(m.id)) {
+          notifiedMessagesRef.current.add(m.id);
+          const mTime = m.createdAt?.toMillis ? m.createdAt.toMillis() : Date.now();
+          const ageSeconds = (Date.now() - mTime) / 1000;
+          if (ageSeconds < 15) {
+            const isViewingThisRoom = currentView.type === 'chat' && activeChatRoom === m.room;
+            if (!isViewingThisRoom) {
+              addNotification(
+                `💬 Chat: ${m.room === 'mocambola' ? 'Moçambola' : m.room === 'transferencias' ? 'Transferências' : 'Geral'}`,
+                `${m.senderName}: "${m.text || 'Anexo multimédia'}"`,
+                'sistema'
+              );
+            }
+          }
+        }
+      });
+    }, (error) => console.error("Firestore bg chat listener error:", error));
+
+    return () => unsubscribe();
+  }, [user, currentView, activeChatRoom, lastReadTimestamps]);
+
+  // 3. User Presence updates
+  useEffect(() => {
+    if (!user) {
+      setOnlineUsers([]);
+      return;
+    }
+
+    const presenceRef = doc(db, 'user_presence', user.uid);
+
+    const setOnline = async () => {
+      try {
+        await setDoc(presenceRef, {
+          uid: user.uid,
+          name: user.name,
+          photoUrl: user.photoUrl || '',
+          status: 'online',
+          typingIn: null,
+          lastActive: serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error setting online presence:", err);
+      }
+    };
+
+    const setOffline = async () => {
+      try {
+        await updateDoc(presenceRef, {
+          status: 'offline',
+          typingIn: null
+        });
+      } catch (err) {
+        console.error("Error setting offline presence:", err);
+      }
+    };
+
+    setOnline();
+
+    const heartbeat = setInterval(() => {
+      setDoc(presenceRef, {
+        lastActive: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    }, 45000);
+
+    const handleUnload = () => {
+      setOffline();
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(heartbeat);
+      window.removeEventListener('beforeunload', handleUnload);
+      setOffline();
+    };
+  }, [user]);
+
+  // 4. Listen to other users' presence
+  useEffect(() => {
+    const q = query(collection(db, 'user_presence'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const uList: UserPresence[] = [];
+      snapshot.forEach((snap) => {
+        uList.push(snap.data() as UserPresence);
+      });
+      setOnlineUsers(uList);
+    }, (error) => console.error("Presence listen error:", error));
+
+    return () => unsubscribe();
+  }, []);
+
+  const setMyTypingState = async (room: 'geral' | 'mocambola' | 'transferencias' | null) => {
+    if (!user) return;
+    try {
+      const presenceRef = doc(db, 'user_presence', user.uid);
+      await updateDoc(presenceRef, {
+        typingIn: room
+      });
+    } catch (err) {
+      console.error("Error updating typing state:", err);
+    }
+  };
 
   const loginUser = async (email: string, password?: string, role?: 'User' | 'Admin') => {
     if (!password) {
@@ -1363,6 +1570,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         dbConfig,
         clearAllDatabase,
         restoreDefaultDatabase,
+        
+        // Chat & Presence additions
+        chatUnreadCounts,
+        activeChatRoom,
+        setActiveChatRoom,
+        onlineUsers,
+        setMyTypingState,
         
         // Admin
         addMatch,

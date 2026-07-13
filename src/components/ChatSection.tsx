@@ -17,6 +17,7 @@ interface ChatMessage {
   likes: number;
   userLiked?: boolean;
   isMe?: boolean;
+  status?: 'sent' | 'delivered' | 'read';
 }
 
 const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
@@ -206,8 +207,11 @@ const safeLocalStorage = {
 };
 
 export const ChatSection: React.FC = () => {
-  const { user, navigateTo, dbConfig } = useApp();
-  const [activeRoom, setActiveRoom] = useState<'geral' | 'mocambola' | 'transferencias'>('geral');
+  const { user, navigateTo, dbConfig, activeChatRoom, setActiveChatRoom, chatUnreadCounts, onlineUsers, setMyTypingState } = useApp();
+  const activeRoom = activeChatRoom;
+  const setActiveRoom = (room: 'geral' | 'mocambola' | 'transferencias') => {
+    setActiveChatRoom(room);
+  };
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'video'; name: string } | null>(null);
@@ -215,6 +219,39 @@ export const ChatSection: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputText(e.target.value);
+    if (!user) return;
+
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      setMyTypingState(activeRoom);
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      setMyTypingState(null);
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (user) {
+        setMyTypingState(null);
+      }
+    };
+  }, [user]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -319,6 +356,7 @@ export const ChatSection: React.FC = () => {
           timestamp: data.timestamp || '',
           likes: data.likes || 0,
           userLiked: false,
+          status: data.status || 'sent',
         });
       });
       
@@ -390,6 +428,7 @@ export const ChatSection: React.FC = () => {
         mediaType: mediaToSend ? mediaToSend.type : null,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         likes: 0,
+        status: 'sent',
         createdAt: serverTimestamp()
       });
     } catch (err) {
@@ -445,7 +484,6 @@ export const ChatSection: React.FC = () => {
 
   const rooms = [
     { id: 'geral', label: 'Geral 💬', icon: MessageSquare, description: 'Discussão geral de futebol' },
-    { id: 'mocambola', label: 'Moçambola 🇲🇿', icon: Trophy, description: 'Campeonato Nacional de Futebol' },
     { id: 'transferencias', label: 'Transferências 🔄', icon: Flame, description: 'Rumores, contratações e saídas' },
   ];
 
@@ -472,17 +510,25 @@ export const ChatSection: React.FC = () => {
       <div className="bg-[#1E3A8A] p-2 flex space-x-2 overflow-x-auto shrink-0 select-none scrollbar-hide">
         {rooms.map((room) => {
           const isActive = activeRoom === room.id;
+          const unreadCount = chatUnreadCounts?.[room.id] || 0;
           return (
             <button
               key={room.id}
               onClick={() => setActiveRoom(room.id as any)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center space-x-1.5 ${
                 isActive
                   ? 'bg-white text-[#1E3A8A] shadow-sm'
                   : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
-              {room.label}
+              <span>{room.label}</span>
+              {unreadCount > 0 && (
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full animate-bounce ${
+                  isActive ? 'bg-rose-500 text-white' : 'bg-white text-rose-500'
+                }`}>
+                  {unreadCount}
+                </span>
+              )}
             </button>
           );
         })}
@@ -495,9 +541,10 @@ export const ChatSection: React.FC = () => {
             {rooms.find(r => r.id === activeRoom)?.label.split(' ')[0]} - {rooms.find(r => r.id === activeRoom)?.description}
           </h2>
         </div>
-        <div className="flex items-center space-x-1.5 bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide">
+        <div className="flex items-center space-x-1.5 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide">
+          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
           <Users className="w-3 h-3" />
-          <span>{activeRoom === 'mocambola' ? '241' : activeRoom === 'transferencias' ? '184' : '412'} online</span>
+          <span>{onlineUsers.filter(u => u.status === 'online').length} online</span>
         </div>
       </div>
 
@@ -520,12 +567,17 @@ export const ChatSection: React.FC = () => {
                 }`}
               >
                 {/* Avatar */}
-                <img
-                  src={msg.senderAvatar}
-                  alt={msg.senderName}
-                  className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 shrink-0 select-none bg-slate-100 dark:bg-slate-900"
-                  referrerPolicy="no-referrer"
-                />
+                <div className="relative shrink-0 select-none">
+                  <img
+                    src={msg.senderAvatar}
+                    alt={msg.senderName}
+                    className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900"
+                    referrerPolicy="no-referrer"
+                  />
+                  {onlineUsers.some((u) => u.name === msg.senderName && u.status === 'online') && (
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border border-white dark:border-[#0F172A] rounded-full animate-pulse" />
+                  )}
+                </div>
 
                 {/* Bubble Container */}
                 <div className="space-y-1">
@@ -584,7 +636,20 @@ export const ChatSection: React.FC = () => {
                     
                     {/* Timestamp & Likes overlay */}
                     <div className="mt-1 flex items-center justify-between gap-4 text-[9px] opacity-75">
-                      <span>{msg.timestamp}</span>
+                      <div className="flex items-center space-x-1 select-none">
+                        <span>{msg.timestamp}</span>
+                        {isMyMsg && (
+                          <span className="inline-flex items-center font-bold">
+                            {msg.status === 'read' ? (
+                              <span className="text-sky-300 ml-0.5" title="Lida">✓✓</span>
+                            ) : msg.status === 'delivered' ? (
+                              <span className="text-slate-300 ml-0.5" title="Entregue">✓✓</span>
+                            ) : (
+                              <span className="text-slate-400 ml-0.5" title="Enviada">✓</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       
                       {/* Like button */}
                       <button
@@ -666,6 +731,26 @@ export const ChatSection: React.FC = () => {
         </div>
       )}
 
+      {/* Typing Indicator Bar */}
+      {(() => {
+        const typingUsers = onlineUsers.filter(
+          (u) => u.typingIn === activeRoom && u.uid !== user?.uid && u.status === 'online'
+        );
+        if (typingUsers.length === 0) return null;
+        return (
+          <div className="px-4 py-1.5 bg-emerald-500/5 dark:bg-emerald-500/10 border-t border-slate-100 dark:border-slate-800 flex items-center space-x-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium italic shrink-0 select-none">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span>
+              {typingUsers.length === 1
+                ? `${typingUsers[0].name} está digitando...`
+                : typingUsers.length === 2
+                ? `${typingUsers[0].name} e ${typingUsers[1].name} estão digitando...`
+                : "Várias pessoas estão digitando..."}
+            </span>
+          </div>
+        );
+      })()}
+
       {/* Text input form */}
       {!user ? (
         <div className="p-4 bg-slate-50 dark:bg-[#0F172A] border-t border-slate-200 dark:border-slate-800/80 text-center space-y-2">
@@ -712,7 +797,7 @@ export const ChatSection: React.FC = () => {
           <input
             type="text"
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange}
             placeholder={attachedMedia ? "Adicione uma legenda..." : "Digite sua mensagem de futebol..."}
             className="flex-1 bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-[#1E3A8A] focus:border-transparent placeholder:text-slate-400 font-medium"
           />

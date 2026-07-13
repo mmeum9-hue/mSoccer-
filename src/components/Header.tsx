@@ -97,7 +97,7 @@ export const Header: React.FC = () => {
             className="inline-block text-[10px] font-extrabold bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white whitespace-nowrap tracking-wide cursor-pointer transition-all border border-white/10 select-none"
             title="Informações do Criador"
           >
-            criador: djumã
+            by: djumã
           </button>
           
           <button

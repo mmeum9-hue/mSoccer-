@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A single community chat message",
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "The chat room/channel ID"
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Name of the sender"
+        },
+        "senderTeam": {
+          "type": "string",
+          "description": "The soccer team of the sender"
+        },
+        "senderAvatar": {
+          "type": "string",
+          "description": "URL to the sender avatar"
+        },
+        "text": {
+          "type": "string",
+          "description": "The message body"
+        },
+        "mediaUrl": {
+          "type": "string",
+          "description": "Optional attached image or video URL"
+        },
+        "mediaType": {
+          "type": "string",
+          "description": "The type of attached media"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Human-readable local time"
+        },
+        "likes": {
+          "type": "number",
+          "description": "Number of hearts received"
+        },
+        "status": {
+          "type": "string",
+          "description": "Delivery status of the message",
+          "enum": ["sent", "delivered", "read"]
+        }
+      },
+      "required": ["room", "senderName", "text"]
+    },
+    "UserPresence": {
+      "title": "UserPresence",
+      "description": "Real-time presence and typing status of a user",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User unique identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name"
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Avatar URL"
+        },
+        "status": {
+          "type": "string",
+          "description": "Whether the user is online or offline",
+          "enum": ["online", "offline"]
+        },
+        "typingIn": {
+          "type": "string",
+          "description": "The chat room ID the user is currently typing in, or null"
+        }
+      },
+      "required": ["uid", "name", "status"]
+    }
+  },
+  "firestore": {
+    "/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Store all community chat messages"
+    },
+    "/user_presence/{userId}": {
+      "schema": "UserPresence",
+      "description": "Store real-time online status and typing activity"
+    }
+  }
+}

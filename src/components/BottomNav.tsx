@@ -3,10 +3,11 @@ import { useApp } from '../context/AppContext';
 import { Trophy, Heart, MessageCircleMore, ListOrdered, BookOpen, BellRing, User } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
-  const { currentView, navigateTo, notifications } = useApp();
+  const { currentView, navigateTo, notifications, chatUnreadCounts } = useApp();
 
   const activeTab = currentView.type;
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const totalChatUnread = (Object.values(chatUnreadCounts || {}).reduce((acc: number, val: any) => acc + Number(val || 0), 0)) as number;
 
   // We map the mSoccer-like tabs to our existing App views including Perfil
   const tabs = [
@@ -57,6 +58,11 @@ export const BottomNav: React.FC = () => {
                 {tab.type === 'notificacoes' && unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
                     {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                {tab.type === 'chat' && totalChatUnread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                    {totalChatUnread > 9 ? '9+' : totalChatUnread}
                   </span>
                 )}
               </div>
