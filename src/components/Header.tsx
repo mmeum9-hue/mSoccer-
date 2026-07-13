@@ -30,6 +30,7 @@ export const Header: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showCreatorModal, setShowCreatorModal] = useState(false);
+  const [secretClicks, setSecretClicks] = useState(0);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -93,7 +94,17 @@ export const Header: React.FC = () => {
         </div>        {/* Right: Creator Info & Search */}
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setShowCreatorModal(true)}
+            onClick={() => {
+              setSecretClicks((prev) => {
+                const next = prev + 1;
+                if (next >= 5) {
+                  navigateTo({ type: 'admin' });
+                  return 0;
+                }
+                return next;
+              });
+              setShowCreatorModal(true);
+            }}
             className="inline-block text-[10px] font-extrabold bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white whitespace-nowrap tracking-wide cursor-pointer transition-all border border-white/10 select-none"
             title="Informações do Criador"
           >
@@ -195,19 +206,6 @@ export const Header: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {user.role === 'Admin' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigateTo({ type: 'admin' });
-                          setDrawerOpen(false);
-                        }}
-                        className="p-1.5 bg-blue-100 text-[#1E3A8A] rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
-                        title="Painel Admin"
-                      >
-                        <Sliders className="w-4 h-4" />
-                      </button>
-                    )}
                     <ChevronRight className="w-4 h-4 text-zinc-400" />
                   </div>
                 </div>
@@ -621,7 +619,14 @@ export const Header: React.FC = () => {
               </button>
               
               <div className="flex flex-col items-center text-center mt-2">
-                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center border-2 border-white/20 shadow-inner text-3xl mb-3">
+                <div 
+                  onClick={() => {
+                    navigateTo({ type: 'admin' });
+                    setShowCreatorModal(false);
+                  }}
+                  className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center border-2 border-white/20 shadow-inner text-3xl mb-3 cursor-pointer hover:bg-white/20 hover:scale-105 transition-all"
+                  title="Painel Admin Secreto"
+                >
                   👨‍💻
                 </div>
                 <h3 className="font-sans font-black text-lg tracking-wider">mSoccer Criador</h3>

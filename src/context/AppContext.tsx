@@ -604,6 +604,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
+  // Mirror lastReadTimestamps, user, currentView, and activeChatRoom in Refs to avoid resubscribing onSnapshot when they change
+  const lastReadTimestampsRef = React.useRef(lastReadTimestamps);
+  useEffect(() => {
+    lastReadTimestampsRef.current = lastReadTimestamps;
+  }, [lastReadTimestamps]);
+
+  const userRef = React.useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const currentViewRef = React.useRef(currentView);
+  useEffect(() => {
+    currentViewRef.current = currentView;
+  }, [currentView]);
+
+  const activeChatRoomRef = React.useRef(activeChatRoom);
+  useEffect(() => {
+    activeChatRoomRef.current = activeChatRoom;
+  }, [activeChatRoom]);
+
   // 1. Mark active room as read and clear unread counts
   useEffect(() => {
     if (currentView.type === 'chat') {
@@ -617,6 +638,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 2. Background Chat Messages Listener (unread tracker, statuses, and Toast alerts)
   const notifiedMessagesRef = React.useRef<Set<string>>(new Set());
+  const isInitialRef = React.useRef(true);
 
   useEffect(() => {
     const q = query(
@@ -640,16 +662,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
+      const currentRoom = activeChatRoomRef.current;
+      const viewingChat = currentViewRef.current.type === 'chat';
+
+      // If currently viewing the chat room, automatically update the lastReadTimestamp to Date.now()
+      // to keep it synchronized in real-time, preventing unread counts from increasing or reverting
+      if (viewingChat) {
+        const now = Date.now();
+        const lastReadVal = lastReadTimestampsRef.current[currentRoom] || 0;
+        if (now - lastReadVal > 2000) {
+          setLastReadTimestamps(prev => ({ ...prev, [currentRoom]: now }));
+          safeLocalStorage.setItem(`msoccer_last_read_${currentRoom}`, String(now));
+        }
+      }
+
       // Recalculate unread counts
       const counts = { geral: 0, mocambola: 0, transferencias: 0 };
       Object.keys(messagesByRoom).forEach((r) => {
         const roomMsgs = messagesByRoom[r];
-        const lastRead = lastReadTimestamps[r] || 0;
+        const lastRead = lastReadTimestampsRef.current[r] || 0;
         let unread = 0;
 
         roomMsgs.forEach((m) => {
-          const mTime = m.createdAt?.toMillis ? m.createdAt.toMillis() : Date.now();
-          const isFromMe = m.senderName === user?.name;
+          const mTime = m.createdAt?.toMillis ? m.createdAt.toMillis() : (m.createdAt ? new Date(m.createdAt).getTime() : Date.now());
+          const isFromMe = m.senderName === userRef.current?.name;
           if (!isFromMe && mTime > lastRead) {
             unread++;
           }
@@ -658,16 +694,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       // If viewing chat, active room has 0 unread
-      if (currentView.type === 'chat') {
-        counts[activeChatRoom] = 0;
+      if (viewingChat) {
+        counts[currentRoom] = 0;
       }
       setChatUnreadCounts(counts);
 
-      // Status updates & in-app Toast notifications
+      // Handle initial load mapping
+      if (isInitialRef.current) {
+        msgs.forEach((m) => {
+          notifiedMessagesRef.current.add(m.id);
+        });
+        isInitialRef.current = false;
+      } else {
+        // Live updates / New incoming messages
+        msgs.forEach((m) => {
+          const isFromMe = m.senderName === userRef.current?.name;
+          if (!notifiedMessagesRef.current.has(m.id)) {
+            notifiedMessagesRef.current.add(m.id);
+            if (!isFromMe) {
+              const isViewingThisRoom = viewingChat && currentRoom === m.room;
+              if (!isViewingThisRoom) {
+                const roomLabel = m.room === 'transferencias' ? 'Transferências' : m.room === 'mocambola' ? 'Moçambola' : 'Geral';
+                addNotification(
+                  `💬 Chat: ${roomLabel}`,
+                  `${m.senderName}: "${m.text || 'Anexo multimédia'}"`,
+                  'sistema'
+                );
+              }
+            }
+          }
+        });
+      }
+
+      // Status updates in Firestore
       msgs.forEach((m) => {
-        const isFromMe = m.senderName === user?.name;
-        if (!isFromMe && user?.uid) {
-          const isViewingThisRoom = currentView.type === 'chat' && activeChatRoom === m.room;
+        const isFromMe = m.senderName === userRef.current?.name;
+        if (!isFromMe && userRef.current?.uid) {
+          const isViewingThisRoom = viewingChat && currentRoom === m.room;
           if (isViewingThisRoom) {
             if (m.status !== 'read') {
               updateDoc(doc(db, 'chat_messages', m.id), { status: 'read' }).catch(() => {});
@@ -678,28 +741,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
         }
-
-        // New message Toast alert
-        if (!isFromMe && !notifiedMessagesRef.current.has(m.id)) {
-          notifiedMessagesRef.current.add(m.id);
-          const mTime = m.createdAt?.toMillis ? m.createdAt.toMillis() : Date.now();
-          const ageSeconds = (Date.now() - mTime) / 1000;
-          if (ageSeconds < 15) {
-            const isViewingThisRoom = currentView.type === 'chat' && activeChatRoom === m.room;
-            if (!isViewingThisRoom) {
-              addNotification(
-                `💬 Chat: ${m.room === 'mocambola' ? 'Moçambola' : m.room === 'transferencias' ? 'Transferências' : 'Geral'}`,
-                `${m.senderName}: "${m.text || 'Anexo multimédia'}"`,
-                'sistema'
-              );
-            }
-          }
-        }
       });
     }, (error) => console.error("Firestore bg chat listener error:", error));
 
     return () => unsubscribe();
-  }, [user, currentView, activeChatRoom, lastReadTimestamps]);
+  }, []);
 
   // 3. User Presence updates
   useEffect(() => {
@@ -726,6 +772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const setOffline = async () => {
+      if (!auth.currentUser) return;
       try {
         await updateDoc(presenceRef, {
           status: 'offline',
@@ -863,6 +910,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutUser = async () => {
+    if (user) {
+      try {
+        const presenceRef = doc(db, 'user_presence', user.uid);
+        await updateDoc(presenceRef, {
+          status: 'offline',
+          typingIn: null
+        });
+      } catch (err) {
+        // Safe to ignore or log minimally
+      }
+    }
     await signOut(auth);
     setUser(null);
     addNotification('Logout', 'Sessão encerrada com sucesso.', 'sistema');

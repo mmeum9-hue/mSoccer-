@@ -484,6 +484,7 @@ export const ChatSection: React.FC = () => {
 
   const rooms = [
     { id: 'geral', label: 'Geral 💬', icon: MessageSquare, description: 'Discussão geral de futebol' },
+    { id: 'mocambola', label: 'Moçambola 🏆', icon: Trophy, description: 'Discussão sobre o campeonato nacional' },
     { id: 'transferencias', label: 'Transferências 🔄', icon: Flame, description: 'Rumores, contratações e saídas' },
   ];
 

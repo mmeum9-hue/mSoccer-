@@ -555,54 +555,7 @@ export const ProfileSection: React.FC = () => {
         )}
       </div>
 
-      {/* 1b. Admin Access Activation (If user is not Admin yet) */}
-      {user.role !== 'Admin' && (
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center space-x-2">
-            <Lock className="w-5 h-5 text-[#1E3A8A]" />
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
-              Ativar Painel de Administração
-            </h3>
-          </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-            Se você possui a chave de acesso, digite-a abaixo para obter permissão de Administrador e gerenciar os placares, times, ligas e chats.
-          </p>
-          <div className="max-w-md space-y-3">
-            <div className="flex gap-2">
-              <input
-                type="password"
-                placeholder="Senha de Acesso"
-                value={profileAdminKey}
-                onChange={(e) => {
-                  setProfileAdminKey(e.target.value);
-                  setProfileAdminError(null);
-                }}
-                className="flex-1 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/60 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 text-zinc-900 dark:text-white"
-              />
-              <button
-                onClick={async () => {
-                  if (profileAdminKey === 'djuma94') {
-                    setProfileAdminError(null);
-                    setProfileAdminSuccess(true);
-                    await updateUserRole('Admin');
-                  } else {
-                    setProfileAdminError('Senha incorreta! Verifique as credenciais.');
-                  }
-                }}
-                className="px-4 py-2 bg-[#1E3A8A] hover:bg-[#172554] text-white rounded-xl text-xs font-bold cursor-pointer transition-all"
-              >
-                Validar
-              </button>
-            </div>
-            {profileAdminError && (
-              <p className="text-xs text-rose-500 font-semibold">{profileAdminError}</p>
-            )}
-            {profileAdminSuccess && (
-              <p className="text-xs text-emerald-500 font-semibold">🎉 Sucesso! Acesso de Administrador ativado.</p>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Admin Access Activation hidden */}
 
       {/* 2. Language & App Preferences */}
       <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
