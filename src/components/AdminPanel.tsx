@@ -180,6 +180,22 @@ export const AdminPanel: React.FC = () => {
   const [newPlayerHeight, setNewPlayerHeight] = useState('1.80 m');
   const [newPlayerPhoto, setNewPlayerPhoto] = useState('');
 
+  // Editing player stats/history states
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [editPlayerMatches, setEditPlayerMatches] = useState<number>(0);
+  const [editPlayerGoals, setEditPlayerGoals] = useState<number>(0);
+  const [editPlayerAssists, setEditPlayerAssists] = useState<number>(0);
+  const [editPlayerMinutes, setEditPlayerMinutes] = useState<number>(0);
+  const [editPlayerYellowCards, setEditPlayerYellowCards] = useState<number>(0);
+  const [editPlayerRedCards, setEditPlayerRedCards] = useState<number>(0);
+
+  // History editing states
+  const [editPlayerHistory, setEditPlayerHistory] = useState<{ season: string; club: string; matches: number; goals: number }[]>([]);
+  const [newHistorySeason, setNewHistorySeason] = useState('');
+  const [newHistoryClub, setNewHistoryClub] = useState('');
+  const [newHistoryMatches, setNewHistoryMatches] = useState(0);
+  const [newHistoryGoals, setNewHistoryGoals] = useState(0);
+
   // Form states - Championship Creation
   const [newChampName, setNewChampName] = useState('');
   const [newChampType, setNewChampType] = useState<'Liga' | 'Copa' | 'Internacional'>('Liga');
@@ -832,6 +848,61 @@ export const AdminPanel: React.FC = () => {
     setNewsSummary('');
     setNewsContent('');
     setNewsImageUrl('');
+  };
+
+  const handleStartEditingPlayerStats = (player: Player) => {
+    setEditingPlayerId(player.id);
+    setEditPlayerMatches(player.stats?.matches ?? 0);
+    setEditPlayerGoals(player.stats?.goals ?? 0);
+    setEditPlayerAssists(player.stats?.assists ?? 0);
+    setEditPlayerMinutes(player.stats?.minutesPlayed ?? 0);
+    setEditPlayerYellowCards(player.stats?.yellowCards ?? 0);
+    setEditPlayerRedCards(player.stats?.redCards ?? 0);
+    setEditPlayerHistory(player.history ?? []);
+    setNewHistorySeason('');
+    setNewHistoryClub(player.clubName || '');
+    setNewHistoryMatches(0);
+    setNewHistoryGoals(0);
+  };
+
+  const handleSavePlayerStatsAndHistory = (playerId: string) => {
+    const player = players.find((p) => p.id === playerId);
+    if (!player) return;
+
+    const updatedPlayer: Player = {
+      ...player,
+      stats: {
+        matches: Number(editPlayerMatches),
+        goals: Number(editPlayerGoals),
+        assists: Number(editPlayerAssists),
+        minutesPlayed: Number(editPlayerMinutes),
+        yellowCards: Number(editPlayerYellowCards),
+        redCards: Number(editPlayerRedCards),
+      },
+      history: editPlayerHistory
+    };
+
+    updatePlayer(updatedPlayer);
+    addLog('Estatísticas do Atleta atualizadas', player.name, 'bg-teal-500');
+    setEditingPlayerId(null);
+  };
+
+  const handleAddHistoryEntry = () => {
+    if (!newHistorySeason || !newHistoryClub) return;
+    const entry = {
+      season: newHistorySeason,
+      club: newHistoryClub,
+      matches: Number(newHistoryMatches),
+      goals: Number(newHistoryGoals)
+    };
+    setEditPlayerHistory([...editPlayerHistory, entry]);
+    setNewHistorySeason('');
+    setNewHistoryMatches(0);
+    setNewHistoryGoals(0);
+  };
+
+  const handleRemoveHistoryEntry = (index: number) => {
+    setEditPlayerHistory(editPlayerHistory.filter((_, idx) => idx !== index));
   };
 
   const handleStartEditingClubStats = (club: Club) => {
@@ -3247,52 +3318,251 @@ export const AdminPanel: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-800/40">
                       {filteredPlayers.map((player) => (
-                        <tr key={player.id} className="hover:bg-slate-800/20 text-zinc-300">
-                          <td className="py-2.5">
-                            <label className="relative cursor-pointer group block w-7 h-7" title="Clique para alterar a foto">
-                              <img src={player.photoUrl} alt="" className="w-7 h-7 rounded-full bg-slate-800 object-cover group-hover:opacity-75 transition-opacity" />
-                              <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-white text-[6px] bg-black/50 rounded-full font-black">FOTO</span>
+                        <React.Fragment key={player.id}>
+                          <tr className="hover:bg-slate-800/20 text-zinc-300 border-b border-slate-800/20">
+                            <td className="py-2.5">
+                              <label className="relative cursor-pointer group block w-7 h-7" title="Clique para alterar a foto">
+                                <img src={player.photoUrl} alt="" className="w-7 h-7 rounded-full bg-slate-800 object-cover group-hover:opacity-75 transition-opacity" />
+                                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-white text-[6px] bg-black/50 rounded-full font-black">FOTO</span>
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onload = (event) => {
+                                        if (event.target?.result) {
+                                          updatePlayer({ ...player, photoUrl: event.target.result as string });
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </td>
+                            <td className="py-2.5 font-bold text-white">{player.name}</td>
+                            <td className="py-2.5 font-semibold text-zinc-400">{player.clubName}</td>
+                            <td className="py-2.5">{player.position}</td>
+                            <td className="py-2.5 font-mono">{player.number}</td>
+                            <td className="py-2.5">
                               <input 
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onload = (event) => {
-                                      if (event.target?.result) {
-                                        updatePlayer({ ...player, photoUrl: event.target.result as string });
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
+                                type="text" 
+                                value={player.height || '1.80 m'} 
+                                onChange={(e) => updatePlayer({ ...player, height: e.target.value })} 
+                                className="w-16 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[11px] text-center text-white"
                               />
-                            </label>
-                          </td>
-                          <td className="py-2.5 font-bold text-white">{player.name}</td>
-                          <td className="py-2.5 font-semibold text-zinc-400">{player.clubName}</td>
-                          <td className="py-2.5">{player.position}</td>
-                          <td className="py-2.5 font-mono">{player.number}</td>
-                          <td className="py-2.5">
-                            <input 
-                              type="text" 
-                              value={player.height || '1.80 m'} 
-                              onChange={(e) => updatePlayer({ ...player, height: e.target.value })} 
-                              className="w-16 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[11px] text-center text-white"
-                            />
-                          </td>
-                          <td className="py-2.5 font-mono font-bold text-emerald-400">{player.marketValue}</td>
-                          <td className="py-2.5 text-right">
-                            <button
-                              onClick={() => deletePlayer(player.id)}
-                              className="text-rose-500 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="py-2.5 font-mono font-bold text-emerald-400">{player.marketValue}</td>
+                            <td className="py-2.5 text-right flex items-center justify-end space-x-1">
+                              <button
+                                onClick={() => handleStartEditingPlayerStats(player)}
+                                className="text-emerald-500 hover:text-emerald-400 p-1.5 hover:bg-slate-800 rounded cursor-pointer"
+                                title="Editar Estatísticas e Histórico"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => deletePlayer(player.id)}
+                                className="text-rose-500 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded cursor-pointer"
+                                title="Excluir Jogador"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+
+                          {editingPlayerId === player.id && (
+                            <tr className="bg-slate-900/60 border-l-4 border-emerald-500">
+                              <td colSpan={8} className="p-4 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {/* Season Stats Form */}
+                                  <div className="space-y-3 bg-[#0F172A] p-4 rounded-xl border border-slate-800">
+                                    <h4 className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-800 pb-2">
+                                      <Activity className="w-3.5 h-3.5" />
+                                      <span>Estatísticas da Temporada</span>
+                                    </h4>
+                                    
+                                    <div className="grid grid-cols-3 gap-3">
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Jogos</label>
+                                        <input 
+                                          type="number" 
+                                          value={editPlayerMatches}
+                                          onChange={(e) => setEditPlayerMatches(Number(e.target.value))}
+                                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Gols</label>
+                                        <input 
+                                          type="number" 
+                                          value={editPlayerGoals}
+                                          onChange={(e) => setEditPlayerGoals(Number(e.target.value))}
+                                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Assis.</label>
+                                        <input 
+                                          type="number" 
+                                          value={editPlayerAssists}
+                                          onChange={(e) => setEditPlayerAssists(Number(e.target.value))}
+                                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Minutos</label>
+                                        <input 
+                                          type="number" 
+                                          value={editPlayerMinutes}
+                                          onChange={(e) => setEditPlayerMinutes(Number(e.target.value))}
+                                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Amarelos</label>
+                                        <input 
+                                          type="number" 
+                                          value={editPlayerYellowCards}
+                                          onChange={(e) => setEditPlayerYellowCards(Number(e.target.value))}
+                                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Vermelhos</label>
+                                        <input 
+                                          type="number" 
+                                          value={editPlayerRedCards}
+                                          onChange={(e) => setEditPlayerRedCards(Number(e.target.value))}
+                                          className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Career History Form */}
+                                  <div className="space-y-3 bg-[#0F172A] p-4 rounded-xl border border-slate-800">
+                                    <h4 className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-800 pb-2">
+                                      <Award className="w-3.5 h-3.5" />
+                                      <span>Histórico de Carreira</span>
+                                    </h4>
+
+                                    {/* Existing History Table */}
+                                    {editPlayerHistory.length > 0 ? (
+                                      <div className="max-h-28 overflow-y-auto border border-slate-800 rounded mb-2">
+                                        <table className="w-full text-left text-[10px]">
+                                          <thead>
+                                            <tr className="bg-slate-950 text-zinc-500 font-black border-b border-slate-800">
+                                              <th className="px-2 py-1">Temp.</th>
+                                              <th className="px-2 py-1">Clube</th>
+                                              <th className="px-2 py-1 text-center">Part.</th>
+                                              <th className="px-2 py-1 text-center">Gols</th>
+                                              <th className="px-2 py-1 text-right">Ação</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-slate-800/60">
+                                            {editPlayerHistory.map((hist, hIdx) => (
+                                              <tr key={hIdx} className="text-zinc-300 hover:bg-slate-900">
+                                                <td className="px-2 py-1 font-mono">{hist.season}</td>
+                                                <td className="px-2 py-1 truncate max-w-[100px]">{hist.club}</td>
+                                                <td className="px-2 py-1 text-center font-mono">{hist.matches}</td>
+                                                <td className="px-2 py-1 text-center font-mono text-emerald-400 font-bold">{hist.goals}</td>
+                                                <td className="px-2 py-1 text-right">
+                                                  <button 
+                                                    type="button"
+                                                    onClick={() => handleRemoveHistoryEntry(hIdx)}
+                                                    className="text-rose-500 hover:text-rose-400 p-0.5 cursor-pointer"
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    ) : (
+                                      <p className="text-[10px] text-zinc-500 italic py-2">Nenhum histórico de carreira cadastrado.</p>
+                                    )}
+
+                                    {/* Add History Entry Inputs */}
+                                    <div className="bg-slate-950 p-3 rounded border border-slate-800 space-y-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                          <label className="text-[8px] text-zinc-500 font-bold block uppercase">Temporada</label>
+                                          <input 
+                                            type="text" 
+                                            placeholder="Ex: 2025"
+                                            value={newHistorySeason}
+                                            onChange={(e) => setNewHistorySeason(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[8px] text-zinc-500 font-bold block uppercase">Clube</label>
+                                          <input 
+                                            type="text" 
+                                            placeholder="Ex: CR Flamengo"
+                                            value={newHistoryClub}
+                                            onChange={(e) => setNewHistoryClub(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                          <label className="text-[8px] text-zinc-500 font-bold block uppercase">Partidas</label>
+                                          <input 
+                                            type="number" 
+                                            value={newHistoryMatches}
+                                            onChange={(e) => setNewHistoryMatches(Number(e.target.value))}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[8px] text-zinc-500 font-bold block uppercase">Gols</label>
+                                          <input 
+                                            type="number" 
+                                            value={newHistoryGoals}
+                                            onChange={(e) => setNewHistoryGoals(Number(e.target.value))}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white"
+                                          />
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={handleAddHistoryEntry}
+                                        className="w-full py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded text-[9px] font-bold border border-emerald-500/30 uppercase cursor-pointer transition-colors"
+                                      >
+                                        + Adicionar ao Histórico
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingPlayerId(null)}
+                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSavePlayerStatsAndHistory(player.id)}
+                                    className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                                  >
+                                    Salvar Alterações
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>

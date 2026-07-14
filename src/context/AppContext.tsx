@@ -1461,6 +1461,229 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [matches]);
 
+  // Automatically apply finished match statistics to player season stats
+  useEffect(() => {
+    const applyPendingMatchStats = async () => {
+      const pendingMatches = matches.filter(
+        (m) => m.status === MatchStatus.FINISHED && !m.statsApplied
+      );
+      if (pendingMatches.length === 0) return;
+
+      for (const match of pendingMatches) {
+        console.log(`Applying stats for match ${match.id}...`);
+        
+        try {
+          await runTransaction(db, async (transaction) => {
+            const matchDocRef = doc(db, 'matches', match.id);
+            
+            const matchSnap = await transaction.get(matchDocRef);
+            if (!matchSnap.exists()) return;
+            
+            const currentMatch = matchSnap.data() as Match;
+            if (currentMatch.statsApplied) return; // Prevent double application across clients
+
+            // 1. Gather player updates
+            const playersToUpdate = new Map<string, {
+              matches: number;
+              goals: number;
+              assists: number;
+              yellowCards: number;
+              redCards: number;
+              minutesPlayed: number;
+            }>();
+
+            const findBestPlayerMatch = (name: string) => {
+              const normalized = name.trim().toLowerCase();
+              // A. Exact match of name or ID
+              let matched = players.find(p => p.name.toLowerCase() === normalized || p.id === normalized.replace(/\s+/g, '_'));
+              if (matched) return matched;
+
+              // B. Exact match of a sub-word
+              matched = players.find(p => {
+                const dbNameLower = p.name.toLowerCase();
+                const words = dbNameLower.split(/\s+/);
+                return words.includes(normalized);
+              });
+              if (matched) return matched;
+
+              // C. Query name contains db name
+              matched = players.find(p => {
+                const dbNameLower = p.name.toLowerCase();
+                const queryWords = normalized.split(/\s+/);
+                return queryWords.includes(dbNameLower);
+              });
+              if (matched) return matched;
+
+              // D. Substring or initials matching e.g. "G. De Arrascaeta" with "Giorgian De Arrascaeta"
+              const queryParts = normalized.split(/\s+/).filter(part => part.length > 1 && !part.endsWith('.'));
+              if (queryParts.length > 0) {
+                matched = players.find(p => {
+                  const dbNameLower = p.name.toLowerCase();
+                  return queryParts.every(part => dbNameLower.includes(part));
+                });
+                if (matched) return matched;
+              }
+
+              // E. Fallback contains check
+              matched = players.find(p => p.name.toLowerCase().includes(normalized) || normalized.includes(p.name.toLowerCase()));
+              return matched || null;
+            };
+
+            const getOrCreatePlayerUpdate = (playerName: string) => {
+              const p = findBestPlayerMatch(playerName);
+              if (!p) return null;
+              if (!playersToUpdate.has(p.id)) {
+                playersToUpdate.set(p.id, {
+                  matches: 0,
+                  goals: 0,
+                  assists: 0,
+                  yellowCards: 0,
+                  redCards: 0,
+                  minutesPlayed: 0
+                });
+              }
+              return { player: p, update: playersToUpdate.get(p.id)! };
+            };
+
+            const homeStarting = currentMatch.lineups?.home?.starting || [];
+            const awayStarting = currentMatch.lineups?.away?.starting || [];
+
+            homeStarting.forEach((lp) => {
+              const res = getOrCreatePlayerUpdate(lp.name);
+              if (res) {
+                res.update.matches += 1;
+                res.update.minutesPlayed += 90;
+              }
+            });
+            awayStarting.forEach((lp) => {
+              const res = getOrCreatePlayerUpdate(lp.name);
+              if (res) {
+                res.update.matches += 1;
+                res.update.minutesPlayed += 90;
+              }
+            });
+
+            const subs = currentMatch.events.filter(e => e.type === 'Substitution');
+            subs.forEach((sub) => {
+              const offRes = getOrCreatePlayerUpdate(sub.player1);
+              const onRes = sub.player2 ? getOrCreatePlayerUpdate(sub.player2) : null;
+              const minute = sub.minute || 45;
+
+              if (offRes) {
+                offRes.update.minutesPlayed -= (90 - minute);
+              }
+              if (onRes) {
+                onRes.update.matches += 1;
+                onRes.update.minutesPlayed += (90 - minute);
+              }
+            });
+
+            currentMatch.events.forEach((ev) => {
+              if (ev.type === 'Goal') {
+                if (ev.player1) {
+                  const res = getOrCreatePlayerUpdate(ev.player1);
+                  if (res) res.update.goals += 1;
+                }
+                if (ev.player2) {
+                  const res = getOrCreatePlayerUpdate(ev.player2);
+                  if (res) res.update.assists += 1;
+                }
+              } else if (ev.type === 'YellowCard') {
+                if (ev.player1) {
+                  const res = getOrCreatePlayerUpdate(ev.player1);
+                  if (res) res.update.yellowCards += 1;
+                }
+              } else if (ev.type === 'RedCard') {
+                if (ev.player1) {
+                  const res = getOrCreatePlayerUpdate(ev.player1);
+                  if (res) res.update.redCards += 1;
+                }
+              }
+            });
+
+            // Phase 1: Re-read all player documents inside the transaction BEFORE any writes
+            const playerSnaps = new Map<string, any>();
+            for (const playerId of playersToUpdate.keys()) {
+              const playerDocRef = doc(db, 'players', playerId);
+              const playerSnap = await transaction.get(playerDocRef);
+              if (playerSnap.exists()) {
+                playerSnaps.set(playerId, playerSnap.data());
+              }
+            }
+
+            // Phase 2: Apply calculations and perform all writes after all reads have finished
+            for (const [playerId, update] of playersToUpdate.entries()) {
+              const p = playerSnaps.get(playerId);
+              if (p) {
+                const playerDocRef = doc(db, 'players', playerId);
+                
+                // Ensure values stay valid
+                const finalMatches = (p.stats?.matches || 0) + Math.max(0, update.matches);
+                const finalGoals = (p.stats?.goals || 0) + Math.max(0, update.goals);
+                const finalAssists = (p.stats?.assists || 0) + Math.max(0, update.assists);
+                const finalYellowCards = (p.stats?.yellowCards || 0) + Math.max(0, update.yellowCards);
+                const finalRedCards = (p.stats?.redCards || 0) + Math.max(0, update.redCards);
+                const finalMinutesPlayed = (p.stats?.minutesPlayed || 0) + Math.max(0, update.minutesPlayed);
+
+                // Determine current season year (e.g. 2026)
+                const currentSeason = currentMatch.championshipName?.includes('2026') || currentMatch.date?.startsWith('2026') ? '2026' : (new Date().getFullYear().toString());
+                
+                const historyList = p.history ? [...p.history] : [];
+                const existingHistIdx = historyList.findIndex(h => h.season === currentSeason && h.club === p.clubName);
+                
+                if (existingHistIdx >= 0) {
+                  historyList[existingHistIdx] = {
+                    ...historyList[existingHistIdx],
+                    matches: (historyList[existingHistIdx].matches || 0) + Math.max(0, update.matches),
+                    goals: (historyList[existingHistIdx].goals || 0) + Math.max(0, update.goals),
+                  };
+                } else {
+                  historyList.push({
+                    season: currentSeason,
+                    club: p.clubName || 'Sem Clube',
+                    matches: Math.max(0, update.matches),
+                    goals: Math.max(0, update.goals),
+                  });
+                }
+
+                const updatedPlayer: Player = {
+                  ...p,
+                  stats: {
+                    matches: finalMatches,
+                    goals: finalGoals,
+                    assists: finalAssists,
+                    yellowCards: finalYellowCards,
+                    redCards: finalRedCards,
+                    minutesPlayed: finalMinutesPlayed
+                  },
+                  history: historyList
+                };
+
+                transaction.set(playerDocRef, cleanUndefined(updatedPlayer));
+              }
+            }
+
+            // Mark match as statsApplied = true
+            transaction.update(matchDocRef, { statsApplied: true });
+          });
+          
+          console.log(`Successfully applied stats for match ${match.id}.`);
+          addNotification(
+            'Estatísticas Aplicadas',
+            `As estatísticas de ${match.homeClubName} vs ${match.awayClubName} foram computadas aos atletas com sucesso!`,
+            'sistema'
+          );
+        } catch (err) {
+          console.error("Failed to apply pending match stats:", err);
+        }
+      }
+    };
+
+    if (players.length > 0 && matches.length > 0) {
+      applyPendingMatchStats();
+    }
+  }, [matches, players]);
+
   // Concurrent-safe, Decentralized Live Match Ticker
   useEffect(() => {
     if (liveSimSpeed === 'off') return;

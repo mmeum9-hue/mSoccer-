@@ -176,6 +176,7 @@ export interface Match {
   isPaused?: boolean;
   lastTickAt?: number;
   htStartedAt?: number;
+  statsApplied?: boolean;
 }
 
 export interface NewsArticle {
