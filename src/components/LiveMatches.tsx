@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
-import { MatchStatus, Match } from '../types';
+import { MatchStatus, Match, formatMatchMinute } from '../types';
 import { Star, Trophy, MapPin, ChevronRight, Eye, Calendar, Award, CheckCircle, Info, Sparkles, X } from 'lucide-react';
 
 export const LiveMatches: React.FC = () => {
@@ -251,7 +251,7 @@ export const LiveMatches: React.FC = () => {
                                       {match.status === MatchStatus.HT ? (
                                         'INT'
                                       ) : (
-                                        `${match.minute}'`
+                                        formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)
                                       )}
                                     </span>
                                   </>

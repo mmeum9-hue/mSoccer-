@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowLeft, Star, Trophy, Target, Award, ListOrdered, FileText, Calendar, MapPin } from 'lucide-react';
-import { Match, StandingRow } from '../types';
+import { Match, StandingRow, formatMatchMinute } from '../types';
 
 interface LeagueDetailsProps {
   leagueId: string;
@@ -545,7 +545,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                           {/* Status Badge */}
                           {isLive ? (
                             <span className="bg-rose-500/15 text-rose-500 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse border border-rose-500/20">
-                              Ao Vivo • {match.minute}'
+                              Ao Vivo • {formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
                             </span>
                           ) : isFinished ? (
                             <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">

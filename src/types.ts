@@ -177,6 +177,25 @@ export interface Match {
   lastTickAt?: number;
   htStartedAt?: number;
   statsApplied?: boolean;
+  injuryTime1stHalf?: number;
+  injuryTime2ndHalf?: number;
+}
+
+export function formatMatchMinute(minute: number, injuryTime1stHalf?: number, injuryTime2ndHalf?: number): string {
+  if (minute <= 45) {
+    return `${minute}'`;
+  }
+  const limit1stHalf = 45 + (injuryTime1stHalf || 0);
+  if (minute <= limit1stHalf) {
+    if ((injuryTime1stHalf || 0) > 0) {
+      return `45+${minute - 45}'`;
+    }
+    return `${minute}'`;
+  }
+  if (minute <= 90) {
+    return `${minute}'`;
+  }
+  return `90+${minute - 90}'`;
 }
 
 export interface NewsArticle {

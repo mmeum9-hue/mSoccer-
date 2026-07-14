@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { MatchStatus, MatchEvent } from '../types';
+import { MatchStatus, MatchEvent, formatMatchMinute } from '../types';
 import { 
   ArrowLeft, Star, MapPin, User, ChevronRight, BarChart2, Shield, Flame, Activity, 
   ChevronDown, ChevronUp, TrendingDown, TrendingUp, Clock, Coins, Newspaper, Zap, AlertTriangle 
@@ -224,7 +224,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
             <Clock className="w-3.5 h-3.5 text-slate-400" />
             <span>
               {match.status === MatchStatus.LIVE
-                ? `${match.minute}'`
+                ? formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)
                 : match.status === MatchStatus.HT
                 ? 'Intervalo'
                 : match.status === MatchStatus.FINISHED
@@ -292,7 +292,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     {/* Minute Indicator (Center) */}
                     <div className="w-[10%] text-center shrink-0">
                       <span className="text-[11.5px] font-black text-blue-600 font-mono">
-                        {g.minute}'
+                        {formatMatchMinute(g.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
                       </span>
                     </div>
 
@@ -390,7 +390,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                         <div className="w-3 h-4 bg-rose-500 rounded-xs border border-rose-600 shadow-xs animate-pulse" title="Cartão Vermelho" />
                       )}
                       <span className="text-[10px] font-black text-slate-400 font-mono">
-                        {c.minute}'
+                        {formatMatchMinute(c.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
                       </span>
                     </div>
 
@@ -494,7 +494,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     {/* Minute (Center) */}
                     <div className="w-[10%] text-center shrink-0">
                       <span className="text-[10.5px] font-black text-slate-400 font-mono">
-                        {s.minute}'
+                        {formatMatchMinute(s.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
                       </span>
                     </div>
 
@@ -1421,7 +1421,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
               <div className="pt-1.5">
                 {match.status === MatchStatus.LIVE ? (
                   <span className="bg-rose-500 text-white text-[9.5px] font-black px-3 py-1 rounded-md animate-pulse uppercase tracking-wider block">
-                    Em Jogo ({match.minute}')
+                    Em Jogo ({formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)})
                   </span>
                 ) : match.status === MatchStatus.HT ? (
                   <span className="bg-blue-500 text-white text-[9.5px] font-black px-3 py-1 rounded-md uppercase tracking-wider block">

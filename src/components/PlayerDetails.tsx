@@ -135,7 +135,7 @@ export const PlayerDetails: React.FC<PlayerDetailsProps> = ({ playerId }) => {
                 </span>
               </div>
               <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100/30">
-                <span className="text-blue-600 dark:text-blue-400 text-[10px] uppercase font-bold block mb-1">Assis.</span>
+                <span className="text-blue-600 dark:text-blue-400 text-[10px] uppercase font-bold block mb-1">Assistências</span>
                 <span className="font-mono font-black text-xl text-blue-600 dark:text-blue-400">
                   {player.stats.assists}
                 </span>

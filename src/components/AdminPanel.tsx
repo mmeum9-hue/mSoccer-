@@ -63,6 +63,7 @@ export const AdminPanel: React.FC = () => {
     clearAllNews,
     clearAllDatabase,
     restoreDefaultDatabase,
+    recalculateAllPlayerStats,
     news,
     addNotification,
     triggerMatchEvent,
@@ -77,6 +78,11 @@ export const AdminPanel: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
+
+  // States for Database Wipe Confirmation
+  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
+  const [wipeConfirmInput, setWipeConfirmInput] = useState('');
+  const [wipeError, setWipeError] = useState('');
 
   // Form states - Match Creation
   const [homeClubId, setHomeClubId] = useState(clubs[0]?.id || '');
@@ -715,6 +721,109 @@ export const AdminPanel: React.FC = () => {
     addLog('Status de Jogo alterado', `${updated.homeClubShortName} x ${updated.awayClubShortName} -> ${newStatus}`, 'bg-blue-500');
   };
 
+  const handleCustomStatusClick = (target: 'scheduled' | 'live_1t' | 'ht' | 'live_2t' | 'finished') => {
+    if (!activeMatchToControl) return;
+
+    let updated = { ...activeMatchToControl };
+
+    if (target === 'scheduled') {
+      updated.status = MatchStatus.SCHEDULED;
+      updated.minute = 0;
+      updated.score = { home: 0, away: 0 };
+      updated.events = [];
+      updated.isPaused = true;
+      addLog('Partida para Não Iniciada', `${updated.homeClubShortName} x ${updated.awayClubShortName}`, 'bg-zinc-500');
+    } else if (target === 'live_1t') {
+      updated.status = MatchStatus.LIVE;
+      updated.minute = 1;
+      updated.isPaused = false;
+      if (!updated.events.some(e => e.type === 'KickOff' && e.minute <= 45)) {
+        updated.events = [
+          {
+            id: 'ev_init_' + Date.now(),
+            minute: 1,
+            type: 'KickOff',
+            team: 'neutral',
+            player1: 'Início da Partida',
+            detail: `Bola rolando para ${updated.homeClubName} x ${updated.awayClubName}!`
+          },
+          ...updated.events.filter(e => e.type !== 'KickOff')
+        ];
+      }
+      addLog('Partida Iniciada (1º Tempo)', `${updated.homeClubShortName} x ${updated.awayClubShortName}`, 'bg-emerald-500');
+    } else if (target === 'ht') {
+      updated.status = MatchStatus.HT;
+      updated.minute = 45;
+      updated.isPaused = true;
+      if (!updated.events.some(e => e.type === 'HalfTime')) {
+        updated.events = [
+          ...updated.events,
+          {
+            id: 'ev_ht_' + Date.now(),
+            minute: 45,
+            type: 'HalfTime',
+            team: 'neutral',
+            player1: 'Intervalo',
+            detail: 'Fim do primeiro tempo!'
+          }
+        ];
+      }
+      addLog('Partida no Intervalo', `${updated.homeClubShortName} x ${updated.awayClubShortName}`, 'bg-amber-500');
+    } else if (target === 'live_2t') {
+      updated.status = MatchStatus.LIVE;
+      updated.minute = 45; // Starts exactly at 45 minutes
+      updated.isPaused = false;
+      if (!updated.events.some(e => e.type === 'KickOff' && e.minute >= 45)) {
+        updated.events = [
+          ...updated.events,
+          {
+            id: 'ev_2h_' + Date.now(),
+            minute: 45,
+            type: 'KickOff',
+            team: 'neutral',
+            player1: 'Início do 2º Tempo',
+            detail: 'Bola rolando para a etapa final!'
+          }
+        ];
+      }
+      addLog('Partida em Andamento (2º Tempo)', `${updated.homeClubShortName} x ${updated.awayClubShortName}`, 'bg-emerald-500');
+    } else if (target === 'finished') {
+      updated.status = MatchStatus.FINISHED;
+      const maxMinute = 90 + (updated.injuryTime2ndHalf || 0);
+      updated.minute = maxMinute;
+      updated.isPaused = true;
+      if (!updated.events.some(e => e.type === 'FullTime')) {
+        updated.events = [
+          ...updated.events,
+          {
+            id: 'ev_ft_' + Date.now(),
+            minute: maxMinute,
+            type: 'FullTime',
+            team: 'neutral',
+            player1: 'Fim de Jogo',
+            detail: 'Árbitro encerra a partida!'
+          }
+        ];
+      }
+      addLog('Partida Encerrada', `${updated.homeClubShortName} x ${updated.awayClubShortName}`, 'bg-zinc-500');
+    }
+
+    updateMatch(updated);
+    addNotification('Partida Atualizada', `${updated.homeClubName} vs ${updated.awayClubName} status alterado`, 'jogo');
+  };
+
+  const handleAddInjuryTime = (half: 1 | 2, value: number) => {
+    if (!activeMatchToControl) return;
+    const updated = { ...activeMatchToControl };
+    if (half === 1) {
+      updated.injuryTime1stHalf = Math.max(0, (updated.injuryTime1stHalf || 0) + value);
+    } else {
+      updated.injuryTime2ndHalf = Math.max(0, (updated.injuryTime2ndHalf || 0) + value);
+    }
+    updateMatch(updated);
+    addLog('Compensação Alterada', `${half}º Tempo: ${half === 1 ? updated.injuryTime1stHalf || 0 : updated.injuryTime2ndHalf || 0} min`, 'bg-amber-500');
+  };
+
   const handleCustomEventSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeMatchToControl || !player1Name) return;
@@ -1339,10 +1448,14 @@ export const AdminPanel: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={async () => {
-                      if (window.confirm("ATENÇÃO: Você tem certeza absoluta que deseja zerar TODOS os dados do aplicativo? Esta ação não pode ser desfeita e excluirá ligas, partidas, notícias, chats e times.")) {
-                        await clearAllDatabase();
+                    onClick={() => {
+                      if (user?.role !== 'Admin') {
+                        alert("Esta ação é restrita apenas a administradores do sistema.");
+                        return;
                       }
+                      setIsWipeModalOpen(true);
+                      setWipeConfirmInput('');
+                      setWipeError('');
                     }}
                     className="px-4 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer transition-all shrink-0"
                   >
@@ -1366,6 +1479,25 @@ export const AdminPanel: React.FC = () => {
                     className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer transition-all shrink-0"
                   >
                     Restaurar Dados Padrão
+                  </button>
+                </div>
+
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-blue-950/10 border border-blue-900/30 rounded-xl p-4">
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-black text-blue-200">Recomputar Estatísticas de Todos os Atletas</h4>
+                    <p className="text-[11px] text-zinc-400 max-w-2xl">
+                      Recalcula de forma 100% segura todos os jogos, gols, assistências, cartões e minutos de todos os atletas com base em todas as partidas finalizadas. Use esta opção para sincronizar instantaneamente o histórico de carreira e dados de temporada.
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (window.confirm("Deseja recomputar todas as estatísticas de todos os atletas com base nas partidas encerradas?")) {
+                        await recalculateAllPlayerStats();
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer transition-all shrink-0"
+                  >
+                    Recalcular Estatísticas
                   </button>
                 </div>
               </div>
@@ -1548,20 +1680,132 @@ export const AdminPanel: React.FC = () => {
                         )}
                       </div>
                       {!isChampOfMatchEnded && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {[MatchStatus.SCHEDULED, MatchStatus.LIVE, MatchStatus.HT, MatchStatus.FINISHED].map((st) => (
+                        <div className="flex flex-col gap-3">
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider block">
+                            📌 Controle de Status da Partida
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {/* Não Iniciou */}
                             <button
-                              key={st}
-                              onClick={() => handleStatusChange(st)}
-                              className={`px-3 py-1 rounded text-[10px] font-black uppercase transition-colors ${
-                                activeMatchToControl.status === st
-                                  ? 'bg-emerald-500 text-white'
-                                  : 'bg-slate-800 text-zinc-400 hover:bg-slate-700'
+                              type="button"
+                              onClick={() => handleCustomStatusClick('scheduled')}
+                              className={`px-2.5 py-1 rounded text-[10px] font-black uppercase transition-colors ${
+                                activeMatchToControl.status === MatchStatus.SCHEDULED
+                                  ? 'bg-emerald-500 text-white font-black'
+                                  : 'bg-slate-800 text-zinc-400 hover:bg-slate-700 font-bold'
                               }`}
                             >
-                              {st}
+                              Não Iniciou
                             </button>
-                          ))}
+
+                            {/* Ao Vivo (1º Tempo) */}
+                            <button
+                              type="button"
+                              onClick={() => handleCustomStatusClick('live_1t')}
+                              className={`px-2.5 py-1 rounded text-[10px] font-black uppercase transition-colors ${
+                                activeMatchToControl.status === MatchStatus.LIVE && activeMatchToControl.minute <= 45
+                                  ? 'bg-emerald-500 text-white font-black animate-pulse'
+                                  : 'bg-slate-800 text-zinc-400 hover:bg-slate-700 font-bold'
+                              }`}
+                            >
+                              Ao Vivo (1º Tempo)
+                            </button>
+
+                            {/* Intervalo */}
+                            <button
+                              type="button"
+                              onClick={() => handleCustomStatusClick('ht')}
+                              className={`px-2.5 py-1 rounded text-[10px] font-black uppercase transition-colors ${
+                                activeMatchToControl.status === MatchStatus.HT
+                                  ? 'bg-emerald-500 text-white font-black'
+                                  : 'bg-slate-800 text-zinc-400 hover:bg-slate-700 font-bold'
+                              }`}
+                            >
+                              Intervalo
+                            </button>
+
+                            {/* 2º Tempo */}
+                            <button
+                              type="button"
+                              onClick={() => handleCustomStatusClick('live_2t')}
+                              className={`px-2.5 py-1 rounded text-[10px] font-black uppercase transition-colors ${
+                                activeMatchToControl.status === MatchStatus.LIVE && activeMatchToControl.minute > 45
+                                  ? 'bg-emerald-500 text-white font-black animate-pulse'
+                                  : 'bg-slate-800 text-zinc-400 hover:bg-slate-700 font-bold'
+                              }`}
+                            >
+                              2º Tempo
+                            </button>
+
+                            {/* Encerrada */}
+                            <button
+                              type="button"
+                              onClick={() => handleCustomStatusClick('finished')}
+                              className={`px-2.5 py-1 rounded text-[10px] font-black uppercase transition-colors ${
+                                activeMatchToControl.status === MatchStatus.FINISHED
+                                  ? 'bg-emerald-500 text-white font-black'
+                                  : 'bg-slate-800 text-zinc-400 hover:bg-slate-700 font-bold'
+                              }`}
+                            >
+                              Encerrada
+                            </button>
+                          </div>
+
+                          {/* Painel de Compensação */}
+                          <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2 mt-1">
+                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider block">
+                              ⏱️ Adicionar Compensação (Acréscimos)
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                              {/* 1º Tempo */}
+                              <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/60 flex items-center justify-between">
+                                <div>
+                                  <p className="text-[9px] font-extrabold text-zinc-400 uppercase">Acréscimos 1ºT</p>
+                                  <p className="text-xs font-black text-white">{activeMatchToControl.injuryTime1stHalf || 0} min</p>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddInjuryTime(1, -1)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-zinc-300 w-6 h-6 rounded flex items-center justify-center font-black text-xs cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddInjuryTime(1, 1)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-zinc-300 w-6 h-6 rounded flex items-center justify-center font-black text-xs cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* 2º Tempo */}
+                              <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/60 flex items-center justify-between">
+                                <div>
+                                  <p className="text-[9px] font-extrabold text-zinc-400 uppercase">Acréscimos 2ºT</p>
+                                  <p className="text-xs font-black text-white">{activeMatchToControl.injuryTime2ndHalf || 0} min</p>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddInjuryTime(2, -1)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-zinc-300 w-6 h-6 rounded flex items-center justify-center font-black text-xs cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddInjuryTime(2, 1)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-zinc-300 w-6 h-6 rounded flex items-center justify-center font-black text-xs cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -3405,7 +3649,7 @@ export const AdminPanel: React.FC = () => {
                                         />
                                       </div>
                                       <div className="space-y-1">
-                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Assis.</label>
+                                        <label className="text-[9px] text-zinc-400 font-bold block uppercase">Assistências</label>
                                         <input 
                                           type="number" 
                                           value={editPlayerAssists}
@@ -4556,6 +4800,98 @@ export const AdminPanel: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* MODAL DE SEGURANÇA PARA REDEFINIÇÃO DOS DADOS / ZERAR APP */}
+      {isWipeModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[999] p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-red-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 relative">
+            <button
+              onClick={() => {
+                setIsWipeModalOpen(false);
+                setWipeConfirmInput('');
+                setWipeError('');
+              }}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3 text-red-500">
+              <ShieldAlert className="w-8 h-8 animate-bounce" />
+              <h3 className="text-base font-black uppercase tracking-wider text-red-400">Exclusão Irreversível</h3>
+            </div>
+
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 space-y-2">
+              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">⚠️ ALERTA DE SEGURANÇA</p>
+              <p className="text-[11.5px] text-zinc-300 leading-relaxed font-semibold">
+                Esta ação é <span className="text-red-400 font-black">totalmente irreversível</span>. Todos os campeonatos, clubes, jogadores cadastrados, notícias, partidas e logs serão excluídos de forma definitiva do sistema.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                Para confirmar que você possui privilégios de administrador e deseja prosseguir com a exclusão total, por favor digite a palavra de confirmação <strong className="text-white font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">EXCLUIR</strong> ou a sua <strong className="text-white">senha de administrador</strong> no campo abaixo:
+              </p>
+
+              <input
+                type="password"
+                placeholder="Digite EXCLUIR ou a senha de admin"
+                value={wipeConfirmInput}
+                onChange={(e) => {
+                  setWipeConfirmInput(e.target.value);
+                  setWipeError('');
+                }}
+                className="w-full bg-slate-950 border border-slate-800 focus:border-red-500/50 rounded-xl px-4 py-2.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-red-500/30 text-white font-mono placeholder:font-sans"
+              />
+
+              {wipeError && (
+                <p className="text-[10.5px] text-rose-500 font-semibold text-center">{wipeError}</p>
+              )}
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWipeModalOpen(false);
+                  setWipeConfirmInput('');
+                  setWipeError('');
+                }}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-zinc-300 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={wipeConfirmInput.trim() !== 'EXCLUIR' && wipeConfirmInput.trim() !== 'djuma94'}
+                onClick={async () => {
+                  if (user?.role !== 'Admin') {
+                    setWipeError('Erro: Apenas administradores podem executar esta ação.');
+                    return;
+                  }
+                  if (wipeConfirmInput.trim() === 'EXCLUIR' || wipeConfirmInput.trim() === 'djuma94') {
+                    try {
+                      await clearAllDatabase();
+                      setIsWipeModalOpen(false);
+                      setWipeConfirmInput('');
+                      setWipeError('');
+                      addNotification('Sistema Zerado', 'Todos os dados do sistema foram limpos pelo administrador.', 'sistema');
+                      addLog('Limpeza Completa', 'O administrador redefiniu todo o banco de dados do sistema.', 'bg-red-600');
+                    } catch (err: any) {
+                      setWipeError('Erro ao zerar dados: ' + (err?.message || err));
+                    }
+                  } else {
+                    setWipeError('Palavra de confirmação ou senha incorreta.');
+                  }
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-35 text-white font-black text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                Confirmar e Zerar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

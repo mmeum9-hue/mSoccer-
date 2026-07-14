@@ -74,17 +74,20 @@ const tickMatchWithTransaction = async (matchId: string, currentMinute: number, 
         const nextMinute = m.minute + 1;
         let updatedMatch: Match;
 
-        if (nextMinute > 90) {
+        const max1stHalfMinute = 45 + (m.injuryTime1stHalf || 0);
+        const max2ndHalfMinute = 90 + (m.injuryTime2ndHalf || 0);
+
+        if (nextMinute > max2ndHalfMinute) {
           updatedMatch = {
             ...m,
-            minute: 90,
+            minute: max2ndHalfMinute,
             status: MatchStatus.FINISHED,
             lastTickAt: now,
             events: [
               ...m.events,
               {
                 id: 'ev_ft_' + Date.now(),
-                minute: 90,
+                minute: max2ndHalfMinute,
                 type: 'FullTime' as const,
                 team: 'neutral' as const,
                 player1: 'Fim de Jogo',
@@ -92,7 +95,7 @@ const tickMatchWithTransaction = async (matchId: string, currentMinute: number, 
               }
             ]
           };
-        } else if (nextMinute === 46 && m.events.filter((e) => e.type === 'HalfTime').length === 0) {
+        } else if (nextMinute > max1stHalfMinute && m.minute <= max1stHalfMinute && m.events.filter((e) => e.type === 'HalfTime').length === 0) {
           updatedMatch = {
             ...m,
             minute: 45,
@@ -214,6 +217,7 @@ interface AppContextType {
   dbConfig: { initialized?: boolean; cleared?: boolean } | null;
   clearAllDatabase: () => Promise<void>;
   restoreDefaultDatabase: () => Promise<void>;
+  recalculateAllPlayerStats: () => Promise<void>;
   
   // Chat & Presence addition
   chatUnreadCounts: { [room: string]: number };
@@ -1285,6 +1289,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const recalculateAllPlayerStats = async () => {
+    try {
+      addNotification(
+        'Recomputando Estatísticas',
+        'Iniciando o recálculo de todas as estatísticas e históricos de atletas...',
+        'sistema'
+      );
+      
+      // 1. Reset all players' stats and current season (2026) history in Firestore
+      const playersSnapshot = await getDocs(collection(db, 'players'));
+      for (const playerDoc of playersSnapshot.docs) {
+        const p = playerDoc.data() as Player;
+        const cleanedHistory = p.history ? p.history.filter(h => h.season !== '2026') : [];
+        const updatedPlayer: Player = {
+          ...p,
+          stats: {
+            matches: 0,
+            goals: 0,
+            assists: 0,
+            yellowCards: 0,
+            redCards: 0,
+            minutesPlayed: 0
+          },
+          history: cleanedHistory
+        };
+        await setDoc(playerDoc.ref, cleanUndefined(updatedPlayer));
+      }
+
+      // 2. Mark all finished matches as statsApplied = false in Firestore
+      const matchesSnapshot = await getDocs(collection(db, 'matches'));
+      for (const matchDoc of matchesSnapshot.docs) {
+        const m = matchDoc.data() as Match;
+        if (m.status === MatchStatus.FINISHED) {
+          await updateDoc(matchDoc.ref, { statsApplied: false });
+        }
+      }
+
+      addNotification(
+        'Recálculo Iniciado',
+        'As estatísticas estão sendo recalculadas a partir de todas as partidas finalizadas.',
+        'sistema'
+      );
+    } catch (err) {
+      console.error("Error recalculating player stats:", err);
+      addNotification('Erro no Recálculo', 'Ocorreu um erro ao tentar recomputar as estatísticas.', 'sistema');
+    }
+  };
+
   // One-time automatic database force-wipe on startup to satisfy the "zera tudo" request immediately
   useEffect(() => {
     const runAutoWipe = async () => {
@@ -1529,77 +1581,113 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return matched || null;
             };
 
-            const getOrCreatePlayerUpdate = (playerName: string) => {
-              const p = findBestPlayerMatch(playerName);
-              if (!p) return null;
-              if (!playersToUpdate.has(p.id)) {
-                playersToUpdate.set(p.id, {
-                  matches: 0,
-                  goals: 0,
-                  assists: 0,
-                  yellowCards: 0,
-                  redCards: 0,
-                  minutesPlayed: 0
-                });
-              }
-              return { player: p, update: playersToUpdate.get(p.id)! };
-            };
+            const involvedPlayersMap = new Map<string, Player>(); // playerId -> Player
 
-            const homeStarting = currentMatch.lineups?.home?.starting || [];
-            const awayStarting = currentMatch.lineups?.away?.starting || [];
+            // 1. Gather all raw names from starting lineups
+            const rawNames = new Set<string>();
+            (currentMatch.lineups?.home?.starting || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
+            (currentMatch.lineups?.away?.starting || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
 
-            homeStarting.forEach((lp) => {
-              const res = getOrCreatePlayerUpdate(lp.name);
-              if (res) {
-                res.update.matches += 1;
-                res.update.minutesPlayed += 90;
-              }
+            // 2. Gather all raw names from substitutes list
+            (currentMatch.lineups?.home?.bench || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
+            (currentMatch.lineups?.away?.bench || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
+
+            // 3. Gather all raw names from events
+            currentMatch.events.forEach(ev => {
+              if (ev.player1) rawNames.add(ev.player1);
+              if (ev.player2) rawNames.add(ev.player2);
             });
-            awayStarting.forEach((lp) => {
-              const res = getOrCreatePlayerUpdate(lp.name);
-              if (res) {
-                res.update.matches += 1;
-                res.update.minutesPlayed += 90;
+
+            // Resolve raw names to actual players in our database
+            rawNames.forEach(rawName => {
+              const p = findBestPlayerMatch(rawName);
+              if (p) {
+                involvedPlayersMap.set(p.id, p);
               }
             });
 
-            const subs = currentMatch.events.filter(e => e.type === 'Substitution');
-            subs.forEach((sub) => {
-              const offRes = getOrCreatePlayerUpdate(sub.player1);
-              const onRes = sub.player2 ? getOrCreatePlayerUpdate(sub.player2) : null;
-              const minute = sub.minute || 45;
+            for (const [playerId, player] of involvedPlayersMap.entries()) {
+              // Check if they actually participated in the match (i.e., started or was subbed on or had events)
+              const isHomeStarter = (currentMatch.lineups?.home?.starting || []).some(lp => lp.name && findBestPlayerMatch(lp.name)?.id === playerId);
+              const isAwayStarter = (currentMatch.lineups?.away?.starting || []).some(lp => lp.name && findBestPlayerMatch(lp.name)?.id === playerId);
+              const isStarter = isHomeStarter || isAwayStarter;
 
-              if (offRes) {
-                offRes.update.minutesPlayed -= (90 - minute);
-              }
-              if (onRes) {
-                onRes.update.matches += 1;
-                onRes.update.minutesPlayed += (90 - minute);
-              }
-            });
+              // Find if they entered as a substitute (player2 of a Substitution event)
+              const subInEvent = currentMatch.events.find(e => 
+                e.type === 'Substitution' && e.player2 && findBestPlayerMatch(e.player2)?.id === playerId
+              );
 
-            currentMatch.events.forEach((ev) => {
-              if (ev.type === 'Goal') {
-                if (ev.player1) {
-                  const res = getOrCreatePlayerUpdate(ev.player1);
-                  if (res) res.update.goals += 1;
-                }
-                if (ev.player2) {
-                  const res = getOrCreatePlayerUpdate(ev.player2);
-                  if (res) res.update.assists += 1;
-                }
-              } else if (ev.type === 'YellowCard') {
-                if (ev.player1) {
-                  const res = getOrCreatePlayerUpdate(ev.player1);
-                  if (res) res.update.yellowCards += 1;
-                }
-              } else if (ev.type === 'RedCard') {
-                if (ev.player1) {
-                  const res = getOrCreatePlayerUpdate(ev.player1);
-                  if (res) res.update.redCards += 1;
-                }
+              const hasEvents = currentMatch.events.some(e => 
+                (e.player1 && findBestPlayerMatch(e.player1)?.id === playerId) ||
+                (e.player2 && findBestPlayerMatch(e.player2)?.id === playerId)
+              );
+
+              const participated = isStarter || !!subInEvent || hasEvents;
+              if (!participated) {
+                continue; // They didn't play in this match (remained unused sub)
               }
-            });
+
+              // Determine entering minute
+              let enteredMinute = 0;
+              if (isStarter) {
+                enteredMinute = 0;
+              } else if (subInEvent) {
+                enteredMinute = subInEvent.minute ?? 45;
+              } else if (hasEvents) {
+                enteredMinute = 0; // Fallback
+              }
+
+              // Determine exit minute (defaults to end of game or current simulation minute)
+              let leftMinute = currentMatch.minute > 0 ? currentMatch.minute : 90;
+
+              // Cap exit if they were subbed off (player1 of a Substitution event)
+              const subOffEvent = currentMatch.events.find(e => 
+                e.type === 'Substitution' && e.player1 && findBestPlayerMatch(e.player1)?.id === playerId
+              );
+              if (subOffEvent) {
+                leftMinute = Math.min(leftMinute, subOffEvent.minute ?? 45);
+              }
+
+              // Cap exit if they were red carded (player1 of a RedCard event)
+              const redCardEvent = currentMatch.events.find(e => 
+                e.type === 'RedCard' && e.player1 && findBestPlayerMatch(e.player1)?.id === playerId
+              );
+              if (redCardEvent) {
+                leftMinute = Math.min(leftMinute, redCardEvent.minute ?? leftMinute);
+              }
+
+              const minutesPlayed = Math.max(0, leftMinute - enteredMinute);
+
+              // Count goals scored in this match
+              const goals = currentMatch.events.filter(e => 
+                e.type === 'Goal' && e.player1 && findBestPlayerMatch(e.player1)?.id === playerId
+              ).length;
+
+              // Count assists made in this match
+              const assists = currentMatch.events.filter(e => 
+                e.type === 'Goal' && e.player2 && findBestPlayerMatch(e.player2)?.id === playerId
+              ).length;
+
+              // Count yellow cards in this match
+              const yellowCards = currentMatch.events.filter(e => 
+                e.type === 'YellowCard' && e.player1 && findBestPlayerMatch(e.player1)?.id === playerId
+              ).length;
+
+              // Count red cards in this match
+              const redCards = currentMatch.events.filter(e => 
+                e.type === 'RedCard' && e.player1 && findBestPlayerMatch(e.player1)?.id === playerId
+              ).length;
+
+              // Build our update object
+              playersToUpdate.set(playerId, {
+                matches: 1, // Participated in 1 match
+                goals,
+                assists,
+                yellowCards,
+                redCards,
+                minutesPlayed
+              });
+            }
 
             // Phase 1: Re-read all player documents inside the transaction BEFORE any writes
             const playerSnaps = new Map<string, any>();
@@ -1851,6 +1939,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         dbConfig,
         clearAllDatabase,
         restoreDefaultDatabase,
+        recalculateAllPlayerStats,
         
         // Chat & Presence additions
         chatUnreadCounts,
