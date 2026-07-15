@@ -1143,16 +1143,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const matchesToUse = currentMatches || matches;
       const clubsToUse = currentClubs || clubs;
 
-      // Reset all existing standing rows to the club's base stats, preserving the clubs currently in the championship
+      // Reset all existing standing rows to their championship-specific base stats, preserving the clubs currently in the championship
       const resetStandings = champ.standings.map((row) => {
         const club = clubsToUse.find((c) => c.id === row.clubId);
-        const baseWins = club?.stats?.wins ?? 0;
-        const baseDraws = club?.stats?.draws ?? 0;
-        const baseLosses = club?.stats?.losses ?? 0;
-        const baseGoalsFor = club?.stats?.goalsScored ?? 0;
-        const baseGoalsAgainst = club?.stats?.goalsConceded ?? 0;
-        const basePlayed = baseWins + baseDraws + baseLosses;
-        const basePoints = baseWins * 3 + baseDraws;
+        const baseWins = row.baseStats?.won ?? 0;
+        const baseDraws = row.baseStats?.drawn ?? 0;
+        const baseLosses = row.baseStats?.lost ?? 0;
+        const baseGoalsFor = row.baseStats?.goalsFor ?? 0;
+        const baseGoalsAgainst = row.baseStats?.goalsAgainst ?? 0;
+        const basePlayed = row.baseStats?.played ?? (baseWins + baseDraws + baseLosses);
+        const basePoints = row.baseStats?.points ?? (baseWins * 3 + baseDraws);
 
         return {
           ...row,
@@ -1484,16 +1484,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       for (const champDoc of champsSnapshot.docs) {
         const champ = champDoc.data() as Championship;
         
-        // Reset all existing standing rows to the club's base stats, preserving the clubs currently in the championship
+        // Reset all existing standing rows to their championship-specific base stats, preserving the clubs currently in the championship
         const resetStandings = champ.standings.map((row) => {
           const club = clubsData.find((c) => c.id === row.clubId);
-          const baseWins = club?.stats?.wins ?? 0;
-          const baseDraws = club?.stats?.draws ?? 0;
-          const baseLosses = club?.stats?.losses ?? 0;
-          const baseGoalsFor = club?.stats?.goalsScored ?? 0;
-          const baseGoalsAgainst = club?.stats?.goalsConceded ?? 0;
-          const basePlayed = baseWins + baseDraws + baseLosses;
-          const basePoints = baseWins * 3 + baseDraws;
+          const baseWins = row.baseStats?.won ?? 0;
+          const baseDraws = row.baseStats?.drawn ?? 0;
+          const baseLosses = row.baseStats?.lost ?? 0;
+          const baseGoalsFor = row.baseStats?.goalsFor ?? 0;
+          const baseGoalsAgainst = row.baseStats?.goalsAgainst ?? 0;
+          const basePlayed = row.baseStats?.played ?? (baseWins + baseDraws + baseLosses);
+          const basePoints = row.baseStats?.points ?? (baseWins * 3 + baseDraws);
 
           return {
             ...row,

@@ -102,6 +102,15 @@ export const AdminPanel: React.FC = () => {
   const [matchPhase, setMatchPhase] = useState('Oitavos de Final');
   const [matchRound, setMatchRound] = useState(1);
 
+  // States for editing club statistics
+  const [editingClubId, setEditingClubId] = useState<string | null>(null);
+  const [selectedChampIdForEdit, setSelectedChampIdForEdit] = useState<string>('global');
+  const [editWins, setEditWins] = useState(0);
+  const [editDraws, setEditDraws] = useState(0);
+  const [editLosses, setEditLosses] = useState(0);
+  const [editGoalsScored, setEditGoalsScored] = useState(0);
+  const [editGoalsConceded, setEditGoalsConceded] = useState(0);
+
   // Auto-set match round based on championship's current round when selected league changes
   useEffect(() => {
     const selectedChamp = championships.find((ch) => ch.id === leagueId);
@@ -110,20 +119,22 @@ export const AdminPanel: React.FC = () => {
     }
   }, [leagueId, championships]);
 
-  // Auto-sync form select states when clubs/championships/matches load or change
+  // Auto-sync form select states when clubs/championships/matches load or change, filtering by selected championship standings
   useEffect(() => {
-    if (clubs.length > 0) {
-      if (!homeClubId || !clubs.some(c => c.id === homeClubId)) {
-        setHomeClubId(clubs[0].id);
+    const selectedChamp = championships.find((ch) => ch.id === leagueId);
+    const activeStandings = selectedChamp?.standings || [];
+    if (activeStandings.length > 0) {
+      if (!homeClubId || !activeStandings.some(c => c.clubId === homeClubId)) {
+        setHomeClubId(activeStandings[0].clubId);
       }
-      if (!awayClubId || !clubs.some(c => c.id === awayClubId)) {
-        setAwayClubId(clubs[1]?.id || clubs[0].id);
+      if (!awayClubId || !activeStandings.some(c => c.clubId === awayClubId)) {
+        setAwayClubId(activeStandings[1]?.clubId || activeStandings[0].clubId);
       }
     } else {
       setHomeClubId('');
       setAwayClubId('');
     }
-  }, [clubs, homeClubId, awayClubId]);
+  }, [leagueId, championships, homeClubId, awayClubId]);
 
   useEffect(() => {
     if (championships.length > 0) {
@@ -134,6 +145,38 @@ export const AdminPanel: React.FC = () => {
       setLeagueId('');
     }
   }, [championships, leagueId]);
+
+  // Sync editing club stats when selected scope or selected club changes
+  useEffect(() => {
+    if (!editingClubId) return;
+    const club = clubs.find(c => c.id === editingClubId);
+    if (!club) return;
+
+    if (selectedChampIdForEdit === 'global') {
+      setEditWins(club.stats?.wins ?? 0);
+      setEditDraws(club.stats?.draws ?? 0);
+      setEditLosses(club.stats?.losses ?? 0);
+      setEditGoalsScored(club.stats?.goalsScored ?? 0);
+      setEditGoalsConceded(club.stats?.goalsConceded ?? 0);
+    } else {
+      const champ = championships.find(c => c.id === selectedChampIdForEdit);
+      const standing = champ?.standings.find(s => s.clubId === editingClubId);
+      if (standing) {
+        const base = standing.baseStats || standing;
+        setEditWins(base.won ?? 0);
+        setEditDraws(base.drawn ?? 0);
+        setEditLosses(base.lost ?? 0);
+        setEditGoalsScored(base.goalsFor ?? 0);
+        setEditGoalsConceded(base.goalsAgainst ?? 0);
+      } else {
+        setEditWins(0);
+        setEditDraws(0);
+        setEditLosses(0);
+        setEditGoalsScored(0);
+        setEditGoalsConceded(0);
+      }
+    }
+  }, [selectedChampIdForEdit, editingClubId, clubs, championships]);
 
   // Match event live injector states
   const [selectedControllerMatchId, setSelectedControllerMatchId] = useState<string>(matches[0]?.id || '');
@@ -222,14 +265,6 @@ export const AdminPanel: React.FC = () => {
   const [notifTitle, setNotifTitle] = useState('');
   const [notifBody, setNotifBody] = useState('');
   const [notifType, setNotifType] = useState<'golo' | 'sistema' | 'noticia' | 'jogo'>('sistema');
-
-  // States for editing club statistics
-  const [editingClubId, setEditingClubId] = useState<string | null>(null);
-  const [editWins, setEditWins] = useState(0);
-  const [editDraws, setEditDraws] = useState(0);
-  const [editLosses, setEditLosses] = useState(0);
-  const [editGoalsScored, setEditGoalsScored] = useState(0);
-  const [editGoalsConceded, setEditGoalsConceded] = useState(0);
 
   // States for adding a title to a club
   const [newTitleText, setNewTitleText] = useState<{[clubId: string]: string}>({});
@@ -1017,6 +1052,7 @@ export const AdminPanel: React.FC = () => {
 
   const handleStartEditingClubStats = (club: Club) => {
     setEditingClubId(club.id);
+    setSelectedChampIdForEdit('global');
     setEditWins(club.stats?.wins ?? 0);
     setEditDraws(club.stats?.draws ?? 0);
     setEditLosses(club.stats?.losses ?? 0);
@@ -1027,18 +1063,66 @@ export const AdminPanel: React.FC = () => {
   const handleSaveClubStats = (clubId: string) => {
     const club = clubs.find((c) => c.id === clubId);
     if (!club) return;
-    const updatedClub: Club = {
-      ...club,
-      stats: {
-        wins: Number(editWins),
-        draws: Number(editDraws),
-        losses: Number(editLosses),
-        goalsScored: Number(editGoalsScored),
-        goalsConceded: Number(editGoalsConceded),
+
+    if (selectedChampIdForEdit === 'global') {
+      const updatedClub: Club = {
+        ...club,
+        stats: {
+          wins: Number(editWins),
+          draws: Number(editDraws),
+          losses: Number(editLosses),
+          goalsScored: Number(editGoalsScored),
+          goalsConceded: Number(editGoalsConceded),
+        }
+      };
+      updateClub(updatedClub);
+      addLog('Estatísticas do clube atualizadas', club.name, 'bg-emerald-500');
+    } else {
+      // Find the selected championship
+      const champ = championships.find((c) => c.id === selectedChampIdForEdit);
+      if (champ) {
+        const updatedStandings = champ.standings.map((row) => {
+          if (row.clubId === clubId) {
+            const played = Number(editWins) + Number(editDraws) + Number(editLosses);
+            const points = Number(editWins) * 3 + Number(editDraws);
+            return {
+              ...row,
+              played,
+              won: Number(editWins),
+              drawn: Number(editDraws),
+              lost: Number(editLosses),
+              goalsFor: Number(editGoalsScored),
+              goalsAgainst: Number(editGoalsConceded),
+              goalDifference: Number(editGoalsScored) - Number(editGoalsConceded),
+              points,
+              baseStats: {
+                played,
+                won: Number(editWins),
+                drawn: Number(editDraws),
+                lost: Number(editLosses),
+                goalsFor: Number(editGoalsScored),
+                goalsAgainst: Number(editGoalsConceded),
+                points
+              }
+            };
+          }
+          return row;
+        });
+
+        // Sort standings
+        updatedStandings.sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+          return b.goalsFor - a.goalsFor;
+        });
+
+        updateChampionship({
+          ...champ,
+          standings: updatedStandings
+        });
+        addLog('Estatísticas do clube no campeonato atualizadas', `${club.name} -> ${champ.name}`, 'bg-emerald-500');
       }
-    };
-    updateClub(updatedClub);
-    addLog('Estatísticas do clube atualizadas', club.name, 'bg-emerald-500');
+    }
     setEditingClubId(null);
   };
 
@@ -1105,6 +1189,15 @@ export const AdminPanel: React.FC = () => {
           goalDifference: Number(editSGoalsFor) - Number(editSGoalsAgainst),
           points: Number(editSPoints),
           group: editSGroup.trim() || undefined,
+          baseStats: {
+            played: Number(editSPlayed),
+            won: Number(editSWon),
+            drawn: Number(editSDrawn),
+            lost: Number(editSLost),
+            goalsFor: Number(editSGoalsFor),
+            goalsAgainst: Number(editSGoalsAgainst),
+            points: Number(editSPoints)
+          }
         };
       }
       return row;
@@ -1151,6 +1244,15 @@ export const AdminPanel: React.FC = () => {
       goalsAgainst: 0,
       goalDifference: 0,
       points: 0,
+      baseStats: {
+        played: 0,
+        won: 0,
+        drawn: 0,
+        lost: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        points: 0
+      }
     };
 
     const updatedChamp: Championship = {
@@ -3249,6 +3351,25 @@ export const AdminPanel: React.FC = () => {
                         {isEditing ? (
                           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2 animate-fade-in">
                             <p className="text-[10px] font-black text-white uppercase tracking-wider">✏️ Editar Estatísticas</p>
+                            
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-bold text-zinc-400 uppercase block">Foco da Edição</label>
+                              <select
+                                value={selectedChampIdForEdit}
+                                onChange={(e) => setSelectedChampIdForEdit(e.target.value)}
+                                className="w-full bg-[#0f172a] border border-slate-800 text-[10px] rounded px-2 py-1 text-white cursor-pointer focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              >
+                                <option value="global">Geral (Estatísticas Globais do Clube)</option>
+                                {championships
+                                  .filter((champ) => champ.standings.some((row) => row.clubId === club.id))
+                                  .map((champ) => (
+                                    <option key={champ.id} value={champ.id}>
+                                      {champ.name} ({champ.season})
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+
                             <div className="grid grid-cols-3 gap-2">
                               <div className="space-y-0.5">
                                 <label className="text-[8px] font-bold text-zinc-400 uppercase">Vitórias</label>

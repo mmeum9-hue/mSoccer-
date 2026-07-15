@@ -65,6 +65,15 @@ export interface StandingRow {
   goalDifference: number;
   points: number;
   group?: string;
+  baseStats?: {
+    played: number;
+    won: number;
+    drawn: number;
+    lost: number;
+    goalsFor: number;
+    goalsAgainst: number;
+    points: number;
+  };
 }
 
 export interface Championship {
