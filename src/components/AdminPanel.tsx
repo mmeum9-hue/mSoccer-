@@ -1243,16 +1243,7 @@ export const AdminPanel: React.FC = () => {
       goalsFor: 0,
       goalsAgainst: 0,
       goalDifference: 0,
-      points: 0,
-      baseStats: {
-        played: 0,
-        won: 0,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        points: 0
-      }
+      points: 0
     };
 
     const updatedChamp: Championship = {
