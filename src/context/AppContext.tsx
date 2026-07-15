@@ -238,7 +238,7 @@ interface AppContextType {
   deletePlayer: (id: string) => void;
   addChampionship: (championship: Championship) => void;
   updateChampionship: (championship: Championship) => void;
-  recalculateStandingsForChampionship: (champId: string, currentMatches?: Match[]) => Promise<void>;
+  recalculateStandingsForChampionship: (champId: string, currentMatches?: Match[], currentClubs?: Club[]) => Promise<void>;
   deleteChampionship: (id: string) => void;
   clearAllChampionships: () => void;
   addNews: (news: NewsArticle) => void;
@@ -1060,18 +1060,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
-      // Propagate to championship standings
-      championships.forEach(async (champ) => {
+      // Propagate to championship standings and recalculate
+      const updatedClubsList = clubs.map(c => c.id === club.id ? club : c);
+      for (const champ of championships) {
         const hasClubInStandings = champ.standings.some((row) => row.clubId === club.id);
         if (hasClubInStandings) {
-          const updatedStandings = champ.standings.map((row) =>
-            row.clubId === club.id
-              ? { ...row, clubName: club.name, logoUrl: club.logoUrl }
-              : row
-          );
-          await setDoc(doc(db, 'championships', champ.id), { ...champ, standings: updatedStandings });
+          await recalculateStandingsForChampionship(champ.id, matches, updatedClubsList);
         }
-      });
+      }
 
       // Propagate to players
       players.forEach(async (p) => {
@@ -1139,25 +1135,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("Error updating championship:", e);
     }
   };
-  const recalculateStandingsForChampionship = async (champId: string, currentMatches?: Match[]) => {
+  const recalculateStandingsForChampionship = async (champId: string, currentMatches?: Match[], currentClubs?: Club[]) => {
     try {
       const champ = championships.find(c => c.id === champId);
       if (!champ) return;
 
       const matchesToUse = currentMatches || matches;
+      const clubsToUse = currentClubs || clubs;
 
-      // Reset all existing standing rows to 0 stats, preserving the clubs currently in the championship
-      const resetStandings = champ.standings.map((row) => ({
-        ...row,
-        played: 0,
-        won: 0,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        goalDifference: 0,
-        points: 0
-      }));
+      // Reset all existing standing rows to the club's base stats, preserving the clubs currently in the championship
+      const resetStandings = champ.standings.map((row) => {
+        const club = clubsToUse.find((c) => c.id === row.clubId);
+        const baseWins = club?.stats?.wins ?? 0;
+        const baseDraws = club?.stats?.draws ?? 0;
+        const baseLosses = club?.stats?.losses ?? 0;
+        const baseGoalsFor = club?.stats?.goalsScored ?? 0;
+        const baseGoalsAgainst = club?.stats?.goalsConceded ?? 0;
+        const basePlayed = baseWins + baseDraws + baseLosses;
+        const basePoints = baseWins * 3 + baseDraws;
+
+        return {
+          ...row,
+          clubName: club?.name || row.clubName,
+          logoUrl: club?.logoUrl || row.logoUrl,
+          played: basePlayed,
+          won: baseWins,
+          drawn: baseDraws,
+          lost: baseLosses,
+          goalsFor: baseGoalsFor,
+          goalsAgainst: baseGoalsAgainst,
+          goalDifference: baseGoalsFor - baseGoalsAgainst,
+          points: basePoints
+        };
+      });
 
       // Filter finished matches for this championship
       const finishedMatches = matchesToUse.filter(
@@ -1467,22 +1477,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // 3. Recalculate standings for all championships
+      const clubsSnapshot = await getDocs(collection(db, 'clubs'));
+      const clubsData = clubsSnapshot.docs.map(doc => doc.data() as Club);
+
       const champsSnapshot = await getDocs(collection(db, 'championships'));
       for (const champDoc of champsSnapshot.docs) {
         const champ = champDoc.data() as Championship;
         
-        // Reset all existing standing rows to 0 stats, preserving the clubs currently in the championship
-        const resetStandings = champ.standings.map((row) => ({
-          ...row,
-          played: 0,
-          won: 0,
-          drawn: 0,
-          lost: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          goalDifference: 0,
-          points: 0
-        }));
+        // Reset all existing standing rows to the club's base stats, preserving the clubs currently in the championship
+        const resetStandings = champ.standings.map((row) => {
+          const club = clubsData.find((c) => c.id === row.clubId);
+          const baseWins = club?.stats?.wins ?? 0;
+          const baseDraws = club?.stats?.draws ?? 0;
+          const baseLosses = club?.stats?.losses ?? 0;
+          const baseGoalsFor = club?.stats?.goalsScored ?? 0;
+          const baseGoalsAgainst = club?.stats?.goalsConceded ?? 0;
+          const basePlayed = baseWins + baseDraws + baseLosses;
+          const basePoints = baseWins * 3 + baseDraws;
+
+          return {
+            ...row,
+            clubName: club?.name || row.clubName,
+            logoUrl: club?.logoUrl || row.logoUrl,
+            played: basePlayed,
+            won: baseWins,
+            drawn: baseDraws,
+            lost: baseLosses,
+            goalsFor: baseGoalsFor,
+            goalsAgainst: baseGoalsAgainst,
+            goalDifference: baseGoalsFor - baseGoalsAgainst,
+            points: basePoints
+          };
+        });
 
         // Filter finished matches for this championship
         const finishedMatches = matchesData.filter(
