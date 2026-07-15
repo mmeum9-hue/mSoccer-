@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer } from '../types';
 import { LineChart, DonutChart } from './AdminCharts';
+import { compressImage } from './imageCompressor';
 import {
   LayoutDashboard,
   Users,
@@ -3079,9 +3080,14 @@ export const AdminPanel: React.FC = () => {
                               const file = e.target.files?.[0];
                               if (file) {
                                 const reader = new FileReader();
-                                reader.onload = (event) => {
+                                reader.onload = async (event) => {
                                   if (event.target?.result) {
-                                    setNewClubLogo(event.target.result as string);
+                                    try {
+                                      const compressed = await compressImage(event.target.result as string, 150, 150, 0.7);
+                                      setNewClubLogo(compressed);
+                                    } catch (err) {
+                                      setNewClubLogo(event.target.result as string);
+                                    }
                                   }
                                 };
                                 reader.readAsDataURL(file);
@@ -3179,9 +3185,14 @@ export const AdminPanel: React.FC = () => {
                                   const file = e.target.files?.[0];
                                   if (file) {
                                     const reader = new FileReader();
-                                    reader.onload = (event) => {
+                                    reader.onload = async (event) => {
                                       if (event.target?.result) {
-                                        updateClub({ ...club, logoUrl: event.target.result as string });
+                                        try {
+                                          const compressed = await compressImage(event.target.result as string, 150, 150, 0.7);
+                                          updateClub({ ...club, logoUrl: compressed });
+                                        } catch (err) {
+                                          updateClub({ ...club, logoUrl: event.target.result as string });
+                                        }
                                       }
                                     };
                                     reader.readAsDataURL(file);
@@ -3519,9 +3530,14 @@ export const AdminPanel: React.FC = () => {
                             const file = e.target.files?.[0];
                             if (file) {
                               const reader = new FileReader();
-                              reader.onload = (event) => {
+                              reader.onload = async (event) => {
                                 if (event.target?.result) {
-                                  setNewPlayerPhoto(event.target.result as string);
+                                  try {
+                                    const compressed = await compressImage(event.target.result as string, 150, 150, 0.7);
+                                    setNewPlayerPhoto(compressed);
+                                  } catch (err) {
+                                    setNewPlayerPhoto(event.target.result as string);
+                                  }
                                 }
                               };
                               reader.readAsDataURL(file);
@@ -3576,9 +3592,14 @@ export const AdminPanel: React.FC = () => {
                                     const file = e.target.files?.[0];
                                     if (file) {
                                       const reader = new FileReader();
-                                      reader.onload = (event) => {
+                                      reader.onload = async (event) => {
                                         if (event.target?.result) {
-                                          updatePlayer({ ...player, photoUrl: event.target.result as string });
+                                          try {
+                                            const compressed = await compressImage(event.target.result as string, 150, 150, 0.7);
+                                            updatePlayer({ ...player, photoUrl: compressed });
+                                          } catch (err) {
+                                            updatePlayer({ ...player, photoUrl: event.target.result as string });
+                                          }
                                         }
                                       };
                                       reader.readAsDataURL(file);
@@ -3896,9 +3917,14 @@ export const AdminPanel: React.FC = () => {
                               const file = e.target.files?.[0];
                               if (file) {
                                 const reader = new FileReader();
-                                reader.onload = (event) => {
+                                reader.onload = async (event) => {
                                   if (event.target?.result) {
-                                    setNewChampLogo(event.target.result as string);
+                                    try {
+                                      const compressed = await compressImage(event.target.result as string, 150, 150, 0.7);
+                                      setNewChampLogo(compressed);
+                                    } catch (err) {
+                                      setNewChampLogo(event.target.result as string);
+                                    }
                                   }
                                 };
                                 reader.readAsDataURL(file);
@@ -3984,13 +4010,22 @@ export const AdminPanel: React.FC = () => {
                                     const file = e.target.files?.[0];
                                     if (file) {
                                       const reader = new FileReader();
-                                      reader.onload = (ev) => {
+                                      reader.onload = async (ev) => {
                                         if (ev.target?.result) {
-                                          updateChampionship({
-                                            ...champ,
-                                            logoUrl: ev.target.result as string
-                                          });
-                                          addLog('Logo atualizado', `Logo de ${champ.name} atualizado.`, 'bg-blue-500');
+                                          try {
+                                            const compressed = await compressImage(ev.target.result as string, 150, 150, 0.7);
+                                            updateChampionship({
+                                              ...champ,
+                                              logoUrl: compressed
+                                            });
+                                            addLog('Logo atualizado', `Logo de ${champ.name} atualizado.`, 'bg-blue-500');
+                                          } catch (err) {
+                                            updateChampionship({
+                                              ...champ,
+                                              logoUrl: ev.target.result as string
+                                            });
+                                            addLog('Logo atualizado', `Logo de ${champ.name} atualizado.`, 'bg-blue-500');
+                                          }
                                         }
                                       };
                                       reader.readAsDataURL(file);
@@ -4487,9 +4522,14 @@ export const AdminPanel: React.FC = () => {
                               const file = e.target.files?.[0];
                               if (file) {
                                 const reader = new FileReader();
-                                reader.onload = (event) => {
+                                reader.onload = async (event) => {
                                   if (event.target?.result) {
-                                    setNewsImageUrl(event.target.result as string);
+                                    try {
+                                      const compressed = await compressImage(event.target.result as string, 600, 400, 0.7);
+                                      setNewsImageUrl(compressed);
+                                    } catch (err) {
+                                      setNewsImageUrl(event.target.result as string);
+                                    }
                                   }
                                 };
                                 reader.readAsDataURL(file);

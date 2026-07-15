@@ -933,9 +933,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateUser = async (name: string, email: string, photoUrl?: string) => {
     const currentUser = auth.currentUser;
     if (currentUser) {
+      // Avoid passing long base64 data URLs to Firebase Auth updateProfile
+      const isDataUrl = photoUrl && photoUrl.startsWith('data:');
+      const authPhotoUrl = isDataUrl 
+        ? (currentUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`) 
+        : (photoUrl || currentUser.photoURL);
+
       await updateProfile(currentUser, {
         displayName: name,
-        photoURL: photoUrl || currentUser.photoURL
+        photoURL: authPhotoUrl
       });
       const userDocRef = doc(db, 'users', currentUser.uid);
       await setDoc(userDocRef, {

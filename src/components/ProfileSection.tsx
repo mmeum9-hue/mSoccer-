@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, LogIn, LogOut, Sun, Moon, Shield, Award, Trash2, Heart, Lock, KeyRound, Check } from 'lucide-react';
+import { User, LogIn, LogOut, Sun, Moon, Shield, Award, Trash2, Heart, Lock, KeyRound, Check, Upload, Image } from 'lucide-react';
+import { compressImage } from './imageCompressor';
 
 export const ProfileSection: React.FC = () => {
   const {
@@ -42,6 +43,61 @@ export const ProfileSection: React.FC = () => {
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [selectedAvatar, setSelectedAvatar] = useState(user?.photoUrl || '');
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  const handleFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Por favor, envie apenas arquivos de imagem.');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError('A imagem deve ter no máximo 2MB.');
+      return;
+    }
+
+    setUploadError('');
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      if (event.target?.result) {
+        try {
+          const compressed = await compressImage(event.target.result as string, 150, 150, 0.7);
+          setSelectedAvatar(compressed);
+        } catch (err) {
+          console.error('Erro ao comprimir imagem:', err);
+          setSelectedAvatar(event.target.result as string);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const avatars = [
     'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix',
@@ -523,25 +579,88 @@ export const ProfileSection: React.FC = () => {
             </div>
 
             {/* Select Avatar list */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase block">Escolha um Avatar</span>
-              <div className="flex space-x-3 overflow-x-auto pb-1">
-                {avatars.map((av) => (
-                  <button
-                    key={av}
-                    onClick={() => setSelectedAvatar(av)}
-                    className={`relative w-12 h-12 rounded-full border-2 transition-all p-0.5 shrink-0 ${
-                      selectedAvatar === av ? 'border-[#1E3A8A] scale-105 shadow' : 'border-zinc-200 dark:border-zinc-800'
-                    }`}
-                  >
-                    <img src={av} alt="" className="w-full h-full rounded-full object-cover" />
-                    {selectedAvatar === av && (
-                      <span className="absolute -bottom-1 -right-1 bg-[#1E3A8A] text-white rounded-full p-0.5">
-                        <Check className="w-3 h-3" />
-                      </span>
-                    )}
-                  </button>
-                ))}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase block">Escolha um Avatar</span>
+                <div className="flex space-x-3 overflow-x-auto pb-1">
+                  {avatars.map((av) => (
+                    <button
+                      key={av}
+                      type="button"
+                      onClick={() => setSelectedAvatar(av)}
+                      className={`relative w-12 h-12 rounded-full border-2 transition-all p-0.5 shrink-0 ${
+                        selectedAvatar === av ? 'border-[#1E3A8A] scale-105 shadow' : 'border-zinc-200 dark:border-zinc-800'
+                      }`}
+                    >
+                      <img src={av} alt="" className="w-full h-full rounded-full object-cover" />
+                      {selectedAvatar === av && (
+                        <span className="absolute -bottom-1 -right-1 bg-[#1E3A8A] text-white rounded-full p-0.5">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Foto de Perfil Customizada / Upload (Supports Drag & Drop & Click) */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase block">Ou Envie uma Foto Personalizada</span>
+                
+                <div 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`relative border-2 border-dashed rounded-2xl p-4 transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                    dragActive 
+                      ? 'border-[#1E3A8A] bg-blue-50/50 dark:bg-blue-950/20' 
+                      : 'border-zinc-200 dark:border-zinc-800 hover:border-[#1E3A8A] hover:bg-zinc-50 hover:dark:bg-zinc-800/40'
+                  }`}
+                  onClick={() => document.getElementById('profile-upload-input')?.click()}
+                >
+                  <input 
+                    id="profile-upload-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  
+                  {selectedAvatar && !avatars.includes(selectedAvatar) ? (
+                    <div className="flex flex-col items-center space-y-2">
+                      <img 
+                        src={selectedAvatar} 
+                        alt="Preview" 
+                        className="w-14 h-14 rounded-full border-2 border-[#1E3A8A] object-cover shadow bg-zinc-50"
+                      />
+                      <div className="text-center">
+                        <p className="text-[11px] font-bold text-emerald-500 flex items-center justify-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Foto Personalizada Carregada
+                        </p>
+                        <p className="text-[10px] text-zinc-400">Arraste outra imagem ou clique para alterar</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 py-1.5">
+                      <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-full flex items-center justify-center mx-auto border border-zinc-200/60 dark:border-zinc-700/60">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                          Clique para escolher ou arraste a foto aqui
+                        </p>
+                        <p className="text-[10px] text-zinc-400 mt-0.5">
+                          Formatos aceitos: PNG, JPG, GIF (Máx. 2MB)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {uploadError && (
+                  <p className="text-[10px] text-rose-500 font-bold text-center mt-1">{uploadError}</p>
+                )}
               </div>
             </div>
 
