@@ -238,6 +238,7 @@ interface AppContextType {
   deletePlayer: (id: string) => void;
   addChampionship: (championship: Championship) => void;
   updateChampionship: (championship: Championship) => void;
+  recalculateStandingsForChampionship: (champId: string, currentMatches?: Match[]) => Promise<void>;
   deleteChampionship: (id: string) => void;
   clearAllChampionships: () => void;
   addNews: (news: NewsArticle) => void;
@@ -1138,6 +1139,137 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("Error updating championship:", e);
     }
   };
+  const recalculateStandingsForChampionship = async (champId: string, currentMatches?: Match[]) => {
+    try {
+      const champ = championships.find(c => c.id === champId);
+      if (!champ) return;
+
+      const matchesToUse = currentMatches || matches;
+
+      // Reset all existing standing rows to 0 stats, preserving the clubs currently in the championship
+      const resetStandings = champ.standings.map((row) => ({
+        ...row,
+        played: 0,
+        won: 0,
+        drawn: 0,
+        lost: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        goalDifference: 0,
+        points: 0
+      }));
+
+      // Filter finished matches for this championship
+      const finishedMatches = matchesToUse.filter(
+        (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
+      );
+
+      // Aggregate standings
+      finishedMatches.forEach((match) => {
+        const homeIdx = resetStandings.findIndex((s) => s.clubId === match.homeClubId);
+        const awayIdx = resetStandings.findIndex((s) => s.clubId === match.awayClubId);
+
+        if (homeIdx !== -1 && awayIdx !== -1) {
+          const homeRow = resetStandings[homeIdx];
+          const awayRow = resetStandings[awayIdx];
+
+          homeRow.played += 1;
+          awayRow.played += 1;
+
+          homeRow.goalsFor += match.score.home;
+          homeRow.goalsAgainst += match.score.away;
+          awayRow.goalsFor += match.score.away;
+          awayRow.goalsAgainst += match.score.home;
+
+          if (match.score.home > match.score.away) {
+            homeRow.won += 1;
+            homeRow.points += 3;
+            awayRow.lost += 1;
+          } else if (match.score.home < match.score.away) {
+            awayRow.won += 1;
+            awayRow.points += 3;
+            homeRow.lost += 1;
+          } else {
+            homeRow.drawn += 1;
+            homeRow.points += 1;
+            awayRow.drawn += 1;
+            awayRow.points += 1;
+          }
+        }
+      });
+
+      // Correct goalDifference
+      resetStandings.forEach((row) => {
+        row.goalDifference = row.goalsFor - row.goalsAgainst;
+      });
+
+      // Sort standings (points DESC, then goal difference DESC, then goals for DESC)
+      resetStandings.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+        return b.goalsFor - a.goalsFor;
+      });
+
+      // Aggregate scorer and assist maps from match events
+      const scorerMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; goals: number } } = {};
+      const assistMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; assists: number } } = {};
+
+      finishedMatches.forEach((match) => {
+        match.events.forEach((ev) => {
+          if (ev.type === 'Goal') {
+            // Scorer
+            if (ev.player1) {
+              const name = ev.player1.trim();
+              const clubName = ev.team === 'home' ? match.homeClubName : match.awayClubName;
+              if (!scorerMap[name]) {
+                scorerMap[name] = {
+                  playerId: name.toLowerCase().replace(/\s+/g, '_'),
+                  playerName: name,
+                  clubName: clubName,
+                  goals: 0
+                };
+              }
+              scorerMap[name].goals += 1;
+            }
+
+            // Assist
+            if (ev.player2) {
+              const name = ev.player2.trim();
+              const clubName = ev.team === 'home' ? match.homeClubName : match.awayClubName;
+              if (!assistMap[name]) {
+                assistMap[name] = {
+                  playerId: name.toLowerCase().replace(/\s+/g, '_'),
+                  playerName: name,
+                  clubName: clubName,
+                  assists: 0
+                };
+              }
+              assistMap[name].assists += 1;
+            }
+          }
+        });
+      });
+
+      const topScorers = Object.values(scorerMap)
+        .sort((a, b) => b.goals - a.goals)
+        .slice(0, 15);
+
+      const topAssists = Object.values(assistMap)
+        .sort((a, b) => b.assists - a.assists)
+        .slice(0, 15);
+
+      const updatedChamp: Championship = {
+        ...champ,
+        standings: resetStandings,
+        topScorers,
+        topAssists
+      };
+
+      await updateChampionship(updatedChamp);
+    } catch (err) {
+      console.error("Error recalculating standings for champ:", champId, err);
+    }
+  };
   const deleteChampionship = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'championships', id));
@@ -1325,16 +1457,140 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. Mark all finished matches as statsApplied = false in Firestore
       const matchesSnapshot = await getDocs(collection(db, 'matches'));
+      const matchesData: Match[] = [];
       for (const matchDoc of matchesSnapshot.docs) {
         const m = matchDoc.data() as Match;
+        matchesData.push(m);
         if (m.status === MatchStatus.FINISHED) {
           await updateDoc(matchDoc.ref, { statsApplied: false });
         }
       }
 
+      // 3. Recalculate standings for all championships
+      const champsSnapshot = await getDocs(collection(db, 'championships'));
+      for (const champDoc of champsSnapshot.docs) {
+        const champ = champDoc.data() as Championship;
+        
+        // Reset all existing standing rows to 0 stats, preserving the clubs currently in the championship
+        const resetStandings = champ.standings.map((row) => ({
+          ...row,
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          points: 0
+        }));
+
+        // Filter finished matches for this championship
+        const finishedMatches = matchesData.filter(
+          (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
+        );
+
+        // Aggregate standings
+        finishedMatches.forEach((match) => {
+          const homeIdx = resetStandings.findIndex((s) => s.clubId === match.homeClubId);
+          const awayIdx = resetStandings.findIndex((s) => s.clubId === match.awayClubId);
+
+          if (homeIdx !== -1 && awayIdx !== -1) {
+            const homeRow = resetStandings[homeIdx];
+            const awayRow = resetStandings[awayIdx];
+
+            homeRow.played += 1;
+            awayRow.played += 1;
+
+            homeRow.goalsFor += match.score.home;
+            homeRow.goalsAgainst += match.score.away;
+            awayRow.goalsFor += match.score.away;
+            awayRow.goalsAgainst += match.score.home;
+
+            if (match.score.home > match.score.away) {
+              homeRow.won += 1;
+              homeRow.points += 3;
+              awayRow.lost += 1;
+            } else if (match.score.home < match.score.away) {
+              awayRow.won += 1;
+              awayRow.points += 3;
+              homeRow.lost += 1;
+            } else {
+              homeRow.drawn += 1;
+              homeRow.points += 1;
+              awayRow.drawn += 1;
+              awayRow.points += 1;
+            }
+          }
+        });
+
+        // Correct goalDifference
+        resetStandings.forEach((row) => {
+          row.goalDifference = row.goalsFor - row.goalsAgainst;
+        });
+
+        // Sort standings
+        resetStandings.sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+          return b.goalsFor - a.goalsFor;
+        });
+
+        // Aggregate scorer and assist maps from match events
+        const scorerMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; goals: number } } = {};
+        const assistMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; assists: number } } = {};
+
+        finishedMatches.forEach((match) => {
+          match.events.forEach((ev) => {
+            if (ev.type === 'Goal') {
+              if (ev.player1) {
+                const name = ev.player1.trim();
+                const clubName = ev.team === 'home' ? match.homeClubName : match.awayClubName;
+                if (!scorerMap[name]) {
+                  scorerMap[name] = {
+                    playerId: name.toLowerCase().replace(/\s+/g, '_'),
+                    playerName: name,
+                    clubName: clubName,
+                    goals: 0
+                  };
+                }
+                scorerMap[name].goals += 1;
+              }
+              if (ev.player2) {
+                const name = ev.player2.trim();
+                const clubName = ev.team === 'home' ? match.homeClubName : match.awayClubName;
+                if (!assistMap[name]) {
+                  assistMap[name] = {
+                    playerId: name.toLowerCase().replace(/\s+/g, '_'),
+                    playerName: name,
+                    clubName: clubName,
+                    assists: 0
+                  };
+                }
+                assistMap[name].assists += 1;
+              }
+            }
+          });
+        });
+
+        const topScorers = Object.values(scorerMap)
+          .sort((a, b) => b.goals - a.goals)
+          .slice(0, 15);
+
+        const topAssists = Object.values(assistMap)
+          .sort((a, b) => b.assists - a.assists)
+          .slice(0, 15);
+
+        await setDoc(champDoc.ref, {
+          ...champ,
+          standings: resetStandings,
+          topScorers,
+          topAssists
+        });
+      }
+
       addNotification(
-        'Recálculo Iniciado',
-        'As estatísticas estão sendo recalculadas a partir de todas as partidas finalizadas.',
+        'Recálculo Concluído',
+        'As estatísticas de atletas e tabelas de classificação foram recalculadas com sucesso.',
         'sistema'
       );
     } catch (err) {
@@ -1391,133 +1647,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Recalculate standings, topScorers, and topAssists for all championships based on finished matches
+  // Keep track of previous matches to detect transitions to FINISHED and score changes
+  const prevStandingsMatchesRef = React.useRef<Match[]>([]);
+
   useEffect(() => {
-    setChampionships((prevChampionships) => {
-      if (prevChampionships.length === 0) return prevChampionships;
+    // Only run this auto-update on the Admin client to avoid write conflicts
+    if (user?.role !== 'Admin') {
+      prevStandingsMatchesRef.current = matches;
+      return;
+    }
 
-      return prevChampionships.map((champ) => {
-        // Reset all existing standing rows to 0 stats, preserving the clubs currently in the championship
-        const resetStandings = champ.standings.map((row) => ({
-          ...row,
-          played: 0,
-          won: 0,
-          drawn: 0,
-          lost: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          goalDifference: 0,
-          points: 0
-        }));
+    if (prevStandingsMatchesRef.current.length === 0) {
+      if (matches.length > 0) {
+        prevStandingsMatchesRef.current = matches;
+      }
+      return;
+    }
 
-        // Filter finished matches for this championship
-        const finishedMatches = matches.filter(
-          (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
-        );
+    const changedChamps = new Set<string>();
 
-        // Aggregate standings
-        finishedMatches.forEach((match) => {
-          const homeIdx = resetStandings.findIndex((s) => s.clubId === match.homeClubId);
-          const awayIdx = resetStandings.findIndex((s) => s.clubId === match.awayClubId);
+    matches.forEach((m) => {
+      const prev = prevStandingsMatchesRef.current.find((p) => p.id === m.id);
+      if (!prev) {
+        // New match added
+        if (m.status === MatchStatus.FINISHED) {
+          changedChamps.add(m.championshipId);
+        }
+      } else {
+        // Existing match updated
+        const transitionedToFinished = prev.status !== MatchStatus.FINISHED && m.status === MatchStatus.FINISHED;
+        const finishedScoreChanged = prev.status === MatchStatus.FINISHED && m.status === MatchStatus.FINISHED && 
+          (prev.score.home !== m.score.home || prev.score.away !== m.score.away);
+        const finishedStatusChanged = prev.status === MatchStatus.FINISHED && m.status !== MatchStatus.FINISHED; // Reopened!
 
-          if (homeIdx !== -1 && awayIdx !== -1) {
-            const homeRow = resetStandings[homeIdx];
-            const awayRow = resetStandings[awayIdx];
-
-            homeRow.played += 1;
-            awayRow.played += 1;
-
-            homeRow.goalsFor += match.score.home;
-            homeRow.goalsAgainst += match.score.away;
-            awayRow.goalsFor += match.score.away;
-            awayRow.goalsAgainst += match.score.home;
-
-            if (match.score.home > match.score.away) {
-              homeRow.won += 1;
-              homeRow.points += 3;
-              awayRow.lost += 1;
-            } else if (match.score.home < match.score.away) {
-              awayRow.won += 1;
-              awayRow.points += 3;
-              homeRow.lost += 1;
-            } else {
-              homeRow.drawn += 1;
-              homeRow.points += 1;
-              awayRow.drawn += 1;
-              awayRow.points += 1;
-            }
-          }
-        });
-
-        // Correct goalDifference
-        resetStandings.forEach((row) => {
-          row.goalDifference = row.goalsFor - row.goalsAgainst;
-        });
-
-        // Sort standings (points DESC, then goal difference DESC, then goals for DESC)
-        resetStandings.sort((a, b) => {
-          if (b.points !== a.points) return b.points - a.points;
-          if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-          return b.goalsFor - a.goalsFor;
-        });
-
-        // Aggregate scorer and assist maps from match events
-        const scorerMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; goals: number } } = {};
-        const assistMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; assists: number } } = {};
-
-        finishedMatches.forEach((match) => {
-          match.events.forEach((ev) => {
-            if (ev.type === 'Goal') {
-              // Scorer
-              if (ev.player1) {
-                const name = ev.player1.trim();
-                const clubName = ev.team === 'home' ? match.homeClubName : match.awayClubName;
-                if (!scorerMap[name]) {
-                  scorerMap[name] = {
-                    playerId: name.toLowerCase().replace(/\s+/g, '_'),
-                    playerName: name,
-                    clubName: clubName,
-                    goals: 0
-                  };
-                }
-                scorerMap[name].goals += 1;
-              }
-
-              // Assist
-              if (ev.player2) {
-                const name = ev.player2.trim();
-                const clubName = ev.team === 'home' ? match.homeClubName : match.awayClubName;
-                if (!assistMap[name]) {
-                  assistMap[name] = {
-                    playerId: name.toLowerCase().replace(/\s+/g, '_'),
-                    playerName: name,
-                    clubName: clubName,
-                    assists: 0
-                  };
-                }
-                assistMap[name].assists += 1;
-              }
-            }
-          });
-        });
-
-        const topScorers = Object.values(scorerMap)
-          .sort((a, b) => b.goals - a.goals)
-          .slice(0, 15);
-
-        const topAssists = Object.values(assistMap)
-          .sort((a, b) => b.assists - a.assists)
-          .slice(0, 15);
-
-        return {
-          ...champ,
-          standings: resetStandings,
-          topScorers,
-          topAssists
-        };
-      });
+        if (transitionedToFinished || finishedScoreChanged || finishedStatusChanged) {
+          changedChamps.add(m.championshipId);
+        }
+      }
     });
-  }, [matches]);
+
+    // Check for deleted matches
+    prevStandingsMatchesRef.current.forEach((prev) => {
+      const current = matches.find((m) => m.id === prev.id);
+      if (!current && prev.status === MatchStatus.FINISHED) {
+        // Deleted a finished match
+        changedChamps.add(prev.championshipId);
+      }
+    });
+
+    prevStandingsMatchesRef.current = matches;
+
+    if (changedChamps.size > 0) {
+      changedChamps.forEach((champId) => {
+        console.log(`[Auto Standing Recalculation] Recalculating standings for championship: ${champId}`);
+        recalculateStandingsForChampionship(champId, matches);
+      });
+    }
+  }, [matches, user, championships]);
 
   // Automatically apply finished match statistics to player season stats
   useEffect(() => {
@@ -1966,6 +2152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deletePlayer,
         addChampionship,
         updateChampionship,
+        recalculateStandingsForChampionship,
         deleteChampionship,
         clearAllChampionships,
         addNews,
