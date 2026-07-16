@@ -25,7 +25,7 @@ export const LiveMatches: React.FC = () => {
   };
 
   // Tab state for match filtering
-  const [selectedTab, setSelectedTab] = useState<'yesterday' | 'today' | 'live' | 'tomorrow' | 'all'>('today');
+  const [selectedTab, setSelectedTab] = useState<string>('today');
 
   // Dynamic relative date helper
   const getRelativeDateStr = (offsetDays: number) => {
@@ -37,17 +37,39 @@ export const LiveMatches: React.FC = () => {
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  const formatTabDate = (d: Date): string => {
+    const day = d.getDate();
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const month = months[d.getMonth()];
+    return `${day} ${month}`;
+  };
+
   const allDisplayMatches = matches.map(m => ({
     ...m,
     championshipName: getMappedChampionshipName(m.championshipName)
   }));
 
-  // Match counts for Yesterday, Today, Live, and Tomorrow tabs
-  const yesterdayMatchesCount = allDisplayMatches.filter(m => m.date === getRelativeDateStr(-1)).length;
-  const todayMatchesCount = allDisplayMatches.filter(m => m.date === getRelativeDateStr(0)).length;
-  const liveMatchesCount = allDisplayMatches.filter(m => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT).length;
-  const tomorrowMatchesCount = allDisplayMatches.filter(m => m.date === getRelativeDateStr(1)).length;
-  const allMatchesCount = allDisplayMatches.length;
+  // Define the tabs dynamically
+  const matchTabs = [
+    { id: 'yesterday', label: 'Ontem', isLive: false, getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(-1) && m.status === MatchStatus.FINISHED).length },
+    { id: 'live', label: 'Ao Vivo', isLive: true, getCount: () => allDisplayMatches.filter(m => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT).length },
+    { id: 'today', label: 'Hoje', isLive: false, getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(0)).length },
+    { id: 'tomorrow', label: 'Amanhã', isLive: false, getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(1)).length },
+  ];
+
+  // Add subsequent 12 days to cover dynamic future dates
+  for (let i = 2; i <= 13; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const dateStr = getRelativeDateStr(i);
+    const label = formatTabDate(d);
+    matchTabs.push({
+      id: dateStr,
+      label: label,
+      isLive: false,
+      getCount: () => allDisplayMatches.filter(m => m.date === dateStr).length
+    });
+  }
 
   // Filter display matches based on selected tab and showOnlyFavorites mode
   const getFilteredMatches = () => {
@@ -55,15 +77,16 @@ export const LiveMatches: React.FC = () => {
 
     // Filter by selected tab
     if (selectedTab === 'yesterday') {
-      result = result.filter((m) => m.date === getRelativeDateStr(-1));
-    } else if (selectedTab === 'today') {
-      result = result.filter((m) => m.date === getRelativeDateStr(0));
+      result = result.filter((m) => m.date === getRelativeDateStr(-1) && m.status === MatchStatus.FINISHED);
     } else if (selectedTab === 'live') {
       result = result.filter((m) => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT);
+    } else if (selectedTab === 'today') {
+      result = result.filter((m) => m.date === getRelativeDateStr(0) || m.status === MatchStatus.LIVE || m.status === MatchStatus.HT);
     } else if (selectedTab === 'tomorrow') {
       result = result.filter((m) => m.date === getRelativeDateStr(1));
-    } else if (selectedTab === 'all') {
-      // Show all matches without filtering by date
+    } else {
+      // Specific date string (e.g. '2026-07-18')
+      result = result.filter((m) => m.date === selectedTab);
     }
 
     // Filter by favorites if toggled
@@ -71,11 +94,39 @@ export const LiveMatches: React.FC = () => {
       result = result.filter((m) => favorites.matches.includes(m.id));
     }
 
-    return result;
+    // Filter out duplicated/less-important matches of the same matchup
+    const matchupGroups: { [key: string]: Match[] } = {};
+    result.forEach((m) => {
+      const key = `${m.homeClubId || m.homeClubName}_${m.awayClubId || m.awayClubName}`;
+      if (!matchupGroups[key]) {
+        matchupGroups[key] = [];
+      }
+      matchupGroups[key].push(m);
+    });
+
+    const finalResult: Match[] = [];
+    Object.values(matchupGroups).forEach((group) => {
+      if (group.length === 1) {
+        finalResult.push(group[0]);
+      } else {
+        // Sort by status priority: LIVE or HT (3) > FINISHED (2) > SCHEDULED (1)
+        group.sort((a, b) => {
+          const getPriority = (status: MatchStatus) => {
+            if (status === MatchStatus.LIVE || status === MatchStatus.HT) return 3;
+            if (status === MatchStatus.FINISHED) return 2;
+            return 1;
+          };
+          return getPriority(b.status) - getPriority(a.status);
+        });
+        finalResult.push(group[0]);
+      }
+    });
+
+    return finalResult;
   };
 
   const filteredMatches = getFilteredMatches();
-  const liveCount = liveMatchesCount;
+  const liveCount = allDisplayMatches.filter(m => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT).length;
 
   // Group matches by championship
   const matchesByLeague: { [leagueName: string]: Match[] } = {};
@@ -84,6 +135,11 @@ export const LiveMatches: React.FC = () => {
       matchesByLeague[match.championshipName] = [];
     }
     matchesByLeague[match.championshipName].push(match);
+  });
+
+  // Sort matches inside each championship by time (horário)
+  Object.keys(matchesByLeague).forEach((leagueName) => {
+    matchesByLeague[leagueName].sort((a, b) => a.time.localeCompare(b.time));
   });
 
   const handlePredictorSubmit = (e: React.FormEvent) => {
@@ -119,37 +175,32 @@ export const LiveMatches: React.FC = () => {
           <ChevronRight className="w-5 h-5 text-blue-100 shrink-0" />
         </div>
 
-        {/* Date/Status Tab Bar: ONTEM, HOJE, AO VIVO, AMANHÃ, TODAS */}
-        <div className="flex items-center space-x-1 p-1 bg-slate-100 dark:bg-slate-900/60 rounded-xl border border-slate-200/50 dark:border-slate-800/40 overflow-x-auto">
-          {[
-            { id: 'yesterday', label: translations[language].ontem, count: yesterdayMatchesCount, isLive: false },
-            { id: 'today', label: translations[language].hoje, count: todayMatchesCount, isLive: false },
-            { id: 'live', label: translations[language].aoVivo, count: liveMatchesCount, isLive: true },
-            { id: 'tomorrow', label: translations[language].amanha, count: tomorrowMatchesCount, isLive: false },
-            { id: 'all', label: translations[language].todas, count: allMatchesCount, isLive: false }
-          ].map((tab) => {
+        {/* Date/Status Tab Bar with automatic dates and horizontal scrolling */}
+        <div className="flex items-center space-x-1.5 p-1 bg-slate-100 dark:bg-slate-900/60 rounded-xl border border-slate-200/50 dark:border-slate-800/40 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {matchTabs.map((tab) => {
             const isActive = selectedTab === tab.id;
+            const count = tab.getCount();
             return (
               <button
                 key={tab.id}
-                onClick={() => setSelectedTab(tab.id as any)}
-                className={`flex-1 py-2 px-1 rounded-lg text-[11px] font-black tracking-wide uppercase transition-all flex items-center justify-center space-x-1.5 cursor-pointer relative select-none ${
+                onClick={() => setSelectedTab(tab.id)}
+                className={`flex-none py-2 px-3 rounded-lg text-[11px] font-black tracking-wide uppercase transition-all flex items-center justify-center space-x-1.5 cursor-pointer relative select-none shrink-0 ${
                   isActive
                     ? 'bg-white dark:bg-[#1E293B] text-[#1E3A8A] dark:text-blue-400 shadow-sm border border-slate-200/30 dark:border-slate-700/30'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                 }`}
               >
-                {tab.isLive && tab.count > 0 && (
+                {tab.isLive && count > 0 && (
                   <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping absolute top-1 right-2" />
                 )}
                 <span>{tab.label}</span>
-                {tab.count > 0 && (
+                {count > 0 && (
                   <span className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-bold ${
                     isActive
                       ? tab.isLive ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400' : 'bg-blue-100 dark:bg-blue-950/40 text-[#1E3A8A] dark:text-blue-400'
                       : tab.isLive ? 'bg-rose-500/15 text-rose-500' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                   }`}>
-                    {tab.count}
+                    {count}
                   </span>
                 )}
               </button>
@@ -158,150 +209,150 @@ export const LiveMatches: React.FC = () => {
         </div>
 
         {/* 3. MAIN "FAVORITOS" & CHAMPIONSHIPS CONTAINER */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-[#131F32] border border-slate-800/80 rounded-2xl shadow-sm overflow-hidden">
           {/* Card Header matching the screenshot exactly */}
-          <div className="bg-slate-50 dark:bg-slate-900/40 px-4 py-3 border-b border-slate-200 dark:border-slate-800/60 flex items-center space-x-2">
-            <Star className={`w-4 h-4 ${showOnlyFavorites ? 'text-yellow-500 fill-yellow-500' : 'text-slate-500 fill-slate-500'}`} />
-            <h2 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+          <div className="bg-[#1A2536] px-4 py-3.5 border-b border-slate-800/40 flex items-center space-x-2">
+            <Star className="w-4 h-4 text-slate-100 fill-slate-100" />
+            <h2 className="text-xs font-black text-slate-100 uppercase tracking-wider">
               {showOnlyFavorites ? translations[language].favoritos : translations[language].partidas}
             </h2>
           </div>
 
-          {/* Grouped Matches Content */}
-          <div className="divide-y divide-slate-200 dark:divide-slate-800">
-            {Object.keys(matchesByLeague).length === 0 ? (
-              <div className="p-8 text-center text-slate-500 dark:text-slate-400 space-y-1.5">
+          {/* Grouped Matches Content in a sleek vertical list */}
+          <div className="divide-y divide-slate-800/50">
+            {filteredMatches.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 space-y-1.5 bg-[#131F32]">
                 <p className="text-xs font-medium">{translations[language].nenhumaPartida}</p>
-                <p className="text-[10px] text-slate-400">{translations[language].favoritarInstrucao}</p>
+                <p className="text-[10px] text-slate-500">{translations[language].favoritarInstrucao}</p>
               </div>
             ) : (
-              Object.keys(matchesByLeague).map((leagueName) => (
-                <div key={leagueName} className="bg-white dark:bg-[#1E293B]">
-                  {/* League/Championship Sub-header inside Card */}
-                  <div className="bg-slate-50/40 dark:bg-slate-900/10 px-4 py-2 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center space-x-1.5">
-                      <span>{leagueName}</span>
+              filteredMatches.map((match) => {
+                const isFav = favorites?.matches?.includes(match.id) || false;
+                const isLiveMatch = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
+                
+                // Determine header layout and labels dynamically to match the screenshot
+                let headerLeft = '';
+                let statusBadge = null;
+
+                if (match.status === MatchStatus.LIVE) {
+                  headerLeft = match.championshipName;
+                  statusBadge = (
+                    <span className="text-[8px] text-rose-400 font-bold uppercase tracking-wider bg-rose-500/10 border border-rose-500/10 px-2 py-0.5 rounded-sm flex items-center space-x-1">
+                      <span className="flex h-1 w-1 relative shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1 w-1 bg-rose-500"></span>
+                      </span>
+                      <span>Ao Vivo • {formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}</span>
                     </span>
-                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                      Ao Vivo
+                  );
+                } else if (match.status === MatchStatus.HT) {
+                  headerLeft = `Intervalo • ${match.championshipName}`;
+                  statusBadge = (
+                    <span className="text-[8px] text-amber-400 font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/10 px-2 py-0.5 rounded-sm flex items-center space-x-1">
+                      <span className="h-1 w-1 rounded-full bg-amber-500 shrink-0"></span>
+                      <span>Intervalo</span>
                     </span>
-                  </div>
+                  );
+                } else if (match.status === MatchStatus.FINISHED) {
+                  headerLeft = `Finalizado • ${match.championshipName}`;
+                  statusBadge = (
+                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider bg-slate-800/60 border border-slate-700/10 px-2 py-0.5 rounded-sm">
+                      Finalizado
+                    </span>
+                  );
+                } else {
+                  headerLeft = `${match.time} • ${match.championshipName}`;
+                  statusBadge = (
+                    <span className="text-[8px] text-blue-400 font-bold uppercase tracking-wider bg-blue-900/30 border border-blue-500/15 px-2 py-0.5 rounded-sm">
+                      Agendado
+                    </span>
+                  );
+                }
 
-                  {/* Matches entries list */}
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800/40">
-                    {matchesByLeague[leagueName].map((match) => {
-                      const isFav = favorites?.matches?.includes(match.id) || false;
-                      return (
-                        <div
-                          key={match.id}
-                          className="flex flex-col py-3 px-4 hover:bg-slate-50/40 dark:hover:bg-slate-900/10 transition-colors"
-                        >
-                          {/* Main Row: Info, Teams, Score */}
-                          <div className="flex items-center justify-between w-full">
-                            {/* Left: Star Only */}
-                            <div className="w-[10%] shrink-0 flex items-center justify-start">
-                              <button
-                                onClick={() => toggleFavorite('matches', match.id)}
-                                className="p-1 text-slate-300 hover:text-yellow-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
-                                title="Favoritar partida"
-                              >
-                                <Star className={`w-4 h-4 ${isFav ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-                              </button>
-                            </div>
+                return (
+                  <div
+                    key={match.id}
+                    onClick={() => navigateTo({ type: 'match', id: match.id })}
+                    className="p-4 hover:bg-[#1A263B]/30 transition-colors cursor-pointer space-y-3 select-none"
+                  >
+                    {/* Mini Header Row: Time, Championship & Status */}
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      <span className="truncate max-w-[70%]">{headerLeft}</span>
+                      <span>{statusBadge}</span>
+                    </div>
 
-                            {/* Center: Interactive Teams and Score */}
-                            <div
-                              onClick={() => navigateTo({ type: 'match', id: match.id })}
-                              className="flex-1 flex items-center justify-between cursor-pointer px-1.5 select-none"
-                            >
-                              {/* Home Team */}
-                              <div 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigateTo({ type: 'club', id: match.homeClubId });
-                                }}
-                                className="flex flex-col items-end justify-center w-[41%] text-right pr-1.5 min-w-0 group/home cursor-pointer select-none"
-                              >
-                                {(match.homeClubName === 'Inglaterra' || match.homeClubName === 'Bélgica') && (
-                                  <span className="text-[8px] text-zinc-400 dark:text-zinc-500 font-bold block mb-0.5 truncate max-w-full uppercase tracking-wider leading-none">
-                                    TV Miramar (Moz)
-                                  </span>
-                                )}
-                                <div className="flex items-center space-x-2 justify-end w-full">
-                                  <span className={`text-[11px] font-bold text-slate-800 dark:text-slate-100 group-hover/home:text-blue-600 dark:group-hover/home:text-blue-400 transition-colors truncate ${match.score.home > match.score.away && match.status === MatchStatus.FINISHED ? 'font-black' : 'font-semibold'}`}>
-                                    {match.homeClubName}
-                                  </span>
-                                  <img
-                                    src={match.homeClubLogo}
-                                    alt={match.homeClubName}
-                                    className="w-5.5 h-5.5 rounded-full object-cover bg-slate-50 shrink-0 shadow-xs border border-slate-100 dark:border-slate-800 group-hover/home:scale-110 transition-transform"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                              </div>
+                    {/* Team Entries Match Row */}
+                    <div className="flex items-center justify-between">
+                      {/* Favorite Button (Star) */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite('matches', match.id);
+                        }}
+                        className="w-7 flex-none text-slate-400 hover:text-yellow-400 transition-colors cursor-pointer text-left"
+                      >
+                        <Star className={`w-4 h-4 ${isFav ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                      </button>
 
-                              {/* Live/Finished Score Box */}
-                              <div className="flex flex-col items-center justify-center w-[18%] shrink-0 text-center">
-                                {match.status === MatchStatus.LIVE || match.status === MatchStatus.HT ? (
-                                  <>
-                                    <span className="text-[12px] font-black text-blue-600 font-mono tracking-tighter leading-none">
-                                      {match.score.home} - {match.score.away}
-                                    </span>
-                                    <span className="text-[8px] text-blue-500 font-black font-mono mt-0.5 tracking-tight leading-none flex items-center justify-center space-x-0.5">
-                                      {match.status === MatchStatus.HT ? (
-                                        'INT'
-                                      ) : (
-                                        formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)
-                                      )}
-                                    </span>
-                                  </>
-                                ) : match.status === MatchStatus.FINISHED ? (
-                                  <>
-                                    <span className="text-[12px] font-black text-slate-800 dark:text-slate-100 font-mono tracking-tighter leading-none">
-                                      {match.score.home} - {match.score.away}
-                                    </span>
-                                    <span className="text-[8px] text-slate-400 font-bold mt-0.5 leading-none uppercase">
-                                      FIM
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="text-[9px] font-bold text-slate-500 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded leading-none">
-                                    {match.time}
-                                  </span>
-                                )}
-                              </div>
+                      {/* Home Team Side */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigateTo({ type: 'club', id: match.homeClubId });
+                        }}
+                        className="flex-1 flex items-center justify-end space-x-2 text-right group/home truncate"
+                      >
+                        <span className="text-xs font-black text-slate-100 uppercase tracking-wide group-hover/home:text-blue-400 transition-colors truncate">
+                          {match.homeClubName}
+                        </span>
+                        <img
+                          src={match.homeClubLogo}
+                          alt={match.homeClubName}
+                          className="w-6 h-6 rounded-full object-cover bg-slate-800 shrink-0 border border-slate-700/50 group-hover/home:scale-105 transition-transform"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
 
-                              {/* Away Team */}
-                              <div 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigateTo({ type: 'club', id: match.awayClubId });
-                                }}
-                                className="flex items-center space-x-2 justify-start w-[41%] text-left pl-0.5 group/away cursor-pointer select-none"
-                              >
-                                <img
-                                  src={match.awayClubLogo}
-                                  alt={match.awayClubName}
-                                  className="w-5.5 h-5.5 rounded-full object-cover bg-slate-50 shrink-0 shadow-xs border border-slate-100 dark:border-slate-800 group-hover/away:scale-110 transition-transform"
-                                  referrerPolicy="no-referrer"
-                                />
-                                <span className={`text-[11px] text-slate-800 dark:text-slate-100 group-hover/away:text-blue-600 dark:group-hover/away:text-blue-400 transition-colors truncate ${match.score.away > match.score.home && match.status === MatchStatus.FINISHED ? 'font-black' : 'font-semibold'}`}>
-                                  {match.awayClubName}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Right: Chevron */}
-                            <div className="w-[10%] flex justify-end shrink-0">
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-700" />
-                            </div>
+                      {/* VS / Score Badge Column */}
+                      <div className="w-16 flex-none flex justify-center">
+                        {match.status === MatchStatus.SCHEDULED ? (
+                          <div className="bg-[#1C2C42] px-3 py-0.5 rounded-full text-[10px] font-black text-slate-400 font-mono tracking-wider text-center select-none border border-slate-800/40">
+                            VS
                           </div>
-                        </div>
-                      );
-                    })}
+                        ) : (
+                          <div className={`px-2.5 py-0.5 rounded text-xs font-black font-mono tracking-tight text-center select-none border ${isLiveMatch ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800/80 text-slate-300 border-slate-700/30'}`}>
+                            {match.score.home} - {match.score.away}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Away Team Side */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigateTo({ type: 'club', id: match.awayClubId });
+                        }}
+                        className="flex-1 flex items-center justify-start space-x-2 text-left group/away truncate"
+                      >
+                        <img
+                          src={match.awayClubLogo}
+                          alt={match.awayClubName}
+                          className="w-6 h-6 rounded-full object-cover bg-slate-800 shrink-0 border border-slate-700/50 group-hover/away:scale-105 transition-transform"
+                          referrerPolicy="no-referrer"
+                        />
+                        <span className="text-xs font-black text-slate-100 uppercase tracking-wide group-hover/away:text-blue-400 transition-colors truncate">
+                          {match.awayClubName}
+                        </span>
+                      </div>
+
+                      {/* Chevron Navigation Indicator */}
+                      <div className="w-6 flex-none flex justify-end text-slate-500">
+                        <ChevronRight className="w-4 h-4 text-slate-500" />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

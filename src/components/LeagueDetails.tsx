@@ -13,82 +13,156 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
 
   const league = championships.find((c) => c.id === leagueId);
 
+  const getRecentForm = (clubId: string, championshipId: string) => {
+    // Find all finished matches of this club in this championship
+    const clubMatches = matches
+      .filter(
+        (m) =>
+          m.championshipId === championshipId &&
+          m.status === 'Encerrado' &&
+          (m.homeClubId === clubId || m.awayClubId === clubId)
+      )
+      .sort((a, b) => {
+        const rA = Number(a.round) || 0;
+        const rB = Number(b.round) || 0;
+        if (rA !== rB) return rA - rB;
+        return a.date.localeCompare(b.date);
+      });
+
+    // Get the last 5 matches
+    const last5 = clubMatches.slice(-5);
+
+    // Map to 'V', 'E', 'D'
+    const formSymbols = last5.map((m) => {
+      const isHome = m.homeClubId === clubId;
+      const homeScore = m.score.home;
+      const awayScore = m.score.away;
+
+      if (homeScore === awayScore) {
+        return 'E';
+      }
+      if (isHome) {
+        return homeScore > awayScore ? 'V' : 'D';
+      } else {
+        return awayScore > homeScore ? 'V' : 'D';
+      }
+    });
+
+    // Fill up to 5 with '?'
+    while (formSymbols.length < 5) {
+      formSymbols.push('?');
+    }
+
+    return formSymbols;
+  };
+
   // Helper to render the standings table
   const renderStandingsTable = (rows: StandingRow[]) => {
+    const maxPlayed = Math.max(...rows.map((r) => r.played));
+
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs text-left">
+      <div className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-[#0F172A] shadow-xs">
+        <table className="w-full text-[10px] text-left border-collapse table-fixed">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-center">
-              <th className="py-3 text-left w-12">Pos</th>
-              <th className="py-3 text-left">Clube</th>
-              <th className="py-3 w-10 text-emerald-500">P</th>
-              <th className="py-3 w-8">J</th>
-              <th className="py-3 w-8">V</th>
-              <th className="py-3 w-8">E</th>
-              <th className="py-3 w-8">D</th>
-              <th className="py-3 w-10">GP</th>
-              <th className="py-3 w-10">GC</th>
-              <th className="py-3 w-10">SG</th>
+            <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
+              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">Pos</th>
+              <th className="w-[37%] py-2 text-left px-1.5 border-r border-zinc-200 dark:border-zinc-800">Clube</th>
+              <th className="w-[10%] py-2 text-center font-black border-r border-zinc-200 dark:border-zinc-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+              <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">J</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">V</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">E</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">D</th>
+              <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GP</th>
+              <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GC</th>
+              <th className="w-[9%] py-2 text-center">SG</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-medium">
+          <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 font-medium">
             {rows.map((row, idx) => {
-              const isLibertadores = idx < 2;
-              const isRelegation = idx >= rows.length - 1 && rows.length > 2;
+              const bgClass = idx === 0
+                ? 'bg-[#22c55e]'
+                : idx >= rows.length - 3 && rows.length > 3
+                ? 'bg-[#ef4444]'
+                : 'bg-[#94a3b8] dark:bg-zinc-600';
+
+              const recentForm = getRecentForm(row.clubId, leagueId);
+              const diff = row.played - maxPlayed;
 
               return (
                 <tr
                   key={row.clubId}
-                  className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors text-center text-zinc-700 dark:text-zinc-300"
+                  className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center text-zinc-700 dark:text-zinc-300"
                 >
-                  <td className="py-3 text-left font-bold font-mono">
-                    <span
-                      className={`inline-block w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                        isLibertadores
-                          ? 'bg-emerald-100 dark:bg-emerald-950/45 text-emerald-600 dark:text-emerald-400'
-                          : isRelegation
-                          ? 'bg-rose-100 dark:bg-rose-950/45 text-rose-600 dark:text-rose-400'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'
-                      }`}
-                    >
+                  <td className={`p-0 w-[7%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 ${bgClass}`}>
+                    <div className="w-full h-10 flex items-center justify-center">
                       {idx + 1}
-                    </span>
-                  </td>
-
-                  <td className="py-3 text-left">
-                    <div
-                      onClick={() => navigateTo({ type: 'club', id: row.clubId })}
-                      className="flex items-center space-x-2.5 cursor-pointer hover:underline"
-                    >
-                      <img
-                        src={row.logoUrl}
-                        alt=""
-                        className="w-5.5 h-5.5 rounded-full object-cover bg-zinc-100"
-                        referrerPolicy="no-referrer"
-                      />
-                      <span className="font-bold text-zinc-900 dark:text-white truncate">
-                        {row.clubName}
-                      </span>
                     </div>
                   </td>
 
-                  <td className="py-3 font-bold font-mono text-zinc-900 dark:text-white text-sm">
+                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                    <div className="flex flex-col justify-center min-w-0">
+                      <div
+                        onClick={() => navigateTo({ type: 'club', id: row.clubId })}
+                        className="flex items-center space-x-1 cursor-pointer group"
+                      >
+                        <img
+                          src={row.logoUrl}
+                          alt=""
+                          className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                        <span className="font-extrabold text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[10px] transition-colors truncate leading-tight">
+                          {row.clubName}
+                        </span>
+                      </div>
+                      
+                      {/* Recent Form small icons row */}
+                      <div className="flex items-center space-x-0.5 mt-1">
+                        {recentForm.map((symbol, sIdx) => {
+                          const symBg = symbol === 'V'
+                            ? 'bg-[#22c55e]'
+                            : symbol === 'E'
+                            ? 'bg-[#fbbf24]'
+                            : symbol === 'D'
+                            ? 'bg-[#ef4444]'
+                            : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500';
+                          return (
+                            <span
+                              key={sIdx}
+                              className={`w-3.5 h-3.5 rounded-[2px] flex items-center justify-center text-[8px] font-black text-white shadow-3xs ${symBg}`}
+                              title={symbol === 'V' ? 'Vitória' : symbol === 'E' ? 'Empate' : symbol === 'D' ? 'Derrota' : 'Sem Jogo'}
+                            >
+                              {symbol}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </td>
+
+                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-slate-950/15">
                     {row.points}
                   </td>
-                  <td className="py-3 font-mono">{row.played}</td>
-                  <td className="py-3 font-mono">{row.won}</td>
-                  <td className="py-3 font-mono">{row.drawn}</td>
-                  <td className="py-3 font-mono">{row.lost}</td>
-                  <td className="py-3 font-mono">{row.goalsFor}</td>
-                  <td className="py-3 font-mono">{row.goalsAgainst}</td>
+                  <td className="py-1 w-[8%] text-center border-r border-zinc-200 dark:border-zinc-800">
+                    <div className="flex flex-col items-center justify-center leading-none">
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[10px]">{row.played}</span>
+                      {diff < 0 && (
+                        <span className="text-[7.5px] text-zinc-400 dark:text-zinc-500 font-bold mt-0.5">{diff}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.won}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.drawn}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.lost}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.goalsFor}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.goalsAgainst}</td>
                   <td
-                    className={`py-3 font-mono font-bold ${
+                    className={`py-1 w-[9%] text-center font-bold text-[9.5px] ${
                       row.goalDifference > 0
-                        ? 'text-emerald-500'
+                        ? 'text-zinc-800 dark:text-zinc-200'
                         : row.goalDifference < 0
-                        ? 'text-rose-500'
-                        : ''
+                        ? 'text-rose-500 font-black'
+                        : 'text-zinc-500'
                     }`}
                   >
                     {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}

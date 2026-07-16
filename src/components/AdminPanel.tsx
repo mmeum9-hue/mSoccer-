@@ -63,7 +63,6 @@ export const AdminPanel: React.FC = () => {
     deleteNews,
     clearAllNews,
     clearAllDatabase,
-    restoreDefaultDatabase,
     recalculateAllPlayerStats,
     news,
     addNotification,
@@ -77,6 +76,7 @@ export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [matchSearchQuery, setMatchSearchQuery] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
 
@@ -1276,6 +1276,12 @@ export const AdminPanel: React.FC = () => {
     m.championshipName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredAdminMatches = matches.filter((m) =>
+    m.homeClubName.toLowerCase().includes(matchSearchQuery.toLowerCase()) ||
+    m.awayClubName.toLowerCase().includes(matchSearchQuery.toLowerCase()) ||
+    m.championshipName.toLowerCase().includes(matchSearchQuery.toLowerCase())
+  );
+
   const filteredClubs = clubs.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.shortName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1554,25 +1560,6 @@ export const AdminPanel: React.FC = () => {
                     className="px-4 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer transition-all shrink-0"
                   >
                     Excluir e Zerar Tudo
-                  </button>
-                </div>
-
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-emerald-950/10 border border-emerald-900/30 rounded-xl p-4">
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-black text-emerald-200">Restaurar Dados de Demonstração</h4>
-                    <p className="text-[11px] text-zinc-400 max-w-2xl">
-                      Se você limpou o banco de dados e deseja restaurar instantaneamente todos os campeonatos, clubes moçambicanos/europeus, jogadores, partidas de exemplo e notícias originais para fins de demonstração, use esta opção.
-                    </p>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (window.confirm("Deseja restaurar os dados de demonstração iniciais? Isto adicionará os campeonatos, clubes, jogadores e partidas padrão.")) {
-                        await restoreDefaultDatabase();
-                      }
-                    }}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer transition-all shrink-0"
-                  >
-                    Restaurar Dados Padrão
                   </button>
                 </div>
 
@@ -3100,6 +3087,126 @@ export const AdminPanel: React.FC = () => {
                     );
                   })()}
                 </form>
+              </div>
+
+              {/* List of Created Matches (Gerenciamento de Partidas Agendadas) */}
+              <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase flex items-center space-x-2">
+                      <span>📋 Partidas Cadastradas & Agendamentos</span>
+                    </h3>
+                    <p className="text-[11px] text-zinc-400 mt-1">
+                      Visualize, busque e gerencie (exclua) todas as partidas cadastradas no sistema.
+                    </p>
+                  </div>
+                  
+                  {/* Search and filter matches */}
+                  <div className="flex items-center space-x-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:flex-initial">
+                      <input
+                        type="text"
+                        placeholder="Buscar por equipe..."
+                        value={matchSearchQuery}
+                        onChange={(e) => setMatchSearchQuery(e.target.value)}
+                        className="w-full sm:w-60 bg-slate-900 border border-slate-800 text-xs rounded-xl pl-8 pr-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                      <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+                    </div>
+                    {matchSearchQuery && (
+                      <button
+                        onClick={() => setMatchSearchQuery('')}
+                        className="text-xs text-zinc-400 hover:text-white"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {filteredAdminMatches.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-900/20 border border-dashed border-slate-800 rounded-xl">
+                    <p className="text-xs text-zinc-500">Nenhuma partida encontrada.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-zinc-500 font-extrabold border-b border-slate-800/80">
+                          <th className="py-2.5">Partida</th>
+                          <th className="py-2.5">Campeonato</th>
+                          <th className="py-2.5">Data / Hora</th>
+                          <th className="py-2.5">Status</th>
+                          <th className="py-2.5 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/40">
+                        {filteredAdminMatches.map((m) => {
+                          const isMatchChampEnded = championships.find(c => c.id === m.championshipId)?.status === 'Encerrado';
+                          return (
+                            <tr key={m.id} className="hover:bg-slate-800/20 transition-colors">
+                              <td className="py-3 flex items-center space-x-2">
+                                <img src={m.homeClubLogo} alt="" className="w-5 h-5 rounded-full object-cover bg-white animate-fade-in" referrerPolicy="no-referrer" />
+                                <span className="font-bold text-zinc-100">{m.homeClubName}</span>
+                                <span className="font-mono px-1.5 py-0.5 bg-slate-900 rounded font-black text-emerald-400">
+                                  {m.score.home} x {m.score.away}
+                                </span>
+                                <span className="font-bold text-zinc-100">{m.awayClubName}</span>
+                                <img src={m.awayClubLogo} alt="" className="w-5 h-5 rounded-full object-cover bg-white animate-fade-in" referrerPolicy="no-referrer" />
+                              </td>
+                              <td className="py-3 text-zinc-400 font-medium">{m.championshipName}</td>
+                              <td className="py-3 text-zinc-400 font-mono text-[11px]">{m.date} às {m.time}</td>
+                              <td className="py-3">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  m.status === MatchStatus.LIVE
+                                    ? 'bg-rose-500/10 text-rose-400 animate-pulse'
+                                    : m.status === MatchStatus.FINISHED
+                                    ? 'bg-zinc-500/10 text-zinc-400'
+                                    : 'bg-emerald-500/10 text-emerald-400'
+                                }`}>
+                                  {m.status === MatchStatus.SCHEDULED ? 'Agendado' : m.status === MatchStatus.LIVE ? 'Ao Vivo' : 'Encerrado'}
+                                </span>
+                              </td>
+                              <td className="py-3 text-right space-x-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedControllerMatchId(m.id);
+                                    // Scroll to active match controller smoothly
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  title="Operar partida ao vivo"
+                                  className="p-1 hover:bg-slate-800 rounded text-emerald-400 cursor-pointer inline-flex"
+                                >
+                                  <Sliders className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  disabled={isMatchChampEnded}
+                                  onClick={() => {
+                                    if (window.confirm(`Deseja realmente excluir a partida entre ${m.homeClubName} x ${m.awayClubName}?`)) {
+                                      deleteMatch(m.id);
+                                      addNotification?.({
+                                        id: 'notif_' + Date.now(),
+                                        title: 'Partida Excluída',
+                                        desc: `A partida ${m.homeClubName} x ${m.awayClubName} foi removida com sucesso.`,
+                                        time: 'Agora',
+                                        isRead: false,
+                                        type: 'system'
+                                      });
+                                    }
+                                  }}
+                                  title={isMatchChampEnded ? "Não é possível excluir partidas de campeonatos encerrados" : "Excluir partida"}
+                                  className="p-1 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed rounded text-rose-500 cursor-pointer inline-flex"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}

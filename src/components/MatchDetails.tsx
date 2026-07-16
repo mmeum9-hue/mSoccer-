@@ -50,7 +50,15 @@ const getFormattedMatchDate = (dateStr: string, timeStr?: string) => {
 
 export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
   const { matches, championships, favorites, toggleFavorite, navigateBack, navigateTo, news, user, players } = useApp();
-  const [activeTab, setActiveTab] = useState<'formacoes' | 'eventos' | 'direto' | 'noticias'>('eventos');
+  const match = matches.find((m) => m.id === matchId);
+  const champ = championships?.find(c => c.id === match?.championshipId);
+  const displayPhase = match?.phase 
+    ? match.phase 
+    : (champ?.type === 'Copa' ? 'Oitavos de Final' : '');
+
+  const [activeTab, setActiveTab] = useState<'formacoes' | 'eventos' | 'direto' | 'noticias' | 'previa'>(
+    match?.status === MatchStatus.SCHEDULED ? 'previa' : 'eventos'
+  );
   const [formacaoView, setFormacaoView] = useState<'campo' | 'lista'>('campo');
   
   // Collapse states for the event groups
@@ -58,11 +66,10 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
   const [cardsCollapsed, setCardsCollapsed] = useState(false);
   const [subsCollapsed, setSubsCollapsed] = useState(false);
 
-  const match = matches.find((m) => m.id === matchId);
-  const champ = championships?.find(c => c.id === match?.championshipId);
-  const displayPhase = match?.phase 
-    ? match.phase 
-    : (champ?.type === 'Copa' ? 'Oitavos de Final' : '');
+  // Match Preview specific states
+  const [previaChampionshipOnly, setPreviaChampionshipOnly] = useState(false);
+  const [h2hLimit, setH2hLimit] = useState(4);
+  const [selectedH2HId, setSelectedH2HId] = useState<string | null>(null);
 
   if (!match) {
     return (
@@ -207,6 +214,580 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
   const homeReds = cardsList.filter(c => c.team === 'home' && c.type === 'RedCard').length;
   const awayYellows = cardsList.filter(c => c.team === 'away' && c.type === 'YellowCard').length;
   const awayReds = cardsList.filter(c => c.team === 'away' && c.type === 'RedCard').length;
+
+  // Helper functions for Preview
+  const getRecentFormWithFallback = (clubId: string, clubName: string, clubLogo: string, filterByCurrentChampionship: boolean) => {
+    let realMatches = matches.filter(m => {
+      const involvesClub = m.homeClubId === clubId || m.awayClubId === clubId;
+      const isFinished = m.status === MatchStatus.FINISHED;
+      if (!involvesClub || !isFinished) return false;
+      if (filterByCurrentChampionship) {
+        return m.championshipId === match.championshipId;
+      }
+      return true;
+    });
+
+    realMatches.sort((a, b) => b.date.localeCompare(a.date));
+    return realMatches.slice(0, 5);
+  };
+
+  const getMatchResult = (m: any, clubId: string): 'V' | 'E' | 'D' => {
+    const isHome = m.homeClubId === clubId;
+    const scoreHome = m.score.home;
+    const scoreAway = m.score.away;
+    if (scoreHome === scoreAway) return 'E';
+    if (isHome) {
+      return scoreHome > scoreAway ? 'V' : 'D';
+    } else {
+      return scoreAway > scoreHome ? 'V' : 'D';
+    }
+  };
+
+  const getH2HWithFallback = () => {
+    const realH2H = matches.filter(m => {
+      const involvesBoth = 
+        (m.homeClubId === match.homeClubId && m.awayClubId === match.awayClubId) ||
+        (m.homeClubId === match.awayClubId && m.awayClubId === match.homeClubId);
+      const isFinished = m.status === MatchStatus.FINISHED;
+      return involvesBoth && isFinished;
+    });
+
+    realH2H.sort((a, b) => b.date.localeCompare(a.date));
+    return realH2H;
+  };
+
+  const getStadiumInfo = (m: any) => {
+    const name = m.stadium || 'Estádio Municipal';
+    let cityCountry = 'Porto, Portugal';
+
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('maracanã') || m.homeClubName.includes('Flamengo') || m.homeClubName.includes('Fluminense')) {
+      cityCountry = 'Rio de Janeiro, Brasil';
+    } else if (lowerName.includes('bernabéu') || m.homeClubName.includes('Real Madrid')) {
+      cityCountry = 'Madri, Espanha';
+    } else if (lowerName.includes('camp nou') || m.homeClubName.includes('Barcelona')) {
+      cityCountry = 'Barcelona, Espanha';
+    } else if (lowerName.includes('allianz arena') || m.homeClubName.includes('Bayern')) {
+      cityCountry = 'Munique, Alemanha';
+    } else if (lowerName.includes('wembley') || lowerName.includes('emirates') || lowerName.includes('stamford') || m.homeClubName.includes('Chelsea') || m.homeClubName.includes('Arsenal')) {
+      cityCountry = 'Londres, Inglaterra';
+    } else if (lowerName.includes('etihad') || lowerName.includes('old trafford') || m.homeClubName.includes('Manchester')) {
+      cityCountry = 'Manchester, Inglaterra';
+    } else if (lowerName.includes('san siro') || m.homeClubName.includes('Milan') || m.homeClubName.includes('Inter')) {
+      cityCountry = 'Milão, Itália';
+    } else if (m.championshipName.includes('Moçambique') || m.homeClubName.includes('Ferroviário') || m.homeClubName.includes('Costa do Sol') || m.homeClubName.includes('Songo')) {
+      cityCountry = 'Maputo, Moçambique';
+    } else if (m.championshipName.includes('Brasil') || m.homeClubName.includes('Palmeiras') || m.homeClubName.includes('São Paulo') || m.homeClubName.includes('Santos')) {
+      cityCountry = 'São Paulo, Brasil';
+    }
+
+    return {
+      stadium: name,
+      cityCountry,
+      referee: m.referee || 'Wilton Pereira Sampaio (Fifa)'
+    };
+  };
+
+  const getClubStanding = (clubId: string, clubName: string, clubLogoUrl: string) => {
+    if (champ && champ.standings && champ.standings.length > 0) {
+      const idx = champ.standings.findIndex(s => s.clubId === clubId);
+      if (idx !== -1) {
+        return {
+          position: idx + 1,
+          row: champ.standings[idx]
+        };
+      }
+    }
+
+    const champMatches = matches.filter(m => m.championshipId === match.championshipId && m.status === MatchStatus.FINISHED);
+    const stats = {
+      played: 0,
+      won: 0,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      points: 0
+    };
+
+    champMatches.forEach(m => {
+      const isHome = m.homeClubId === clubId;
+      const isAway = m.awayClubId === clubId;
+      if (!isHome && !isAway) return;
+
+      stats.played += 1;
+      const gf = isHome ? m.score.home : m.score.away;
+      const ga = isHome ? m.score.away : m.score.home;
+      stats.goalsFor += gf;
+      stats.goalsAgainst += ga;
+
+      if (gf > ga) {
+        stats.won += 1;
+        stats.points += 3;
+      } else if (gf === ga) {
+        stats.drawn += 1;
+        stats.points += 1;
+      } else {
+        stats.lost += 1;
+      }
+    });
+
+    if (stats.played > 0) {
+      return {
+        position: 1,
+        row: {
+          clubId,
+          clubName,
+          logoUrl: clubLogoUrl,
+          played: stats.played,
+          won: stats.won,
+          drawn: stats.drawn,
+          lost: stats.lost,
+          goalsFor: stats.goalsFor,
+          goalsAgainst: stats.goalsAgainst,
+          goalDifference: stats.goalsFor - stats.goalsAgainst,
+          points: stats.points
+        }
+      };
+    }
+
+    const hash = clubId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const position = (hash % 10) + 1;
+    const points = 45 - position * 3 + (hash % 3);
+    const played = 20;
+    const won = Math.floor(points / 3);
+    const drawn = points % 3;
+    const lost = Math.max(0, played - won - drawn);
+    const goalsFor = won * 2 + drawn;
+    const goalsAgainst = lost * 2 + drawn;
+
+    return {
+      position,
+      row: {
+        clubId,
+        clubName,
+        logoUrl: clubLogoUrl,
+        played,
+        won,
+        drawn,
+        lost,
+        goalsFor,
+        goalsAgainst,
+        goalDifference: goalsFor - goalsAgainst,
+        points
+      }
+    };
+  };
+
+  // E. Prévia Tab (Match Preview Details: Form, H2H, Standings, Match Info)
+  const renderPreviaTab = () => {
+    const homeForm = getRecentFormWithFallback(match.homeClubId, match.homeClubName, match.homeClubLogo, previaChampionshipOnly);
+    const awayForm = getRecentFormWithFallback(match.awayClubId, match.awayClubName, match.awayClubLogo, previaChampionshipOnly);
+    
+    const h2hMatches = getH2HWithFallback();
+    const totalH2HCount = h2hMatches.length;
+    const displayedH2H = h2hMatches.slice(0, h2hLimit);
+
+    const h2hSummary = h2hMatches.reduce((acc, m) => {
+      const scoreHome = m.score.home;
+      const scoreAway = m.score.away;
+      const isHomeClubHost = m.homeClubId === match.homeClubId;
+
+      if (scoreHome === scoreAway) {
+        acc.draws += 1;
+      } else if (scoreHome > scoreAway) {
+        if (isHomeClubHost) {
+          acc.homeWins += 1;
+        } else {
+          acc.awayWins += 1;
+        }
+      } else {
+        if (isHomeClubHost) {
+          acc.awayWins += 1;
+        } else {
+          acc.homeWins += 1;
+        }
+      }
+      return acc;
+    }, { homeWins: 0, awayWins: 0, draws: 0 });
+
+    const stadiumInfo = getStadiumInfo(match);
+    
+    const homeStandObj = getClubStanding(match.homeClubId, match.homeClubName, match.homeClubLogo);
+    const awayStandObj = getClubStanding(match.awayClubId, match.awayClubName, match.awayClubLogo);
+
+    return (
+      <div className="space-y-6">
+        {/* 1. INFORMAÇÕES DA PARTIDA PANEL */}
+        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+          <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center space-x-2">
+            <span>ℹ️</span>
+            <span>Informações da Partida</span>
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-start space-x-3 bg-slate-50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+              <div className="p-2 bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div className="leading-tight">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block">Estádio</span>
+                <span className="text-xs font-black text-slate-800 dark:text-slate-100 mt-1 block">
+                  {stadiumInfo.stadium}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3 bg-slate-50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+              <div className="p-2 bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-lg shrink-0">
+                <User className="w-5 h-5" />
+              </div>
+              <div className="leading-tight">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block">Árbitro Principal</span>
+                <span className="text-xs font-black text-slate-800 dark:text-slate-100 mt-1 block">
+                  {stadiumInfo.referee}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. FORMA RECENTE */}
+        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+          <h3 className="text-sm font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider pb-1">
+            Forma Recente
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <button
+              onClick={() => setPreviaChampionshipOnly(true)}
+              className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer text-center ${
+                previaChampionshipOnly
+                  ? 'bg-[#EAF6EC] dark:bg-emerald-950/40 text-[#1B5E20] dark:text-emerald-400'
+                  : 'bg-[#F1F3F4] dark:bg-slate-800/80 text-[#5F6368] dark:text-zinc-400 hover:bg-[#E8EAED] dark:hover:bg-slate-800'
+              }`}
+            >
+              {match.championshipName ? match.championshipName.replace(/🇺🇳|🇲🇿|🇪🇺|🇪🇸|🇧🇷/g, '').trim().toUpperCase() : 'CAMPEONATO'}
+            </button>
+            <button
+              onClick={() => setPreviaChampionshipOnly(false)}
+              className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer text-center ${
+                !previaChampionshipOnly
+                  ? 'bg-[#EAF6EC] dark:bg-emerald-950/40 text-[#1B5E20] dark:text-emerald-400'
+                  : 'bg-[#F1F3F4] dark:bg-slate-800/80 text-[#5F6368] dark:text-zinc-400 hover:bg-[#E8EAED] dark:hover:bg-slate-800'
+              }`}
+            >
+              Todos
+            </button>
+          </div>
+
+          <div className="overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="min-w-[580px] lg:min-w-full space-y-4">
+              {Math.max(homeForm.length, awayForm.length) === 0 ? (
+                <div className="p-8 text-center text-slate-500 dark:text-zinc-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10">
+                  <p className="text-xs font-bold uppercase tracking-wider">Nenhuma partida finalizada registrada</p>
+                  <p className="text-[10px] text-slate-400 mt-1">A forma recente será preenchida conforme as partidas forem sendo disputadas.</p>
+                </div>
+              ) : (
+                Array.from({ length: Math.min(5, Math.max(homeForm.length, awayForm.length)) }).map((_, idx) => {
+                  const mHome = homeForm[idx];
+                  const mAway = awayForm[idx];
+
+                  const resHome = mHome ? getMatchResult(mHome, match.homeClubId) : 'E';
+                  const resAway = mAway ? getMatchResult(mAway, match.awayClubId) : 'E';
+
+                  return (
+                    <div key={idx} className="grid grid-cols-2 gap-x-4 sm:gap-x-6 items-center">
+                      {/* Left Column (Home Team Form): [Card] [CircleBadge] */}
+                      <div className="flex items-center justify-end space-x-2 sm:space-x-3 w-full">
+                        {mHome ? (
+                          <>
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 sm:px-4 sm:py-3 flex-1 flex items-center justify-between shadow-xs max-w-sm transition-all hover:border-slate-300 dark:hover:border-slate-700">
+                              <img 
+                                src={mHome.homeClubLogo} 
+                                alt="" 
+                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                referrerPolicy="no-referrer" 
+                              />
+                              <span className="font-mono font-black text-xs sm:text-sm text-slate-800 dark:text-zinc-100 px-2 text-center flex-1">
+                                {mHome.score.home} - {mHome.score.away}
+                              </span>
+                              <img 
+                                src={mHome.awayClubLogo} 
+                                alt="" 
+                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                referrerPolicy="no-referrer" 
+                              />
+                            </div>
+                            <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-[11px] sm:text-xs shadow-sm text-white shrink-0 ${
+                              resHome === 'V'
+                                ? 'bg-[#5CB85C]'
+                                : resHome === 'E'
+                                ? 'bg-[#E5B53B]'
+                                : 'bg-[#C2514D]'
+                            }`}>
+                              {resHome}
+                            </span>
+                          </>
+                        ) : (
+                          <div className="h-12 w-full bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-[10px] text-slate-400">
+                            N/A
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right Column (Away Team Form): [CircleBadge] [Card] */}
+                      <div className="flex items-center justify-start space-x-2 sm:space-x-3 w-full">
+                        {mAway ? (
+                          <>
+                            <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-[11px] sm:text-xs shadow-sm text-white shrink-0 ${
+                              resAway === 'V'
+                                ? 'bg-[#5CB85C]'
+                                : resAway === 'E'
+                                ? 'bg-[#E5B53B]'
+                                : 'bg-[#C2514D]'
+                            }`}>
+                              {resAway}
+                            </span>
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 sm:px-4 sm:py-3 flex-1 flex items-center justify-between shadow-xs max-w-sm transition-all hover:border-slate-300 dark:hover:border-slate-700">
+                              <img 
+                                src={mAway.homeClubLogo} 
+                                alt="" 
+                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                referrerPolicy="no-referrer" 
+                              />
+                              <span className="font-mono font-black text-xs sm:text-sm text-slate-800 dark:text-zinc-100 px-2 text-center flex-1">
+                                {mAway.score.home} - {mAway.score.away}
+                              </span>
+                              <img 
+                                src={mAway.awayClubLogo} 
+                                alt="" 
+                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                referrerPolicy="no-referrer" 
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="h-12 w-full bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-[10px] text-slate-400">
+                            N/A
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 3. ÚLTIMOS JOGOS H2H */}
+        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">
+              Últimos Jogos H2H
+            </h3>
+            <button
+              onClick={() => {
+                if (h2hLimit === 4) {
+                  setH2hLimit(8);
+                } else {
+                  setH2hLimit(4);
+                  setSelectedH2HId(null);
+                }
+              }}
+              className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-black text-xs uppercase tracking-wider select-none cursor-pointer"
+            >
+              {h2hLimit === 4 ? 'MAIS' : 'MENOS'}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto pb-1.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex space-x-3 min-w-max pb-1 w-full">
+              {displayedH2H.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 dark:text-zinc-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10 w-full">
+                  <p className="text-xs font-bold uppercase tracking-wider">Nenhum confronto direto registrado</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Os dados do H2H serão atualizados à medida que novos confrontos ocorrerem.</p>
+                </div>
+              ) : (
+                displayedH2H.map((m, idx) => {
+                  const isSelected = selectedH2HId === m.id || (!selectedH2HId && idx === 2 && displayedH2H.length >= 3);
+                  const isHomeWin = m.score.home > m.score.away;
+                  const isAwayWin = m.score.away > m.score.home;
+                  const isDraw = m.score.home === m.score.away;
+
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => setSelectedH2HId(m.id)}
+                      className={`w-[145px] sm:w-[165px] shrink-0 border rounded-2xl p-4 flex flex-col items-center justify-between shadow-xs transition-all duration-200 cursor-pointer select-none ${
+                        isSelected
+                          ? 'bg-[#F1F3F4] dark:bg-slate-800 border-slate-300 dark:border-slate-700 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs'
+                      }`}
+                    >
+                      {/* Logos Row */}
+                      <div className="flex items-center justify-center space-x-3 w-full mb-1">
+                        <img 
+                          src={m.homeClubLogo} 
+                          alt="" 
+                          className="w-8 h-8 rounded-full object-contain bg-white shadow-xs p-0.5 border border-slate-100" 
+                          referrerPolicy="no-referrer" 
+                        />
+                        <img 
+                          src={m.awayClubLogo} 
+                          alt="" 
+                          className="w-8 h-8 rounded-full object-contain bg-white shadow-xs p-0.5 border border-slate-100" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      </div>
+
+                      {/* Underline indicators */}
+                      <div className="flex items-center justify-center space-x-4 w-full px-1.5 mb-2.5">
+                        {/* Left bar (Home result) */}
+                        <div className={`h-1 w-7 rounded-full ${
+                          isDraw ? 'bg-[#E5B53B]' : isHomeWin ? 'bg-[#5CB85C]' : 'bg-[#C2514D]'
+                        }`} />
+                        {/* Right bar (Away result) */}
+                        <div className={`h-1 w-7 rounded-full ${
+                          isDraw ? 'bg-[#E5B53B]' : isAwayWin ? 'bg-[#5CB85C]' : 'bg-[#C2514D]'
+                        }`} />
+                      </div>
+
+                      {/* Score */}
+                      <span className="font-mono font-black text-slate-800 dark:text-zinc-100 text-base">
+                        {m.score.home}-{m.score.away}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* H2H Stat pill summary row at the bottom */}
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3.5 mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/60">
+            <div className="flex items-center space-x-2">
+              <img 
+                src={match.homeClubLogo} 
+                alt="" 
+                className="w-7 h-7 object-contain bg-white rounded-full p-0.5 border border-slate-150" 
+                referrerPolicy="no-referrer" 
+              />
+              <div className="bg-[#F1F3F4] dark:bg-slate-800 text-slate-800 dark:text-zinc-200 font-mono font-black px-2.5 py-1 rounded-lg border border-slate-250/60 dark:border-slate-700 shadow-2xs text-xs">
+                {h2hSummary.homeWins}
+              </div>
+              <span className="text-[10.5px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
+                Vitórias
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <div className="bg-[#F1F3F4] dark:bg-slate-800 text-slate-800 dark:text-zinc-200 font-mono font-black px-2.5 py-1 rounded-lg border border-slate-250/60 dark:border-slate-700 shadow-2xs text-xs">
+                {h2hSummary.draws}
+              </div>
+              <span className="text-[10.5px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
+                Empates
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <div className="bg-[#F1F3F4] dark:bg-slate-800 text-slate-800 dark:text-zinc-200 font-mono font-black px-2.5 py-1 rounded-lg border border-slate-250/60 dark:border-slate-700 shadow-2xs text-xs">
+                {h2hSummary.awayWins}
+              </div>
+              <span className="text-[10.5px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
+                Vitórias
+              </span>
+              <img 
+                src={match.awayClubLogo} 
+                alt="" 
+                className="w-7 h-7 object-contain bg-white rounded-full p-0.5 border border-slate-150" 
+                referrerPolicy="no-referrer" 
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 4. CLASSIFICAÇÃO COMPARISON TABLE */}
+        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+          <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center space-x-2">
+            <span>📊</span>
+            <span>Classificação (Comparativo de Tabela)</span>
+          </h3>
+
+          <div className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-[#0F172A] shadow-xs">
+            <table className="w-full text-[10px] text-left border-collapse table-fixed">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">Pos</th>
+                  <th className="w-[37%] py-2 text-left px-1.5 border-r border-zinc-200 dark:border-zinc-800">Equipe</th>
+                  <th className="w-[10%] py-2 text-center font-black border-r border-zinc-200 dark:border-zinc-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+                  <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">J</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">V</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">E</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">D</th>
+                  <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GP</th>
+                  <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GC</th>
+                  <th className="w-[9%] py-2 text-center">SG</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 font-medium">
+                {/* Home team row */}
+                <tr className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center font-bold text-zinc-700 dark:text-zinc-300">
+                  <td className="p-0 w-[7%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 bg-blue-500">
+                    <div className="w-full h-10 flex items-center justify-center">
+                      {homeStandObj.position}
+                    </div>
+                  </td>
+                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                    <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.homeClubId })}>
+                      <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
+                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:underline text-[10px] transition-colors truncate leading-tight">{match.homeClubName}</span>
+                    </div>
+                  </td>
+                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-blue-50/10 dark:bg-blue-950/10">{homeStandObj.row.points}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.played}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.won}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.drawn}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.lost}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsFor}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsAgainst}</td>
+                  <td className={`py-1 w-[9%] text-center font-bold text-[9.5px] ${homeStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : homeStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
+                    {homeStandObj.row.goalDifference > 0 ? `+${homeStandObj.row.goalDifference}` : homeStandObj.row.goalDifference}
+                  </td>
+                </tr>
+
+                {/* Away team row */}
+                <tr className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center font-bold text-zinc-700 dark:text-zinc-300">
+                  <td className="p-0 w-[7%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 bg-rose-500">
+                    <div className="w-full h-10 flex items-center justify-center">
+                      {awayStandObj.position}
+                    </div>
+                  </td>
+                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                    <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.awayClubId })}>
+                      <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
+                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:underline text-[10px] transition-colors truncate leading-tight">{match.awayClubName}</span>
+                    </div>
+                  </td>
+                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-rose-50/10 dark:bg-rose-950/10">{awayStandObj.row.points}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.played}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.won}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.drawn}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.lost}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsFor}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsAgainst}</td>
+                  <td className={`py-1 w-[9%] text-center font-bold text-[9.5px] ${awayStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : awayStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
+                    {awayStandObj.row.goalDifference > 0 ? `+${awayStandObj.row.goalDifference}` : awayStandObj.row.goalDifference}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // 1. TABS CONTENT RENDERERS
   
@@ -1498,6 +2079,16 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         <div className="max-w-6xl mx-auto mt-6 px-1 border-t border-white/10 pt-2 select-none">
           <div className="flex justify-between items-center text-[10.5px] font-black uppercase tracking-wider text-white/70">
             <button
+              onClick={() => setActiveTab('previa')}
+              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer ${
+                activeTab === 'previa' ? 'text-white' : 'hover:text-white'
+              }`}
+            >
+              <span>Prévia</span>
+              {activeTab === 'previa' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full"></div>}
+            </button>
+
+            <button
               onClick={() => setActiveTab('formacoes')}
               className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer ${
                 activeTab === 'formacoes' ? 'text-white' : 'hover:text-white'
@@ -1544,6 +2135,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
 
       {/* 3. TABS ACTIVE COMPONENT VIEW CONTAINER */}
       <div className="max-w-6xl mx-auto px-4 mt-4">
+        {activeTab === 'previa' && renderPreviaTab()}
         {activeTab === 'eventos' && renderEventosTab()}
         {activeTab === 'formacoes' && renderFormacoesTab()}
         {activeTab === 'direto' && isInitialMatch && renderDiretoTab()}

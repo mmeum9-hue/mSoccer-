@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, parseDateString } from '../context/AppContext';
 import { NewsArticle } from '../types';
 import { Newspaper, Eye, Search, Calendar, ChevronRight, X, Heart, MessageSquare } from 'lucide-react';
 
@@ -8,11 +8,15 @@ export const NewsSection: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeArticle, setActiveArticle] = useState<NewsArticle | null>(null);
+  const [fullscreenImageUrl, setFullscreenImageUrl] = useState<string | null>(null);
 
   // Filter Categories
   const categories = ['all', 'Geral', 'Transferência', 'Lesão', 'Entrevista', 'Rumor'];
 
-  const filteredNews = news.filter((item) => {
+  // Sort from newest to oldest based on parsed timestamp
+  const sortedNews = [...news].sort((a, b) => parseDateString(b.publishedAt) - parseDateString(a.publishedAt));
+
+  const filteredNews = sortedNews.filter((item) => {
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
     const matchesSearch =
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -77,8 +81,12 @@ export const NewsSection: React.FC = () => {
                 <img
                   src={item.imageUrl}
                   alt={item.title}
-                  className="h-44 w-full object-cover"
+                  className="h-44 w-full object-cover cursor-zoom-in hover:scale-105 transition-transform duration-300"
                   referrerPolicy="no-referrer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFullscreenImageUrl(item.imageUrl);
+                  }}
                 />
                 <span className="absolute top-3 left-3 bg-black/65 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
                   {item.category}
@@ -131,8 +139,9 @@ export const NewsSection: React.FC = () => {
               <img
                 src={activeArticle.imageUrl}
                 alt={activeArticle.title}
-                className="h-64 w-full object-cover"
+                className="h-64 w-full object-cover cursor-zoom-in hover:opacity-90 transition-opacity"
                 referrerPolicy="no-referrer"
+                onClick={() => setFullscreenImageUrl(activeArticle.imageUrl)}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
               <button
@@ -211,6 +220,30 @@ export const NewsSection: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN IMAGE LIGHTBOX MODAL */}
+      {fullscreenImageUrl && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-zoom-out"
+          onClick={() => setFullscreenImageUrl(null)}
+        >
+          <button
+            onClick={() => setFullscreenImageUrl(null)}
+            className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors cursor-pointer"
+            aria-label="Fechar tela cheia"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          
+          <img
+            src={fullscreenImageUrl}
+            alt="Notícia em tela cheia"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl select-none"
+            referrerPolicy="no-referrer"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

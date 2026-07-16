@@ -33,6 +33,41 @@ import {
 import { db, auth } from '../firebase';
 
 // Recursive utility to remove undefined values from objects before writing to Firestore
+export const parseDateString = (dateStr: string): number => {
+  if (!dateStr) return 0;
+  try {
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split(' ');
+      const dateParts = parts[0].split('/');
+      const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
+      if (dateParts.length === 3) {
+        const day = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1;
+        const year = parseInt(dateParts[2], 10);
+        const hour = timeParts[0] ? parseInt(timeParts[0], 10) : 0;
+        const minute = timeParts[1] ? parseInt(timeParts[1], 10) : 0;
+        return new Date(year, month, day, hour, minute).getTime();
+      }
+    } else if (dateStr.includes('-')) {
+      const parts = dateStr.split(' ');
+      const dateParts = parts[0].split('-');
+      const timeParts = parts[1] ? parts[1].split(':') : ['00', '00'];
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1;
+        const day = parseInt(dateParts[2], 10);
+        const hour = timeParts[0] ? parseInt(timeParts[0], 10) : 0;
+        const minute = timeParts[1] ? parseInt(timeParts[1], 10) : 0;
+        return new Date(year, month, day, hour, minute).getTime();
+      }
+    }
+    const t = Date.parse(dateStr);
+    return isNaN(t) ? 0 : t;
+  } catch (e) {
+    return 0;
+  }
+};
+
 const cleanUndefined = (obj: any): any => {
   if (obj === null || obj === undefined) return null;
   if (Array.isArray(obj)) {
@@ -216,7 +251,6 @@ interface AppContextType {
   clearNotifications: () => void;
   dbConfig: { initialized?: boolean; cleared?: boolean } | null;
   clearAllDatabase: () => Promise<void>;
-  restoreDefaultDatabase: () => Promise<void>;
   recalculateAllPlayerStats: () => Promise<void>;
   
   // Chat & Presence addition
@@ -486,6 +520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubscribe = onSnapshot(collection(db, 'news'), (snapshot) => {
       const items: NewsArticle[] = [];
       snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as NewsArticle));
+      items.sort((a, b) => parseDateString(b.publishedAt) - parseDateString(a.publishedAt));
       setNews(items);
     }, (error) => console.error("Firestore news error:", error));
     return () => unsubscribe();
@@ -1404,39 +1439,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const restoreDefaultDatabase = async () => {
-    try {
-      // 1. Set dbConfig initialized to true and cleared to false
-      await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: false });
-
-      // 2. Insert clubs
-      for (const club of INITIAL_CLUBS) {
-        await setDoc(doc(db, 'clubs', club.id), club);
-      }
-      // 3. Insert players
-      for (const player of INITIAL_PLAYERS) {
-        await setDoc(doc(db, 'players', player.id), player);
-      }
-      // 4. Insert championships
-      for (const champ of INITIAL_CHAMPIONSHIPS) {
-        await setDoc(doc(db, 'championships', champ.id), champ);
-      }
-      // 5. Insert matches
-      for (const m of INITIAL_MATCHES) {
-        await setDoc(doc(db, 'matches', m.id), m);
-      }
-      // 6. Insert news
-      for (const n of INITIAL_NEWS) {
-        await setDoc(doc(db, 'news', n.id), n);
-      }
-
-      addNotification('Dados de Demonstração Restaurados', 'Todos os dados de demonstração originais foram restaurados com sucesso.', 'sistema');
-    } catch (e) {
-      console.error("Error restoring default database:", e);
-      addNotification('Erro ao Restaurar', 'Ocorreu um erro ao tentar restaurar os dados de demonstração.', 'sistema');
-    }
-  };
-
   const recalculateAllPlayerStats = async () => {
     try {
       addNotification(
@@ -2156,7 +2158,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearNotifications,
         dbConfig,
         clearAllDatabase,
-        restoreDefaultDatabase,
         recalculateAllPlayerStats,
         
         // Chat & Presence additions
