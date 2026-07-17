@@ -11,47 +11,90 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Default catch-all for other collections (read/write is allowed for public demo state)
-    match /system/{document=**} {
-      allow read, write: if true;
-    }
-    match /users/{document=**} {
-      allow read, write: if true;
-    }
-    match /clubs/{document=**} {
-      allow read, write: if true;
-    }
-    match /players/{document=**} {
-      allow read, write: if true;
-    }
-    match /championships/{document=**} {
-      allow read, write: if true;
-    }
-    match /matches/{document=**} {
-      allow read, write: if true;
-    }
-    match /news/{document=**} {
-      allow read, write: if true;
-    }
-    match /notifications/{document=**} {
-      allow read, write: if true;
+    // Admin authorization check (via custom role in Firestore users collection or administrative emails)
+    function isAdmin() {
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin') ||
+        request.auth.token.email == 'admin@msoccer.com' ||
+        request.auth.token.email == 'mmeum9@gmail.com'
+      );
     }
 
-    // Harden chat messages
+    // Check if the system database is uninitialized (allows first-time seeding)
+    function isUninitialized() {
+      return !exists(/databases/$(database)/documents/system/config) || 
+        get(/databases/$(database)/documents/system/config).data.initialized == false;
+    }
+
+    // System configuration security
+    match /system/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isUninitialized();
+    }
+
+    // User accounts security (protect profiles and role escalation)
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.auth.uid == userId && 
+        (request.resource.data.role != 'Admin' || request.auth.token.email == 'admin@msoccer.com' || request.auth.token.email == 'mmeum9@gmail.com');
+      allow update: if (isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || isAdmin())) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Administrative collections (clubs, players, championships, matches, news, notifications)
+    match /clubs/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isUninitialized();
+    }
+    match /players/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isUninitialized();
+    }
+    match /championships/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isUninitialized();
+    }
+    match /matches/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isUninitialized();
+    }
+    match /news/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isUninitialized();
+    }
+    match /notifications/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isUninitialized();
+    }
+
+    // Secure audit logs (Append-only: can never be edited or deleted to preserve audit trails)
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Secure database backups (Access restricted strictly to authorized administrators)
+    match /backups/{backupId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Secure chat messages
     match /chat_messages/{messageId} {
       allow read: if true;
       allow create: if isSignedIn() 
         && request.resource.data.senderName is string 
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 2000;
-      allow update: if isSignedIn();
-      allow delete: if false; // Messages cannot be deleted by users
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.senderId || isAdmin());
+      allow delete: if isAdmin();
     }
 
-    // Harden user presence
+    // Secure user presence
     match /user_presence/{userId} {
       allow read: if true;
-      allow write: if isOwner(userId);
+      allow write: if isOwner(userId) || isAdmin();
     }
   }
 }

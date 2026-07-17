@@ -253,3 +253,28 @@ export interface UserPresence {
   lastActive?: any;
 }
 
+export interface SystemBackup {
+  id: string;
+  description: string;
+  createdAt: string;
+  createdTime: string;
+  adminEmail: string;
+  data: {
+    clubs: Club[];
+    players: Player[];
+    championships: Championship[];
+    matches: Match[];
+    news: NewsArticle[];
+  };
+}
+
+export interface AuditLog {
+  id: string;
+  title: string;
+  desc: string;
+  timestamp: string;
+  adminEmail: string;
+  badgeColor?: string;
+}
+
+

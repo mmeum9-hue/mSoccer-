@@ -23,6 +23,8 @@ import {
   LogOut,
   Menu,
   X,
+  Lock,
+  Database,
   Search,
   ChevronDown,
   ArrowRight,
@@ -69,7 +71,12 @@ export const AdminPanel: React.FC = () => {
     triggerMatchEvent,
     user,
     navigateTo,
-    updateUserRole
+    updateUserRole,
+    backups,
+    auditLogs,
+    createBackup,
+    restoreBackup,
+    deleteBackup
   } = useApp();
 
   // Selected administrative tab
@@ -287,6 +294,9 @@ export const AdminPanel: React.FC = () => {
   const [champIdToConfirmReopen, setChampIdToConfirmReopen] = useState<string | null>(null);
   const [isConfirmingClearAllChamps, setIsConfirmingClearAllChamps] = useState(false);
   const [isConfirmingClearAllNews, setIsConfirmingClearAllNews] = useState(false);
+  const [backupDescription, setBackupDescription] = useState('');
+  const [isConfirmingClearAllDatabase, setIsConfirmingClearAllDatabase] = useState(false);
+  const [isConfirmingRestoreId, setIsConfirmingRestoreId] = useState<string | null>(null);
 
   // Interactive Live Admin Activities Stream
   const [activities, setActivities] = useState([
@@ -673,6 +683,7 @@ export const AdminPanel: React.FC = () => {
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'configuracoes', label: 'Configurações', icon: Settings },
     { id: 'permissoes', label: 'Permissões', icon: Key },
+    { id: 'security', label: 'Segurança & Backups', icon: Lock },
     { id: 'logs', label: 'Logs do Sistema', icon: Terminal },
   ];
 
@@ -5043,6 +5054,206 @@ export const AdminPanel: React.FC = () => {
             </div>
           )}
 
+          {/* SEGURANÇA E BACKUPS TAB VIEW */}
+          {activeTab === 'security' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* TOP STATUS CARD */}
+              <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+                <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-48 h-48 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping" />
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono">Status do Sistema: Protegido</span>
+                    </div>
+                    <h3 className="text-base font-black text-white uppercase flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-emerald-400" />
+                      Painel de Segurança & Sincronização mSoccer
+                    </h3>
+                    <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl">
+                      Ambiente de produção reforçado com isolamento de sessão em tempo real, banco de dados cloud persistente e regras de segurança que impedem a adulteração ou perda de informações administrativas por utilizadores comuns.
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-3">
+                    <span className="text-[10px] font-mono font-bold text-zinc-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                      REGRAS: HARDENED
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                      DATABASE: ACTIVE
+                    </span>
+                  </div>
+                </div>
+
+                {/* SECURITY FEATURES BENTO */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+                  <div className="p-3.5 bg-slate-900/50 border border-slate-800/60 rounded-xl space-y-1">
+                    <p className="text-[11px] font-bold text-zinc-200 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      Isolamento Concorrente
+                    </p>
+                    <p className="text-[10px] text-zinc-400 leading-normal">
+                      A entrada e navegação de novos utilizadores ocorre em sessões isoladas. Não há interferência de dados ou risco de reconfiguração involuntária da base administrativa.
+                    </p>
+                  </div>
+                  <div className="p-3.5 bg-slate-900/50 border border-slate-800/60 rounded-xl space-y-1">
+                    <p className="text-[11px] font-bold text-zinc-200 flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      Centralização em Nuvem
+                    </p>
+                    <p className="text-[10px] text-zinc-400 leading-normal">
+                      Os dados da administração (campeonatos, clubes, notícias, resultados) são sincronizados em nuvem no Firestore. Reinicializações do app ou servidor mantêm tudo intacto.
+                    </p>
+                  </div>
+                  <div className="p-3.5 bg-slate-900/50 border border-slate-800/60 rounded-xl space-y-1">
+                    <p className="text-[11px] font-bold text-zinc-200 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      Controle Baseado em Atributos (ABAC)
+                    </p>
+                    <p className="text-[10px] text-zinc-400 leading-normal">
+                      Somente administradores autorizados possuem autoridade de gravação e exclusão de coleções essenciais. Contas padrão estão estritamente bloqueadas no nível de rede do DB.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ACTION: CREATE BACKUP MANUAL */}
+              <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-5 space-y-4">
+                <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <Database className="w-4 h-4 text-emerald-400" />
+                  Gerar Ponto de Restauração de Segurança (Snapshot)
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={backupDescription}
+                    onChange={(e) => setBackupDescription(e.target.value)}
+                    placeholder="Descrição do backup (ex: Backup antes de definir chaveamento dos playoffs)"
+                    className="flex-1 bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none transition-colors"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!backupDescription.trim()) return;
+                      await createBackup(backupDescription.trim());
+                      setBackupDescription('');
+                    }}
+                    disabled={!backupDescription.trim()}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl cursor-pointer transition-colors shrink-0 flex items-center justify-center gap-1.5"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Gerar Snapshot
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-500 font-medium">
+                  Nota: Snapshots salvam o estado atual completo de campeonatos, clubes, jogadores, partidas e notícias na nuvem para recuperação instantânea em caso de desastre.
+                </p>
+              </div>
+
+              {/* BOTTOM COLUMNS: RECENT BACKUPS AND AUDIT TRAILS */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* RECENT BACKUPS (7 cols) */}
+                <div className="lg:col-span-7 bg-[#0F172A] border border-slate-800 rounded-2xl p-5 flex flex-col h-[420px]">
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider border-b border-slate-800 pb-3 mb-3 flex justify-between items-center shrink-0">
+                    <span>📦 Histórico de Pontos de Restauração</span>
+                    <span className="text-[10px] font-mono text-zinc-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                      Total: {backups.length}
+                    </span>
+                  </h3>
+                  
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                    {backups.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center space-y-2">
+                        <Database className="w-8 h-8 text-zinc-600" />
+                        <p className="text-[11px] font-bold text-zinc-400 font-mono">Nenhum snapshot de segurança disponível.</p>
+                        <p className="text-[10px] text-zinc-600 max-w-xs leading-normal">
+                          Utilize o formulário acima para gerar um backup manual das configurações atuais do sistema.
+                        </p>
+                      </div>
+                    ) : (
+                      backups.map((bk) => (
+                        <div key={bk.id} className="p-3.5 bg-slate-900/40 border border-slate-800 hover:border-slate-700/80 rounded-xl flex items-center justify-between gap-4 transition-colors">
+                          <div className="space-y-1 max-w-[70%]">
+                            <p className="text-[11px] font-black text-zinc-200 break-words leading-relaxed">
+                              {bk.description}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[9px] font-mono text-zinc-500">
+                              <span className="flex items-center gap-1 font-bold text-emerald-400 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10">
+                                <Clock className="w-2.5 h-2.5" />
+                                {new Date(bk.createdAt).toLocaleDateString('pt-BR')} às {bk.createdTime}
+                              </span>
+                              <span className="text-zinc-400 truncate max-w-[150px]">
+                                {bk.adminEmail}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => setIsConfirmingRestoreId(bk.id)}
+                              className="px-2.5 py-1.5 bg-blue-600/10 hover:bg-blue-600 hover:text-white text-blue-400 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                              title="Restaurar este ponto de dados"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              Restaurar
+                            </button>
+                            <button
+                              onClick={() => deleteBackup(bk.id)}
+                              className="p-1.5 bg-rose-600/10 hover:bg-rose-600 hover:text-white text-rose-400 rounded-lg cursor-pointer transition-all"
+                              title="Deletar backup antigo"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* SYSTEM AUDIT TRAIL (5 cols) */}
+                <div className="lg:col-span-5 bg-[#0F172A] border border-slate-800 rounded-2xl p-5 flex flex-col h-[420px]">
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider border-b border-slate-800 pb-3 mb-3 flex justify-between items-center shrink-0">
+                    <span>🛡️ Histórico de Alterações (Audit)</span>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      LIVE
+                    </span>
+                  </h3>
+
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                    {auditLogs.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center space-y-2">
+                        <Activity className="w-8 h-8 text-zinc-600" />
+                        <p className="text-[11px] font-bold text-zinc-400 font-mono">Sem registros de auditoria.</p>
+                        <p className="text-[10px] text-zinc-600 max-w-xs leading-normal">
+                          Operações executadas no painel gerarão registros automáticos de auditoria neste local.
+                        </p>
+                      </div>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <div key={log.id} className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider text-white ${log.badgeColor || 'bg-slate-700'}`}>
+                              {log.title}
+                            </span>
+                            <span className="text-[8px] font-mono text-zinc-500 shrink-0">
+                              {new Date(log.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-zinc-300 leading-normal font-medium">
+                            {log.desc}
+                          </p>
+                          <div className="text-[8px] font-mono text-zinc-500 flex items-center justify-between">
+                            <span className="truncate max-w-[150px]">{log.adminEmail}</span>
+                            <span>{new Date(log.timestamp).toLocaleDateString('pt-BR')}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* PLACEHOLDER VIEWS */}
           {['users', 'escalacoes', 'banners', 'financeiro', 'configuracoes', 'permissoes'].includes(activeTab) && (
             <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 text-center space-y-4 animate-fade-in">
@@ -5059,6 +5270,57 @@ export const AdminPanel: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* DIALOG: CONFIRM BACKUP RESTORE */}
+      {isConfirmingRestoreId && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#0F172A] border border-slate-800 rounded-3xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
+            <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+            <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-2">
+              <RefreshCw className="w-6 h-6 animate-spin" style={{ animationDuration: '3s' }} />
+            </div>
+            
+            <div className="text-center space-y-2">
+              <h4 className="text-sm font-black text-white uppercase tracking-wider">Restaurar Ponto de Dados</h4>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Você está prestes a restaurar o sistema mSoccer para este backup. Isto irá substituir o estado atual de clubes, jogadores, campeonatos, partidas e notícias pelo contido no Snapshot. Esta ação é irreversível.
+              </p>
+              {(() => {
+                const bk = backups.find(b => b.id === isConfirmingRestoreId);
+                return bk ? (
+                  <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl mt-3 text-left space-y-1">
+                    <p className="text-[11px] font-bold text-zinc-200">"{bk.description}"</p>
+                    <p className="text-[9px] font-mono text-zinc-500">
+                      Criado por {bk.adminEmail} em {new Date(bk.createdAt).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingRestoreId(null)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-zinc-300 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const backupId = isConfirmingRestoreId;
+                  setIsConfirmingRestoreId(null);
+                  await restoreBackup(backupId);
+                }}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                Restaurar Agora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE SEGURANÇA PARA REDEFINIÇÃO DOS DADOS / ZERAR APP */}
       {isWipeModalOpen && (

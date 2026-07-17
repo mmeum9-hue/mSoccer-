@@ -11,6 +11,8 @@ import {
   AppFavorites,
   MatchEvent,
   UserPresence,
+  SystemBackup,
+  AuditLog,
 } from '../types';
 import {
   INITIAL_CLUBS,
@@ -280,6 +282,14 @@ interface AppContextType {
   deleteNews: (id: string) => void;
   clearAllNews: () => void;
   triggerMatchEvent: (matchId: string, event: Omit<MatchEvent, 'id'>) => void;
+  
+  // Backups & Auditing
+  backups: SystemBackup[];
+  auditLogs: AuditLog[];
+  createBackup: (description: string) => Promise<void>;
+  restoreBackup: (backupId: string) => Promise<void>;
+  deleteBackup: (backupId: string) => Promise<void>;
+  addAuditLog: (title: string, desc: string, badgeColor?: string) => Promise<void>;
 }
 
 const safeLocalStorage = {
@@ -422,6 +432,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [dbConfig, setDbConfig] = useState<{ initialized?: boolean; cleared?: boolean } | null>(null);
+  const [backups, setBackups] = useState<SystemBackup[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Chat & Presence States
   const [chatUnreadCounts, setChatUnreadCounts] = useState<{ [room: string]: number }>({
@@ -523,6 +535,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       items.sort((a, b) => parseDateString(b.publishedAt) - parseDateString(a.publishedAt));
       setNews(items);
     }, (error) => console.error("Firestore news error:", error));
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: AuditLog[] = [];
+      snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as AuditLog));
+      setAuditLogs(items);
+    }, (error) => console.error("Firestore audit logs error:", error));
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'backups'), (snapshot) => {
+      const items: SystemBackup[] = [];
+      snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as SystemBackup));
+      items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      setBackups(items);
+    }, (error) => console.error("Firestore backups error:", error));
     return () => unsubscribe();
   }, []);
 
@@ -1031,6 +1063,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addMatch = async (match: Match) => {
     try {
       await setDoc(doc(db, 'matches', match.id), match);
+      await addAuditLog('Partida Agendada', `Agendou partida: ${match.homeClubName} x ${match.awayClubName} (${match.championshipName})`, 'bg-emerald-600');
     } catch (e) {
       console.error("Error adding match:", e);
     }
@@ -1053,13 +1086,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       await setDoc(doc(db, 'matches', match.id), updatedMatch);
+      await addAuditLog('Partida Sincronizada', `Atualizou partida: ${match.homeClubName} ${match.score.home} x ${match.score.away} ${match.awayClubName} (${match.status})`, 'bg-blue-600');
     } catch (e) {
       console.error("Error updating match:", e);
     }
   };
   const deleteMatch = async (id: string) => {
     try {
+      const m = matches.find(match => match.id === id);
+      const label = m ? `${m.homeClubName} x ${m.awayClubName}` : id;
       await deleteDoc(doc(db, 'matches', id));
+      await addAuditLog('Partida Removida', `Excluiu partida agendada: ${label}`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting match:", e);
     }
@@ -1068,6 +1105,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addClub = async (club: Club) => {
     try {
       await setDoc(doc(db, 'clubs', club.id), club);
+      await addAuditLog('Clube Cadastrado', `Cadastrou o clube: ${club.name} (${club.country})`, 'bg-emerald-600');
     } catch (e) {
       console.error("Error adding club:", e);
     }
@@ -1117,18 +1155,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await setDoc(doc(db, 'news', n.id), { ...n, clubName: club.name });
         }
       });
+
+      await addAuditLog('Clube Atualizado', `Atualizou informações do clube: ${club.name}`, 'bg-blue-600');
     } catch (e) {
       console.error("Error updating club:", e);
     }
   };
   const deleteClub = async (id: string) => {
     try {
+      const c = clubs.find(club => club.id === id);
+      const label = c ? c.name : id;
       await deleteDoc(doc(db, 'clubs', id));
       players.forEach(async (p) => {
         if (p.clubId === id) {
           await deleteDoc(doc(db, 'players', p.id));
         }
       });
+      await addAuditLog('Clube Removido', `Excluiu o clube e seus jogadores vinculados: ${label}`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting club:", e);
     }
@@ -1137,6 +1180,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addPlayer = async (player: Player) => {
     try {
       await setDoc(doc(db, 'players', player.id), player);
+      await addAuditLog('Jogador Cadastrado', `Cadastrou o atleta: ${player.name} (${player.clubName})`, 'bg-emerald-600');
     } catch (e) {
       console.error("Error adding player:", e);
     }
@@ -1144,13 +1188,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updatePlayer = async (player: Player) => {
     try {
       await setDoc(doc(db, 'players', player.id), player);
+      await addAuditLog('Jogador Atualizado', `Atualizou a ficha do atleta: ${player.name} (${player.clubName})`, 'bg-blue-600');
     } catch (e) {
       console.error("Error updating player:", e);
     }
   };
   const deletePlayer = async (id: string) => {
     try {
+      const p = players.find(player => player.id === id);
+      const label = p ? `${p.name} (${p.clubName})` : id;
       await deleteDoc(doc(db, 'players', id));
+      await addAuditLog('Jogador Removido', `Removeu o atleta do sistema: ${label}`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting player:", e);
     }
@@ -1159,6 +1207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addChampionship = async (championship: Championship) => {
     try {
       await setDoc(doc(db, 'championships', championship.id), championship);
+      await addAuditLog('Campeonato Criado', `Criou o campeonato: ${championship.name} (${championship.season})`, 'bg-emerald-600');
     } catch (e) {
       console.error("Error adding championship:", e);
     }
@@ -1166,6 +1215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateChampionship = async (championship: Championship) => {
     try {
       await setDoc(doc(db, 'championships', championship.id), championship);
+      await addAuditLog('Campeonato Atualizado', `Atualizou o campeonato: ${championship.name}`, 'bg-blue-600');
     } catch (e) {
       console.error("Error updating championship:", e);
     }
@@ -1317,7 +1367,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const deleteChampionship = async (id: string) => {
     try {
+      const champ = championships.find(c => c.id === id);
+      const label = champ ? champ.name : id;
       await deleteDoc(doc(db, 'championships', id));
+      await addAuditLog('Campeonato Removido', `Removeu o campeonato: ${label}`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting championship:", e);
     }
@@ -1332,6 +1385,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       setFavorites((prev) => ({ ...prev, championships: [], matches: [] }));
       addNotification('Campeonatos Removidos', 'Todos os campeonatos e partidas foram excluídos do sistema.', 'sistema');
+      await addAuditLog('Todos Campeonatos Removidos', 'Removeu todos os campeonatos e partidas do sistema.', 'bg-red-700');
     } catch (e) {
       console.error("Error clearing championships:", e);
     }
@@ -1340,6 +1394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addNews = async (newsArt: NewsArticle) => {
     try {
       await setDoc(doc(db, 'news', newsArt.id), newsArt);
+      await addAuditLog('Notícia Publicada', `Publicou nova notícia: "${newsArt.title}"`, 'bg-emerald-600');
     } catch (e) {
       console.error("Error adding news:", e);
     }
@@ -1347,13 +1402,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateNews = async (newsArt: NewsArticle) => {
     try {
       await setDoc(doc(db, 'news', newsArt.id), newsArt);
+      await addAuditLog('Notícia Atualizada', `Editou a notícia: "${newsArt.title}"`, 'bg-blue-600');
     } catch (e) {
       console.error("Error updating news:", e);
     }
   };
   const deleteNews = async (id: string) => {
     try {
+      const n = news.find(article => article.id === id);
+      const label = n ? n.title : id;
       await deleteDoc(doc(db, 'news', id));
+      await addAuditLog('Notícia Removida', `Excluiu a notícia: "${label}"`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting news:", e);
     }
@@ -1364,12 +1423,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await deleteDoc(doc(db, 'news', n.id));
       });
       addNotification('Notícias Removidas', 'Todas as notícias do sistema foram excluídas.', 'sistema');
+      await addAuditLog('Todas Notícias Removidas', 'Removeu todas as notícias cadastradas do sistema.', 'bg-red-700');
     } catch (e) {
       console.error("Error clearing news:", e);
     }
   };
 
   const clearAllDatabase = async () => {
+    if (!user || user.role !== 'Admin') {
+      console.warn("Unauthorized attempt to clear all database!");
+      addNotification('Erro de Permissão', 'Apenas administradores autorizados podem limpar a base de dados.', 'sistema');
+      throw new Error('Acesso negado: Apenas administradores autorizados podem realizar esta operação.');
+    }
     try {
       // 1. Set dbConfig to cleared: true so that standard auto-seeding is skipped
       await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: true });
@@ -1436,6 +1501,119 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error("Error clearing database:", e);
       addNotification('Erro ao Reiniciar', 'Ocorreu um erro ao tentar zerar o banco de dados.', 'sistema');
+    }
+  };
+
+  const addAuditLog = async (title: string, desc: string, badgeColor?: string) => {
+    try {
+      const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+      const newLog: AuditLog = {
+        id: logId,
+        title,
+        desc,
+        timestamp: new Date().toISOString(),
+        adminEmail: user?.email || 'Sistema',
+        badgeColor: badgeColor || 'bg-slate-700'
+      };
+      await setDoc(doc(db, 'audit_logs', logId), newLog);
+    } catch (e) {
+      console.error("Error writing audit log:", e);
+    }
+  };
+
+  const createBackup = async (description: string) => {
+    if (!user || user.role !== 'Admin') {
+      addNotification('Erro de Permissão', 'Apenas administradores podem criar backups do sistema.', 'sistema');
+      return;
+    }
+    try {
+      const backupId = 'backup_' + Date.now();
+      const newBackup: SystemBackup = {
+        id: backupId,
+        description: description || 'Backup manual do sistema',
+        createdAt: new Date().toISOString(),
+        createdTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        adminEmail: user.email,
+        data: {
+          clubs,
+          players,
+          championships,
+          matches,
+          news
+        }
+      };
+      await setDoc(doc(db, 'backups', backupId), newBackup);
+      await addAuditLog('Backup Criado', `O administrador criou um backup do sistema: "${description}"`, 'bg-emerald-600');
+      addNotification('Backup Concluído', `Backup de segurança "${description}" criado com sucesso.`, 'sistema');
+    } catch (e) {
+      console.error("Error creating backup:", e);
+      addNotification('Erro de Backup', 'Ocorreu um erro ao gerar o backup de dados.', 'sistema');
+    }
+  };
+
+  const restoreBackup = async (backupId: string) => {
+    if (!user || user.role !== 'Admin') {
+      addNotification('Erro de Permissão', 'Apenas administradores podem restaurar backups do sistema.', 'sistema');
+      return;
+    }
+    try {
+      const backupDoc = await getDoc(doc(db, 'backups', backupId));
+      if (!backupDoc.exists()) {
+        addNotification('Erro de Restauração', 'Backup não encontrado.', 'sistema');
+        return;
+      }
+      
+      const backup = backupDoc.data() as SystemBackup;
+      
+      // 1. Mark as cleared first so seeding doesn't conflict
+      await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: true });
+
+      // 2. Clear current collections
+      const collections = ['clubs', 'players', 'championships', 'matches', 'news'];
+      for (const colName of collections) {
+        const snap = await getDocs(collection(db, colName));
+        for (const docSnap of snap.docs) {
+          await deleteDoc(docSnap.ref);
+        }
+      }
+
+      // 3. Restore data from backup
+      for (const club of backup.data.clubs) {
+        await setDoc(doc(db, 'clubs', club.id), club);
+      }
+      for (const player of backup.data.players) {
+        await setDoc(doc(db, 'players', player.id), player);
+      }
+      for (const champ of backup.data.championships) {
+        await setDoc(doc(db, 'championships', champ.id), champ);
+      }
+      for (const m of backup.data.matches) {
+        await setDoc(doc(db, 'matches', m.id), m);
+      }
+      for (const n of backup.data.news) {
+        await setDoc(doc(db, 'news', n.id), n);
+      }
+
+      await addAuditLog('Backup Restaurado', `O administrador restaurou o backup: "${backup.description}"`, 'bg-blue-600');
+      addNotification('Restauração Concluída', `O sistema foi restaurado com sucesso para a versão de ${new Date(backup.createdAt).toLocaleString('pt-BR')}.`, 'sistema');
+    } catch (e) {
+      console.error("Error restoring backup:", e);
+      addNotification('Erro de Restauração', 'Ocorreu um erro ao restaurar os dados do backup.', 'sistema');
+    }
+  };
+
+  const deleteBackup = async (backupId: string) => {
+    if (!user || user.role !== 'Admin') {
+      addNotification('Erro de Permissão', 'Apenas administradores podem deletar backups.', 'sistema');
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'backups', backupId));
+      await addAuditLog('Backup Excluído', `O administrador removeu um ponto de restauração antigo.`, 'bg-red-600');
+      addNotification('Backup Excluído', 'Ponto de restauração removido com sucesso.', 'sistema');
+    } catch (e) {
+      console.error("Error deleting backup:", e);
+      addNotification('Erro ao Excluir', 'Ocorreu um erro ao excluir o backup.', 'sistema');
     }
   };
 
@@ -1627,18 +1805,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // One-time automatic database force-wipe on startup to satisfy the "zera tudo" request immediately
-  useEffect(() => {
-    const runAutoWipe = async () => {
-      const alreadyWiped = safeLocalStorage.getItem('msoccer_force_wipe_v4');
-      if (!alreadyWiped) {
-        console.log("Auto-wipe: wiping all existing collections...");
-        safeLocalStorage.setItem('msoccer_force_wipe_v4', 'true');
-        await clearAllDatabase();
-      }
-    };
-    runAutoWipe();
-  }, []);
+
+
 
   // Trigger custom event from Admin panel
   const triggerMatchEvent = async (matchId: string, eventDetails: Omit<MatchEvent, 'id'>) => {
@@ -2187,6 +2355,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteNews,
         clearAllNews,
         triggerMatchEvent,
+        
+        // Backups & Auditing
+        backups,
+        auditLogs,
+        createBackup,
+        restoreBackup,
+        deleteBackup,
+        addAuditLog,
       }}
     >
       {children}
