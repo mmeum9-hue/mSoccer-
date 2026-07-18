@@ -72,10 +72,48 @@ export const INITIAL_CLUBS: Club[] = [
     manager: 'Hansi Flick',
     titles: ['5x Champions League', '27x La Liga', '31x Copa del Rey'],
     stats: { wins: 17, draws: 3, losses: 4, goalsScored: 52, goalsConceded: 20 }
+  },
+  {
+    id: 'black_bulls',
+    name: 'Black Bulls Maputo',
+    shortName: 'ABB',
+    logoUrl: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=100&h=100&fit=crop&q=80', // Stylized black bull representation/modern stadium
+    country: 'Moçambique',
+    founded: '2017',
+    stadium: 'Estádio de Tchumene',
+    manager: 'Hélder Duarte',
+    titles: ['1x Moçambola (2021)', '1x Taça de Moçambique (2023)'],
+    stats: { wins: 12, draws: 4, losses: 2, goalsScored: 28, goalsConceded: 12 }
   }
 ];
 
 export const INITIAL_PLAYERS: Player[] = [
+  // Black Bulls Maputo
+  {
+    id: 'cantolo',
+    name: 'Ângelo Tomás Cantolo',
+    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&q=80',
+    age: 23,
+    nationality: 'Moçambique',
+    clubId: 'black_bulls',
+    clubName: 'Black Bulls Maputo',
+    number: 11,
+    position: 'Atacante',
+    marketValue: '23 K.€',
+    height: '1.80 m',
+    stats: {
+      matches: 1,
+      goals: 1,
+      assists: 0,
+      yellowCards: 0,
+      redCards: 0,
+      minutesPlayed: 90
+    },
+    history: [
+      { season: '2025/26', club: 'Black Bulls Maputo', matches: 1, goals: 1 },
+      { season: '2024/25', club: 'Black Bulls Maputo', matches: 12, goals: 4 }
+    ]
+  },
   // Flamengo
   {
     id: 'pedro',

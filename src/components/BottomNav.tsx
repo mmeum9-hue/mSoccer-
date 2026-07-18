@@ -1,72 +1,98 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Trophy, Heart, MessageCircleMore, ListOrdered, BookOpen, BellRing, User } from 'lucide-react';
+import { Trophy, ListOrdered, MessageCircle, BookOpen, User } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
-  const { currentView, navigateTo, notifications, chatUnreadCounts } = useApp();
+  const { currentView, navigateTo, notifications, headerColor } = useApp();
 
   const activeTab = currentView.type;
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const totalChatUnread = (Object.values(chatUnreadCounts || {}).reduce((acc: number, val: any) => acc + Number(val || 0), 0)) as number;
 
-  // We map the mSoccer-like tabs to our existing App views including Perfil
+  const colorConfig: { [key: string]: { text: string } } = {
+    green: { text: 'text-[#3C8C21]' },
+    blue: { text: 'text-[#1E3A8A]' },
+    red: { text: 'text-[#991B1B]' },
+    purple: { text: 'text-[#5B21B6]' },
+    orange: { text: 'text-[#C2410C]' },
+    black: { text: 'text-[#111827]' }
+  };
+
+  const activeColor = colorConfig[headerColor] || colorConfig.blue;
+
   const tabs = [
-    { type: 'jogos', label: 'Partidas', icon: Trophy },
-    { type: 'tabela', label: 'Tabela', icon: ListOrdered },
-    { type: 'chat', label: 'Chat', icon: MessageCircleMore },
-    { type: 'noticias', label: 'Notícias', icon: BookOpen },
-    { type: 'profile', label: 'Perfil', icon: User }
+    { id: 'partidas', label: 'Partidas', icon: Trophy, view: 'jogos' },
+    { id: 'tabela', label: 'Tabela', icon: ListOrdered, view: 'tabela' },
+    { id: 'chat', label: 'Chat', icon: MessageCircle, view: 'chat' },
+    { id: 'noticias', label: 'Notícias', icon: BookOpen, view: 'noticias' },
+    { id: 'perfil', label: 'Perfil', icon: User, view: 'profile' }
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] px-2 py-1 pb-safe">
-      <div className="max-w-6xl mx-auto flex justify-around items-center h-14">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-100 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] px-1 py-1 pb-safe">
+      <div className="max-w-xl mx-auto flex justify-around items-center h-14">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           
-          // Determine if tab is active
+          // Determine if tab is active based on current view
           let isActive = false;
-          if (tab.type === 'jogos' && activeTab === 'jogos') {
-            isActive = true;
-          } else if (tab.type === 'tabela' && (activeTab === 'tabela' || activeTab === 'tables' || activeTab === 'league')) {
-            isActive = true;
-          } else if (tab.type === 'noticias' && activeTab === 'noticias') {
-            isActive = true;
-          } else if (tab.type === 'chat' && activeTab === 'chat') {
-            isActive = true;
-          } else if (tab.type === 'profile' && (activeTab === 'profile' || activeTab === 'perfil')) {
-            isActive = true;
+          if (tab.id === 'partidas') {
+            isActive = activeTab === 'jogos' || activeTab === 'home' || activeTab === 'match';
+          } else if (tab.id === 'tabela') {
+            isActive = activeTab === 'tabela' || activeTab === 'tables' || activeTab === 'league' || activeTab === 'club' || activeTab === 'player';
+          } else if (tab.id === 'chat') {
+            isActive = activeTab === 'chat';
+          } else if (tab.id === 'noticias') {
+            isActive = activeTab === 'noticias' || activeTab === 'news';
+          } else if (tab.id === 'perfil') {
+            isActive = activeTab === 'profile' || activeTab === 'perfil' || activeTab === 'admin';
           }
 
           const handleTabClick = () => {
-            navigateTo({ type: tab.type as any });
+            if (tab.id === 'partidas') {
+              navigateTo({ type: 'jogos' });
+              // Turn off favorites filter when clicking Matches tab directly to see all matches as default
+              window.dispatchEvent(new CustomEvent('set-show-only-favorites', { detail: false }));
+            } else if (tab.id === 'tabela') {
+              navigateTo({ type: 'tabela' });
+            } else if (tab.id === 'chat') {
+              navigateTo({ type: 'chat' });
+            } else if (tab.id === 'noticias') {
+              navigateTo({ type: 'noticias' });
+            } else if (tab.id === 'perfil') {
+              navigateTo({ type: 'profile' });
+            }
           };
 
           return (
             <button
-              id={`nav-tab-${tab.type}`}
-              key={tab.type}
+              id={`nav-tab-${tab.id}`}
+              key={tab.id}
               onClick={handleTabClick}
-              className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors duration-200 cursor-pointer ${
+              className={`flex flex-col items-center justify-center flex-1 py-1 transition-all duration-150 cursor-pointer ${
                 isActive
-                  ? 'text-[#1E3A8A] font-bold'
-                  : 'text-slate-500 hover:text-[#2563EB]'
+                  ? `${activeColor.text} font-bold`
+                  : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              <div className="relative">
-                <Icon className={`w-5.5 h-5.5 mb-0.5 transition-transform ${isActive ? 'scale-110' : ''}`} />
-                {tab.type === 'notificacoes' && unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-                {tab.type === 'chat' && totalChatUnread > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
-                    {totalChatUnread > 9 ? '9+' : totalChatUnread}
+              <div className="relative flex items-center justify-center">
+                <Icon 
+                  className={`w-[22px] h-[22px] mb-1.5 transition-transform ${
+                    isActive 
+                      ? 'scale-105 stroke-[2.3px]' 
+                      : 'stroke-[1.7px]'
+                  }`} 
+                />
+                {tab.id === 'chat' && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
+                    {unreadCount}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] tracking-tight select-none">{tab.label}</span>
+              <span className={`text-[10px] tracking-tight transition-all uppercase select-none ${
+                isActive ? 'font-black tracking-wide' : 'font-medium'
+              }`}>
+                {tab.label}
+              </span>
             </button>
           );
         })}

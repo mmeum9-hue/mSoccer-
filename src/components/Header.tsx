@@ -8,6 +8,8 @@ export const Header: React.FC = () => {
   const {
     theme,
     setTheme,
+    headerColor,
+    setHeaderColor,
     language,
     setLanguage,
     notifications,
@@ -59,10 +61,21 @@ export const Header: React.FC = () => {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  const colorConfig: { [key: string]: { bg: string; border: string; text: string; name: string; hex: string } } = {
+    green: { bg: 'bg-[#3C8C21]', border: 'border-[#2d6e19]', text: 'text-[#3C8C21]', name: 'Verde', hex: '#3C8C21' },
+    blue: { bg: 'bg-[#1E3A8A]', border: 'border-[#172554]', text: 'text-[#1E3A8A]', name: 'Azul', hex: '#1E3A8A' },
+    red: { bg: 'bg-[#991B1B]', border: 'border-[#7F1D1D]', text: 'text-[#991B1B]', name: 'Vermelho', hex: '#991B1B' },
+    purple: { bg: 'bg-[#5B21B6]', border: 'border-[#4C1D95]', text: 'text-[#5B21B6]', name: 'Roxo', hex: '#5B21B6' },
+    orange: { bg: 'bg-[#C2410C]', border: 'border-[#9A3412]', text: 'text-[#C2410C]', name: 'Laranja', hex: '#C2410C' },
+    black: { bg: 'bg-[#111827]', border: 'border-[#030712]', text: 'text-[#111827]', name: 'Preto', hex: '#111827' }
+  };
+
+  const activeColor = colorConfig[headerColor] || colorConfig.green;
+
   return (
-    <header className="sticky top-0 z-50 bg-[#1E3A8A] text-white shadow-md border-b border-[#172554]">
+    <header className={`sticky top-0 z-50 ${activeColor.bg} text-white shadow-md border-b ${activeColor.border}`}>
       <div className="max-w-6xl mx-auto flex items-center justify-between h-14 px-4">
-        {/* Left: Burger Menu & Logo */}
+        {/* Left: Burger Menu & BeSoccer-style Logo */}
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setDrawerOpen(true)}
@@ -74,24 +87,27 @@ export const Header: React.FC = () => {
           
           <div 
             onClick={() => navigateTo({ type: 'jogos' })}
-            className="flex items-center space-x-2 cursor-pointer select-none"
+            className="flex items-center space-x-2.5 cursor-pointer select-none"
           >
+            {/* Custom BeSoccer-style Icon: logo image instead of the generic soccer ball */}
             <img 
               src={logoImg} 
-              alt="mSoccer Logo" 
-              className="w-7 h-7 rounded-lg object-cover shrink-0 border border-white/20 shadow-sm" 
-              referrerPolicy="no-referrer" 
+              alt="mSoccer" 
+              className="w-8 h-8 rounded-md object-cover shrink-0 border border-white/20 shadow-sm" 
+              referrerPolicy="no-referrer"
             />
             <div className="flex flex-col leading-tight">
-              <span className="font-sans font-black text-lg tracking-wider text-white leading-none">
+              <span className="font-sans font-black text-base tracking-wider text-white leading-none">
                 mSoccer
               </span>
-              <span className="font-sans text-[9px] italic text-blue-100 font-medium tracking-wide leading-none mt-0.5">
+              <span className="font-sans text-[8px] italic text-emerald-100 font-medium tracking-wide leading-none mt-0.5">
                 Mambone futebol
               </span>
             </div>
           </div>
-        </div>        {/* Right: Creator Info & Search */}
+        </div>
+
+        {/* Right: Creator Info, Calendar, Search & Notifications */}
         <div className="flex items-center space-x-2">
           <button
             onClick={() => {
@@ -105,11 +121,35 @@ export const Header: React.FC = () => {
               });
               setShowCreatorModal(true);
             }}
-            className="inline-block text-[10px] font-extrabold bg-white/15 hover:bg-white/25 px-2.5 py-1.5 rounded-lg text-white whitespace-nowrap tracking-wide cursor-pointer transition-all border border-white/10 select-none"
+            className="inline-block text-[9px] font-extrabold bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-white whitespace-nowrap tracking-wide cursor-pointer transition-all border border-white/15 select-none"
             title="Informações do Criador"
           >
             by: djumã
           </button>
+
+          {/* Calendar Icon - BeSoccer Style Date Picker */}
+          <div className="relative">
+            <input
+              type="date"
+              id="header-calendar-picker"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              onChange={(e) => {
+                const dateValue = e.target.value; // e.g. "2026-07-18"
+                if (dateValue) {
+                  navigateTo({ type: 'jogos' });
+                  window.dispatchEvent(new CustomEvent('set-match-date', { detail: dateValue }));
+                }
+              }}
+              title="Selecionar Data"
+            />
+            <button
+              className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+              aria-label="Calendário"
+              title="Selecionar Data"
+            >
+              <Calendar className="w-5.5 h-5.5 text-white" />
+            </button>
+          </div>
           
           <button
             onClick={() => setSearchOpen(true)}
@@ -125,7 +165,10 @@ export const Header: React.FC = () => {
               className="relative p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
             >
               <Bell className="w-5.5 h-5.5 text-white animate-pulse" />
-              <span className="absolute top-1 right-1 bg-rose-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold border border-[#1E3A8A]">
+              <span 
+                className="absolute top-1 right-1 bg-rose-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold border"
+                style={{ borderColor: activeColor.hex }}
+              >
                 {unreadCount}
               </span>
             </button>
@@ -145,7 +188,7 @@ export const Header: React.FC = () => {
           {/* Drawer Content */}
           <div className="relative flex flex-col w-80 max-w-[85vw] h-full bg-white dark:bg-[#111827] text-slate-800 dark:text-slate-100 shadow-2xl animate-in slide-in-from-left duration-300">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 bg-[#1E3A8A] text-white">
+            <div className={`flex items-center justify-between p-4 ${activeColor.bg} text-white`}>
               <div className="flex items-center space-x-2">
                 <img 
                   src={logoImg} 
@@ -317,6 +360,35 @@ export const Header: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Header Color Picker */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2 text-zinc-500 dark:text-zinc-400">
+                    <Sliders className={`w-4 h-4 ${activeColor.text}`} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Cor do Cabeçalho</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                    {Object.keys(colorConfig).map((colorKey) => {
+                      const col = colorConfig[colorKey];
+                      const isSelected = headerColor === colorKey;
+                      return (
+                        <button
+                          key={colorKey}
+                          onClick={() => setHeaderColor(colorKey)}
+                          className={`py-1.5 rounded-lg text-[10px] font-bold transition-all flex flex-col items-center justify-center cursor-pointer select-none border ${
+                            isSelected
+                              ? 'bg-white dark:bg-[#1E293B] text-slate-800 dark:text-white shadow-sm border-slate-200 dark:border-slate-700'
+                              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 border-transparent'
+                          }`}
+                        >
+                          <div className={`w-3.5 h-3.5 rounded-full ${col.bg} border border-white dark:border-slate-800 shadow-sm mb-1`} />
+                          <span className="text-[9px] uppercase font-bold tracking-tight">{col.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
 
               {/* CREATOR INFO IN DRAWER */}

@@ -229,6 +229,8 @@ interface AppContextType {
   currentView: AppView;
   viewHistory: AppView[];
   theme: 'light' | 'dark';
+  headerColor: string;
+  setHeaderColor: (color: string) => void;
   language: 'pt' | 'en' | 'es';
   liveSimSpeed: 'off' | 'normal' | 'fast';
   toast: { title: string; body: string; id: string; type: string } | null;
@@ -421,6 +423,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = safeLocalStorage.getItem('msoccer_theme');
     return (saved as 'light' | 'dark') || 'light';
   });
+
+  const [headerColor, setHeaderColorState] = useState<string>(() => {
+    const saved = safeLocalStorage.getItem('msoccer_header_color');
+    return saved || 'blue';
+  });
+
+  const setHeaderColor = (color: string) => {
+    setHeaderColorState(color);
+    safeLocalStorage.setItem('msoccer_header_color', color);
+  };
 
   const [language, setLanguageState] = useState<'pt' | 'en' | 'es'>(() => {
     const saved = safeLocalStorage.getItem('msoccer_lang');
@@ -2302,6 +2314,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentView,
         viewHistory,
         theme,
+        headerColor,
+        setHeaderColor,
         language,
         liveSimSpeed,
         toast,

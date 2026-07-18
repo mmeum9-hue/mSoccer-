@@ -61,23 +61,23 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
     const maxPlayed = Math.max(...rows.map((r) => r.played));
 
     return (
-      <div className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-[#0F172A] shadow-xs">
+      <div className="w-full rounded-xl border border-zinc-150 dark:border-slate-800 overflow-hidden bg-white dark:bg-[#0F172A] shadow-xs">
         <table className="w-full text-[10px] text-left border-collapse table-fixed">
           <thead>
-            <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
-              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">Pos</th>
-              <th className="w-[37%] py-2 text-left px-1.5 border-r border-zinc-200 dark:border-zinc-800">Clube</th>
-              <th className="w-[10%] py-2 text-center font-black border-r border-zinc-200 dark:border-zinc-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
-              <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">J</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">V</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">E</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">D</th>
-              <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GP</th>
-              <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GC</th>
+            <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-150 dark:border-slate-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">Pos</th>
+              <th className="w-[37%] py-2 text-left px-1.5 border-r border-zinc-150 dark:border-slate-800">Clube</th>
+              <th className="w-[10%] py-2 text-center font-black border-r border-zinc-150 dark:border-slate-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+              <th className="w-[8%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">J</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">V</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">E</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">D</th>
+              <th className="w-[8%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GP</th>
+              <th className="w-[8%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GC</th>
               <th className="w-[9%] py-2 text-center">SG</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 font-medium">
+          <tbody className="divide-y divide-zinc-150 dark:divide-slate-800 font-medium">
             {rows.map((row, idx) => {
               const bgClass = idx === 0
                 ? 'bg-[#22c55e]'
@@ -93,13 +93,13 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                   key={row.clubId}
                   className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center text-zinc-700 dark:text-zinc-300"
                 >
-                  <td className={`p-0 w-[7%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 ${bgClass}`}>
+                  <td className={`p-0 w-[7%] text-center font-black text-xs text-white border-r border-zinc-150 dark:border-slate-800 ${bgClass}`}>
                     <div className="w-full h-10 flex items-center justify-center">
                       {idx + 1}
                     </div>
                   </td>
 
-                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-150 dark:border-slate-800">
                     <div className="flex flex-col justify-center min-w-0">
                       <div
                         onClick={() => navigateTo({ type: 'club', id: row.clubId })}
@@ -140,10 +140,10 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                     </div>
                   </td>
 
-                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-slate-950/15">
+                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-150 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/15">
                     {row.points}
                   </td>
-                  <td className="py-1 w-[8%] text-center border-r border-zinc-200 dark:border-zinc-800">
+                  <td className="py-1 w-[8%] text-center border-r border-zinc-150 dark:border-slate-800">
                     <div className="flex flex-col items-center justify-center leading-none">
                       <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[10px]">{row.played}</span>
                       {diff < 0 && (
@@ -151,11 +151,11 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                       )}
                     </div>
                   </td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.won}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.drawn}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.lost}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.goalsFor}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{row.goalsAgainst}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.won}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.drawn}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.lost}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.goalsFor}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.goalsAgainst}</td>
                   <td
                     className={`py-1 w-[9%] text-center font-bold text-[9.5px] ${
                       row.goalDifference > 0
@@ -256,6 +256,8 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
             <span className="bg-rose-500 text-white text-[7.5px] font-black px-1 py-0.5 rounded animate-pulse">LIVE</span>
           ) : isFinished ? (
             <span className="text-zinc-400 dark:text-zinc-500">ENC</span>
+          ) : match.status === 'Adiado' ? (
+            <span className="text-amber-500">ADIAD</span>
           ) : (
             <span className="text-blue-500">AGEND</span>
           )}
@@ -321,15 +323,15 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
   const isEnded = league.status === 'Encerrado';
 
   return (
-    <div className="max-w-6xl mx-auto px-4 pt-4 pb-20 space-y-6">
+    <div className="max-w-6xl mx-auto px-1.5 sm:px-4 pt-2.5 sm:pt-4 pb-20 space-y-3.5 sm:space-y-6">
       {/* League Header */}
-      <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+      <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm relative overflow-hidden">
         {isEnded && (
           <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 font-black text-[9px] uppercase tracking-wider px-3.5 py-1 rounded-bl-xl shadow-sm">
             Histórico Congelado
           </div>
         )}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-3.5 sm:mb-6">
           <button
             onClick={navigateBack}
             className="flex items-center space-x-1.5 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 cursor-pointer"
@@ -345,16 +347,16 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           </button>
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3 sm:space-x-4">
           {league.logoUrl ? (
-            <img src={league.logoUrl} alt="" className="w-16 h-16 object-contain bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-1 shrink-0 shadow" />
+            <img src={league.logoUrl} alt="" className="w-12 h-12 sm:w-16 sm:h-16 object-contain bg-slate-50 dark:bg-slate-800 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-700 p-1 shrink-0 shadow" />
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-3xl shadow">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-2xl sm:text-3xl shadow shrink-0">
               {isEnded ? '📜' : '🏆'}
             </div>
           )}
           <div>
-            <h2 className="text-2xl font-black text-zinc-900 dark:text-white leading-tight flex items-center gap-2">
+            <h2 className="text-lg sm:text-2xl font-black text-zinc-900 dark:text-white leading-tight flex flex-wrap items-center gap-1.5">
               <span>{league.name}</span>
               {isEnded && (
                 <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -362,7 +364,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                 </span>
               )}
             </h2>
-            <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">
+            <p className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase mt-0.5 sm:mt-1">
               {league.type} • Temporada {league.season} {isEnded && ' (Encerrada)'}
             </p>
           </div>
@@ -370,55 +372,55 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
       </div>
 
       {/* Sub tabs */}
-      <div className="flex flex-wrap border-b border-slate-200 dark:border-slate-800/80">
+      <div className="flex border-b border-slate-200 dark:border-slate-800/80 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full">
         <button
           onClick={() => setActiveTab('standings')}
-          className={`flex-1 min-w-[100px] py-3 text-sm font-bold text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1.5 ${
+          className={`flex-1 min-w-[120px] sm:min-w-0 py-2.5 sm:py-3.5 text-[11px] sm:text-xs md:text-sm font-black text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1 sm:space-x-1.5 shrink-0 ${
             activeTab === 'standings'
-              ? 'border-emerald-500 text-emerald-500'
+              ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5 sm:bg-transparent'
               : 'border-transparent text-zinc-500 hover:text-emerald-500'
           }`}
         >
-          <ListOrdered className="w-4 h-4" />
+          <ListOrdered className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           <span>Classificação</span>
         </button>
         <button
           onClick={() => setActiveTab('matches')}
-          className={`flex-1 min-w-[100px] py-3 text-sm font-bold text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1.5 ${
+          className={`flex-1 min-w-[140px] sm:min-w-0 py-2.5 sm:py-3.5 text-[11px] sm:text-xs md:text-sm font-black text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1 sm:space-x-1.5 shrink-0 ${
             activeTab === 'matches'
-              ? 'border-emerald-500 text-emerald-500'
+              ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5 sm:bg-transparent'
               : 'border-transparent text-zinc-500 hover:text-emerald-500'
           }`}
         >
-          <Calendar className="w-4 h-4" />
+          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           <span>Jogos & Rodadas</span>
         </button>
         <button
           onClick={() => setActiveTab('stats')}
-          className={`flex-1 min-w-[100px] py-3 text-sm font-bold text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1.5 ${
+          className={`flex-1 min-w-[120px] sm:min-w-0 py-2.5 sm:py-3.5 text-[11px] sm:text-xs md:text-sm font-black text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1 sm:space-x-1.5 shrink-0 ${
             activeTab === 'stats'
-              ? 'border-emerald-500 text-emerald-500'
+              ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5 sm:bg-transparent'
               : 'border-transparent text-zinc-500 hover:text-emerald-500'
           }`}
         >
-          <Target className="w-4 h-4" />
+          <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           <span>Estatísticas</span>
         </button>
         <button
           onClick={() => setActiveTab('regulations')}
-          className={`flex-1 min-w-[100px] py-3 text-sm font-bold text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1.5 ${
+          className={`flex-1 min-w-[120px] sm:min-w-0 py-2.5 sm:py-3.5 text-[11px] sm:text-xs md:text-sm font-black text-center border-b-2 cursor-pointer transition-all flex items-center justify-center space-x-1 sm:space-x-1.5 shrink-0 ${
             activeTab === 'regulations'
-              ? 'border-emerald-500 text-emerald-500'
+              ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5 sm:bg-transparent'
               : 'border-transparent text-zinc-500 hover:text-emerald-500'
           }`}
         >
-          <FileText className="w-4 h-4" />
+          <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           <span>Regulamento</span>
         </button>
       </div>
 
       {/* Panels */}
-      <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm">
+      <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-sm">
         {activeTab === 'standings' && (
           league.type === 'Copa' ? (
             <div className="space-y-6 animate-fade-in">
@@ -624,6 +626,10 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                           ) : isFinished ? (
                             <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
                               Encerrado
+                            </span>
+                          ) : match.status === 'Adiado' ? (
+                            <span className="bg-amber-500/10 text-amber-500 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-500/20">
+                              Adiado
                             </span>
                           ) : (
                             <span className="bg-blue-500/10 text-blue-500 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider border border-blue-500/20">

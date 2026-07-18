@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer } from '../types';
 import { LineChart, DonutChart } from './AdminCharts';
 import { compressImage } from './imageCompressor';
+import logoImg from '../assets/images/msoccer_logo_1783863321533.jpg';
 import {
   LayoutDashboard,
   Users,
@@ -185,18 +186,25 @@ export const AdminPanel: React.FC = () => {
     }
   }, [selectedChampIdForEdit, editingClubId, clubs, championships]);
 
-  // Match event live injector states
-  const [selectedControllerMatchId, setSelectedControllerMatchId] = useState<string>(matches[0]?.id || '');
+  // Match event live injector states - Only show matches that are NOT finished/encerradas
+  const nonFinishedMatches = React.useMemo(() => {
+    return matches.filter(m => m.status !== MatchStatus.FINISHED);
+  }, [matches]);
+
+  const [selectedControllerMatchId, setSelectedControllerMatchId] = useState<string>(() => {
+    const firstActive = matches.find(m => m.status !== MatchStatus.FINISHED);
+    return firstActive?.id || '';
+  });
 
   useEffect(() => {
-    if (matches.length > 0) {
-      if (!selectedControllerMatchId || !matches.some(m => m.id === selectedControllerMatchId)) {
-        setSelectedControllerMatchId(matches[0].id);
+    if (nonFinishedMatches.length > 0) {
+      if (!selectedControllerMatchId || !nonFinishedMatches.some(m => m.id === selectedControllerMatchId)) {
+        setSelectedControllerMatchId(nonFinishedMatches[0].id);
       }
     } else {
       setSelectedControllerMatchId('');
     }
-  }, [matches, selectedControllerMatchId]);
+  }, [nonFinishedMatches, selectedControllerMatchId]);
 
   const activeMatchToControl = matches.find((m) => m.id === selectedControllerMatchId);
   const champOfMatch = activeMatchToControl ? championships.find(c => c.id === activeMatchToControl.championshipId) : null;
@@ -768,7 +776,7 @@ export const AdminPanel: React.FC = () => {
     addLog('Status de Jogo alterado', `${updated.homeClubShortName} x ${updated.awayClubShortName} -> ${newStatus}`, 'bg-blue-500');
   };
 
-  const handleCustomStatusClick = (target: 'scheduled' | 'live_1t' | 'ht' | 'live_2t' | 'finished') => {
+  const handleCustomStatusClick = (target: 'scheduled' | 'live_1t' | 'ht' | 'live_2t' | 'finished' | 'postponed') => {
     if (!activeMatchToControl) return;
 
     let updated = { ...activeMatchToControl };
@@ -780,6 +788,11 @@ export const AdminPanel: React.FC = () => {
       updated.events = [];
       updated.isPaused = true;
       addLog('Partida para Não Iniciada', `${updated.homeClubShortName} x ${updated.awayClubShortName}`, 'bg-zinc-500');
+    } else if (target === 'postponed') {
+      updated.status = MatchStatus.POSTPONED;
+      updated.minute = 0;
+      updated.isPaused = true;
+      addLog('Partida Adiada', `${updated.homeClubShortName} x ${updated.awayClubShortName}`, 'bg-amber-600');
     } else if (target === 'live_1t') {
       updated.status = MatchStatus.LIVE;
       updated.minute = 1;
@@ -1310,9 +1323,15 @@ export const AdminPanel: React.FC = () => {
       <aside className="hidden lg:flex w-64 bg-[#0F172A] border-r border-slate-800 flex-col justify-between select-none h-full shrink-0">
         <div>
           {/* Logo */}
-          <div className="h-16 flex items-center px-6 border-b border-slate-800 space-x-2">
+          <div className="h-16 flex items-center px-6 border-b border-slate-800 space-x-2.5">
+            <img 
+              src={logoImg} 
+              alt="mSoccer" 
+              className="w-7 h-7 rounded-md object-cover shrink-0 border border-slate-700 shadow-sm" 
+              referrerPolicy="no-referrer"
+            />
             <span className="text-xl font-black text-white tracking-wider flex items-center">
-              m<span className="text-emerald-500">Soccer</span>⚽
+              m<span className="text-emerald-500">Soccer</span>
             </span>
           </div>
 
@@ -1370,7 +1389,15 @@ export const AdminPanel: React.FC = () => {
           <div className="w-64 bg-[#0F172A] border-r border-slate-800 flex flex-col justify-between h-full p-4 animate-slide-in">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <span className="text-lg font-black text-white">mSoccer⚽</span>
+                <div className="flex items-center space-x-2">
+                  <img 
+                    src={logoImg} 
+                    alt="mSoccer" 
+                    className="w-6 h-6 rounded-md object-cover shrink-0 border border-slate-700" 
+                    referrerPolicy="no-referrer"
+                  />
+                  <span className="text-lg font-black text-white">mSoccer</span>
+                </div>
                 <button onClick={() => setSidebarOpen(false)} className="text-zinc-400">
                   <X className="w-5 h-5" />
                 </button>
@@ -1734,11 +1761,15 @@ export const AdminPanel: React.FC = () => {
                     onChange={(e) => setSelectedControllerMatchId(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-4 py-2.5 text-white"
                   >
-                    {matches.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        [{m.status}] {m.homeClubName} vs {m.awayClubName} ({m.championshipName})
-                      </option>
-                    ))}
+                    {nonFinishedMatches.length > 0 ? (
+                      nonFinishedMatches.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          [{m.status}] {m.homeClubName} vs {m.awayClubName} ({m.championshipName})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">Nenhum jogo ativo disponível para operar</option>
+                    )}
                   </select>
                 </div>
 
@@ -1788,6 +1819,19 @@ export const AdminPanel: React.FC = () => {
                               }`}
                             >
                               Não Iniciou
+                            </button>
+
+                            {/* Adiar Partida */}
+                            <button
+                              type="button"
+                              onClick={() => handleCustomStatusClick('postponed')}
+                              className={`px-2.5 py-1 rounded text-[10px] font-black uppercase transition-colors ${
+                                activeMatchToControl.status === MatchStatus.POSTPONED
+                                  ? 'bg-amber-600 text-white font-black'
+                                  : 'bg-slate-800 text-zinc-400 hover:bg-slate-700 font-bold'
+                              }`}
+                            >
+                              Adiar Partida
                             </button>
 
                             {/* Ao Vivo (1º Tempo) */}
@@ -3173,9 +3217,11 @@ export const AdminPanel: React.FC = () => {
                                     ? 'bg-rose-500/10 text-rose-400 animate-pulse'
                                     : m.status === MatchStatus.FINISHED
                                     ? 'bg-zinc-500/10 text-zinc-400'
+                                    : m.status === MatchStatus.POSTPONED
+                                    ? 'bg-amber-500/10 text-amber-400'
                                     : 'bg-emerald-500/10 text-emerald-400'
                                 }`}>
-                                  {m.status === MatchStatus.SCHEDULED ? 'Agendado' : m.status === MatchStatus.LIVE ? 'Ao Vivo' : 'Encerrado'}
+                                  {m.status === MatchStatus.SCHEDULED ? 'Agendado' : m.status === MatchStatus.LIVE ? 'Ao Vivo' : m.status === MatchStatus.POSTPONED ? 'Adiado' : 'Encerrado'}
                                 </span>
                               </td>
                               <td className="py-3 text-right space-x-2">

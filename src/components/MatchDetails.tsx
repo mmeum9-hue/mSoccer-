@@ -810,6 +810,8 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 ? 'Intervalo'
                 : match.status === MatchStatus.FINISHED
                 ? 'Terminou'
+                : match.status === MatchStatus.POSTPONED
+                ? 'Adiado'
                 : 'Não Iniciado'}
             </span>
           </div>
@@ -2011,6 +2013,10 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 ) : match.status === MatchStatus.FINISHED ? (
                   <span className="bg-red-600 text-white text-[9.5px] font-black px-3 py-1 rounded-md uppercase tracking-wider block">
                     Terminou
+                  </span>
+                ) : match.status === MatchStatus.POSTPONED ? (
+                  <span className="bg-amber-600 text-white text-[9.5px] font-black px-3 py-1 rounded-md uppercase tracking-wider block">
+                    Adiado
                   </span>
                 ) : (
                   <span className="bg-slate-600 text-white text-[9.5px] font-black px-3 py-1 rounded-md uppercase tracking-wider block">

@@ -1,12 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 import { MatchStatus, Match, formatMatchMinute } from '../types';
-import { Star, Trophy, MapPin, ChevronRight, Eye, Calendar, Award, CheckCircle, Info, Sparkles, X } from 'lucide-react';
+import { Star, Trophy, ChevronRight, Eye, Calendar, Sparkles, X } from 'lucide-react';
 
 export const LiveMatches: React.FC = () => {
-  const { matches, championships, news, favorites, toggleFavorite, navigateTo, updateMatch, user, language } = useApp();
-  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const { matches, championships, news, favorites, toggleFavorite, navigateTo, user, language, headerColor } = useApp();
+
+  const colorConfig: { [key: string]: { bg: string; border: string; text: string; tabText: string } } = {
+    green: { bg: 'bg-[#3C8C21]', border: 'border-[#2d6e19]', text: 'text-[#3C8C21]', tabText: 'text-emerald-100/75 hover:text-white' },
+    blue: { bg: 'bg-[#1E3A8A]', border: 'border-[#172554]', text: 'text-[#1E3A8A]', tabText: 'text-blue-100/75 hover:text-white' },
+    red: { bg: 'bg-[#991B1B]', border: 'border-[#7F1D1D]', text: 'text-[#991B1B]', tabText: 'text-rose-100/75 hover:text-white' },
+    purple: { bg: 'bg-[#5B21B6]', border: 'border-[#4C1D95]', text: 'text-[#5B21B6]', tabText: 'text-purple-100/75 hover:text-white' },
+    orange: { bg: 'bg-[#C2410C]', border: 'border-[#9A3412]', text: 'text-[#C2410C]', tabText: 'text-orange-100/75 hover:text-white' },
+    black: { bg: 'bg-[#111827]', border: 'border-[#030712]', text: 'text-[#111827]', tabText: 'text-zinc-400 hover:text-white' }
+  };
+
+  const activeColor = colorConfig[headerColor] || colorConfig.green;
+  
+  // Track whether we are currently filtering only favorites in the matches list
+  const [showOnlyFavorites, setShowOnlyFavoritesState] = useState(() => {
+    return localStorage.getItem('mSoccer_showOnlyFavorites') === 'true';
+  });
+
+  const setShowOnlyFavorites = (val: boolean) => {
+    setShowOnlyFavoritesState(val);
+    localStorage.setItem('mSoccer_showOnlyFavorites', String(val));
+    window.dispatchEvent(new CustomEvent('show-only-favorites-changed', { detail: val }));
+  };
+
+  useEffect(() => {
+    const handleSetFav = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setShowOnlyFavoritesState(customEvent.detail);
+    };
+    window.addEventListener('set-show-only-favorites', handleSetFav);
+    return () => window.removeEventListener('set-show-only-favorites', handleSetFav);
+  }, []);
+
+  useEffect(() => {
+    const handleSetDate = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const targetDate = customEvent.detail;
+      
+      const yesterdayStr = getRelativeDateStr(-1);
+      const todayStr = getRelativeDateStr(0);
+      const tomorrowStr = getRelativeDateStr(1);
+      
+      if (targetDate === todayStr) {
+        setSelectedTab('today');
+      } else if (targetDate === yesterdayStr) {
+        setSelectedTab('yesterday');
+      } else if (targetDate === tomorrowStr) {
+        setSelectedTab('tomorrow');
+      } else {
+        setSelectedTab(targetDate);
+      }
+      
+      setTimeout(() => {
+        const tabId = targetDate === todayStr ? 'tab-today' : targetDate === yesterdayStr ? 'tab-yesterday' : targetDate === tomorrowStr ? 'tab-tomorrow' : `tab-${targetDate}`;
+        const tabEl = document.getElementById(tabId);
+        if (tabEl) {
+          tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 150);
+    };
+    
+    window.addEventListener('set-match-date', handleSetDate);
+    return () => window.removeEventListener('set-match-date', handleSetDate);
+  }, []);
+
+  useEffect(() => {
+    // Initial scroll to today's tab so the user lands on the active day
+    setTimeout(() => {
+      const tabEl = document.getElementById('tab-today');
+      if (tabEl) {
+        tabEl.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' });
+      }
+    }, 400);
+  }, []);
   
   // Predictor modal state
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -50,15 +122,23 @@ export const LiveMatches: React.FC = () => {
   }));
 
   // Define the tabs dynamically
-  const matchTabs = [
-    { id: 'yesterday', label: 'Ontem', isLive: false, getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(-1) && m.status === MatchStatus.FINISHED).length },
-    { id: 'live', label: 'Ao Vivo', isLive: true, getCount: () => allDisplayMatches.filter(m => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT).length },
-    { id: 'today', label: 'Hoje', isLive: false, getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(0)).length },
-    { id: 'tomorrow', label: 'Amanhã', isLive: false, getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(1)).length },
-  ];
+  const matchTabs: Array<{
+    id: string;
+    label: string;
+    isLive: boolean;
+    getCount: () => number;
+    sortTime: number;
+  }> = [];
 
-  // Add subsequent 12 days to cover dynamic future dates
-  for (let i = 2; i <= 13; i++) {
+  const getOffsetTimestamp = (offset: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    d.setHours(12, 0, 0, 0);
+    return d.getTime();
+  };
+
+  // 1. Add historical/past dates before 'Ontem' (-14 to -2)
+  for (let i = -14; i <= -2; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     const dateStr = getRelativeDateStr(i);
@@ -67,9 +147,88 @@ export const LiveMatches: React.FC = () => {
       id: dateStr,
       label: label,
       isLive: false,
-      getCount: () => allDisplayMatches.filter(m => m.date === dateStr).length
+      getCount: () => allDisplayMatches.filter(m => m.date === dateStr).length,
+      sortTime: getOffsetTimestamp(i)
     });
   }
+
+  // 2. Add 'yesterday' (-1)
+  matchTabs.push({
+    id: 'yesterday',
+    label: 'Ontem',
+    isLive: false,
+    getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(-1) && m.status === MatchStatus.FINISHED).length,
+    sortTime: getOffsetTimestamp(-1)
+  });
+
+  // 3. Add 'today' (0)
+  matchTabs.push({
+    id: 'today',
+    label: 'Hoje',
+    isLive: false,
+    getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(0)).length,
+    sortTime: getOffsetTimestamp(0)
+  });
+
+  // 4. Add 'live' (between today and tomorrow, as originally laid out)
+  matchTabs.push({
+    id: 'live',
+    label: 'Ao Vivo',
+    isLive: true,
+    getCount: () => allDisplayMatches.filter(m => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT).length,
+    sortTime: getOffsetTimestamp(0) + 1000 // Just after today for sorting
+  });
+
+  // 5. Add 'tomorrow' (+1)
+  matchTabs.push({
+    id: 'tomorrow',
+    label: 'Amanhã',
+    isLive: false,
+    getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(1)).length,
+    sortTime: getOffsetTimestamp(1)
+  });
+
+  // 6. Add future dates after 'Amanhã' (+2 to +14)
+  for (let i = 2; i <= 14; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const dateStr = getRelativeDateStr(i);
+    const label = formatTabDate(d);
+    matchTabs.push({
+      id: dateStr,
+      label: label,
+      isLive: false,
+      getCount: () => allDisplayMatches.filter(m => m.date === dateStr).length,
+      sortTime: getOffsetTimestamp(i)
+    });
+  }
+
+  // Dynamically insert custom selected date tab if not present
+  const hasSelectedTab = matchTabs.some(t => t.id === selectedTab);
+  if (!hasSelectedTab && selectedTab !== 'live') {
+    try {
+      const parts = selectedTab.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day, 12, 0, 0);
+        const label = formatTabDate(d);
+        matchTabs.push({
+          id: selectedTab,
+          label: label,
+          isLive: false,
+          getCount: () => allDisplayMatches.filter(m => m.date === selectedTab).length,
+          sortTime: d.getTime()
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Sort matchTabs chronologically based on sortTime
+  matchTabs.sort((a, b) => a.sortTime - b.sortTime);
 
   // Filter display matches based on selected tab and showOnlyFavorites mode
   const getFilteredMatches = () => {
@@ -126,7 +285,6 @@ export const LiveMatches: React.FC = () => {
   };
 
   const filteredMatches = getFilteredMatches();
-  const liveCount = allDisplayMatches.filter(m => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT).length;
 
   // Group matches by championship
   const matchesByLeague: { [leagueName: string]: Match[] } = {};
@@ -152,275 +310,325 @@ export const LiveMatches: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-24">
-      <div className="max-w-6xl mx-auto px-3.5 space-y-4 pt-4">
+    <div className="bg-white min-h-screen pb-24 flex flex-col select-none">
+      {/* 1. DATE TAB NAVIGATION (BeSoccer Style, dynamic background, horizontal scrolling) */}
+      <div className={`${activeColor.bg} w-full border-b ${activeColor.border} sticky top-14 z-30`}>
+        <div className="max-w-xl mx-auto flex items-center space-x-5 px-3 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] h-10.5">
+          {matchTabs.map((tab) => {
+            const isToday = tab.id === 'today';
+            const isActive = selectedTab === tab.id;
+            const count = tab.getCount();
+            
+            // Format labels like 'AO VIVO (44)'
+            let displayLabel = tab.label;
+            if (count > 0) {
+              displayLabel = `${tab.label} (${count})`;
+            }
+
+            return (
+              <button
+                id={`tab-${tab.id}`}
+                key={tab.id}
+                onClick={() => setSelectedTab(tab.id)}
+                className={`h-full flex items-center justify-center text-[11px] uppercase whitespace-nowrap transition-all relative cursor-pointer select-none shrink-0 ${
+                  isToday && isActive
+                    ? 'bg-white text-zinc-950 px-3 py-1 rounded-full text-[11px] font-black shadow-md border-0 self-center h-7 my-auto'
+                    : isActive
+                      ? 'border-b-3 border-white text-white font-black px-1.5'
+                      : `border-b-3 border-transparent ${activeColor.tabText} font-bold px-1.5`
+                }`}
+              >
+                {tab.isLive && count > 0 && (
+                  <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping absolute top-2 right-0.5" />
+                )}
+                <span>{displayLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main layout container (desktop max-width centered) */}
+      <div className="w-full max-w-xl mx-auto">
+        
         {/* Hidden internal helper inputs to listen to simulated events from BottomNav */}
         <div className="hidden">
           <button id="filter-all" onClick={() => setShowOnlyFavorites(false)}></button>
           <button id="filter-favorites" onClick={() => setShowOnlyFavorites(true)}></button>
         </div>
 
-        {/* Quick standings link */}
+        {/* 2. NEUTRAL mSOCCER PREDICTOR INFO CARD (REPLACED 1XBET AD BANNER) */}
         <div 
-          onClick={() => navigateTo({ type: 'tabela' })}
-          className="bg-gradient-to-r from-[#1E3A8A] to-blue-600 rounded-2xl p-4 text-white shadow-sm flex items-center justify-between cursor-pointer hover:opacity-95 transition-all border border-blue-500/10"
+          onClick={() => {
+            if (filteredMatches.length > 0) {
+              setSelectedMatchId(filteredMatches[0].id);
+            }
+            setShowPromoModal(true);
+          }}
+          className="mx-3.5 mt-3 mb-2.5 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80 cursor-pointer transition-all shadow-sm flex items-center justify-between"
         >
-          <div className="flex items-center space-x-3">
-            <span className="text-2xl">📊</span>
-            <div>
-              <h3 className="font-bold text-sm leading-tight">{translations[language].tabelaClassificacao}</h3>
-              <p className="text-[10px] text-blue-100 font-semibold uppercase tracking-wider mt-0.5">{translations[language].pontuacaoEstatisticas}</p>
+          <div className="flex items-center space-x-3 pr-2">
+            <div className={`w-9 h-9 rounded-full ${activeColor.bg} text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm`}>
+              🔮
+            </div>
+            <div className="leading-tight">
+              <h4 className="text-[10.5px] font-extrabold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide flex items-center space-x-1.5">
+                <span>Predictor mSoccer</span>
+                <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-400 text-[8px] font-black px-1.5 py-0.5 rounded-full tracking-wider">
+                  GRÁTIS
+                </span>
+              </h4>
+              <p className="text-[9.5px] text-zinc-500 dark:text-zinc-400 font-medium line-clamp-1 mt-0.5">
+                Faça seu palpite para o jogo da rodada! Toque para participar.
+              </p>
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-blue-100 shrink-0" />
+          <button className={`${activeColor.bg} hover:opacity-90 text-white text-[9.5px] font-extrabold px-3 py-1.5 rounded-md uppercase tracking-wider shrink-0 transition-colors shadow-sm`}>
+            Palpitar
+          </button>
         </div>
 
-        {/* Date/Status Tab Bar with automatic dates and horizontal scrolling */}
-        <div className="flex items-center space-x-1.5 p-1 bg-slate-100 dark:bg-slate-900/60 rounded-xl border border-slate-200/50 dark:border-slate-800/40 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          {matchTabs.map((tab) => {
-            const isActive = selectedTab === tab.id;
-            const count = tab.getCount();
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setSelectedTab(tab.id)}
-                className={`flex-none py-2 px-3 rounded-lg text-[11px] font-black tracking-wide uppercase transition-all flex items-center justify-center space-x-1.5 cursor-pointer relative select-none shrink-0 ${
-                  isActive
-                    ? 'bg-white dark:bg-[#1E293B] text-[#1E3A8A] dark:text-blue-400 shadow-sm border border-slate-200/30 dark:border-slate-700/30'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                {tab.isLive && count > 0 && (
-                  <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping absolute top-1 right-2" />
-                )}
-                <span>{tab.label}</span>
-                {count > 0 && (
-                  <span className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-bold ${
-                    isActive
-                      ? tab.isLive ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400' : 'bg-blue-100 dark:bg-blue-950/40 text-[#1E3A8A] dark:text-blue-400'
-                      : tab.isLive ? 'bg-rose-500/15 text-rose-500' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                  }`}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* 3. QUICK TABELA LINK */}
+        <div 
+          onClick={() => navigateTo({ type: 'tabela' })}
+          className="mx-3.5 mb-3 p-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/60 rounded-lg flex items-center justify-between cursor-pointer transition-all"
+        >
+          <div className="flex items-center space-x-2.5">
+            <span className="text-base select-none">📊</span>
+            <div>
+              <h3 className="text-[10.5px] font-bold text-zinc-700 leading-none">Classificações e Estatísticas</h3>
+              <p className="text-[8.5px] text-zinc-400 font-semibold uppercase tracking-wider mt-0.5">Tabela completa de campeonatos e clubes</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
         </div>
 
-        {/* 3. MAIN "FAVORITOS" & CHAMPIONSHIPS CONTAINER */}
-        <div className="bg-[#131F32] border border-slate-800/80 rounded-2xl shadow-sm overflow-hidden">
-          {/* Card Header matching the screenshot exactly */}
-          <div className="bg-[#1A2536] px-4 py-3.5 border-b border-slate-800/40 flex items-center space-x-2">
-            <Star className="w-4 h-4 text-slate-100 fill-slate-100" />
-            <h2 className="text-xs font-black text-slate-100 uppercase tracking-wider">
-              {showOnlyFavorites ? translations[language].favoritos : translations[language].partidas}
+        {/* 4. BE-SOCCER SECTION TITLE (FAVORITOS OR PARTIDAS) WITH CLICKABLE TOGGLE */}
+        <div 
+          onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+          className="bg-white border-b border-zinc-200/80 px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50/50 transition-colors select-none"
+        >
+          <div className="flex items-center space-x-2">
+            <Star className={`w-4.5 h-4.5 transition-all ${showOnlyFavorites ? 'text-yellow-400 fill-yellow-400 scale-105' : 'text-zinc-400'}`} />
+            <h2 className="text-[11.5px] font-black text-zinc-800 uppercase tracking-widest">
+              {showOnlyFavorites ? 'MEUS FAVORITOS' : 'TODAS AS PARTIDAS'}
             </h2>
           </div>
-
-          {/* Grouped Matches Content in a sleek vertical list */}
-          <div className="divide-y divide-slate-800/50">
-            {filteredMatches.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 space-y-1.5 bg-[#131F32]">
-                <p className="text-xs font-medium">{translations[language].nenhumaPartida}</p>
-                <p className="text-[10px] text-slate-500">{translations[language].favoritarInstrucao}</p>
-              </div>
-            ) : (
-              filteredMatches.map((match) => {
-                const isFav = favorites?.matches?.includes(match.id) || false;
-                const isLiveMatch = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
-                
-                // Determine header layout and labels dynamically to match the screenshot
-                let headerLeft = '';
-                let statusBadge = null;
-
-                if (match.status === MatchStatus.LIVE) {
-                  headerLeft = match.championshipName;
-                  statusBadge = (
-                    <span className="text-[8px] text-rose-400 font-bold uppercase tracking-wider bg-rose-500/10 border border-rose-500/10 px-2 py-0.5 rounded-sm flex items-center space-x-1">
-                      <span className="flex h-1 w-1 relative shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1 w-1 bg-rose-500"></span>
-                      </span>
-                      <span>Ao Vivo • {formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}</span>
-                    </span>
-                  );
-                } else if (match.status === MatchStatus.HT) {
-                  headerLeft = `Intervalo • ${match.championshipName}`;
-                  statusBadge = (
-                    <span className="text-[8px] text-amber-400 font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/10 px-2 py-0.5 rounded-sm flex items-center space-x-1">
-                      <span className="h-1 w-1 rounded-full bg-amber-500 shrink-0"></span>
-                      <span>Intervalo</span>
-                    </span>
-                  );
-                } else if (match.status === MatchStatus.FINISHED) {
-                  headerLeft = `Finalizado • ${match.championshipName}`;
-                  statusBadge = (
-                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider bg-slate-800/60 border border-slate-700/10 px-2 py-0.5 rounded-sm">
-                      Finalizado
-                    </span>
-                  );
-                } else {
-                  headerLeft = `${match.time} • ${match.championshipName}`;
-                  statusBadge = (
-                    <span className="text-[8px] text-blue-400 font-bold uppercase tracking-wider bg-blue-900/30 border border-blue-500/15 px-2 py-0.5 rounded-sm">
-                      Agendado
-                    </span>
-                  );
-                }
-
-                return (
-                  <div
-                    key={match.id}
-                    onClick={() => navigateTo({ type: 'match', id: match.id })}
-                    className="p-4 hover:bg-[#1A263B]/30 transition-colors cursor-pointer space-y-3 select-none"
-                  >
-                    {/* Mini Header Row: Time, Championship & Status */}
-                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <span className="truncate max-w-[70%]">{headerLeft}</span>
-                      <span>{statusBadge}</span>
-                    </div>
-
-                    {/* Team Entries Match Row */}
-                    <div className="flex items-center justify-between">
-                      {/* Favorite Button (Star) */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavorite('matches', match.id);
-                        }}
-                        className="w-7 flex-none text-slate-400 hover:text-yellow-400 transition-colors cursor-pointer text-left"
-                      >
-                        <Star className={`w-4 h-4 ${isFav ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-                      </button>
-
-                      {/* Home Team Side */}
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigateTo({ type: 'club', id: match.homeClubId });
-                        }}
-                        className="flex-1 flex items-center justify-end space-x-2 text-right group/home truncate"
-                      >
-                        <span className="text-xs font-black text-slate-100 uppercase tracking-wide group-hover/home:text-blue-400 transition-colors truncate">
-                          {match.homeClubName}
-                        </span>
-                        <img
-                          src={match.homeClubLogo}
-                          alt={match.homeClubName}
-                          className="w-6 h-6 rounded-full object-cover bg-slate-800 shrink-0 border border-slate-700/50 group-hover/home:scale-105 transition-transform"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-
-                      {/* VS / Score Badge Column */}
-                      <div className="w-16 flex-none flex justify-center">
-                        {match.status === MatchStatus.SCHEDULED ? (
-                          <div className="bg-[#1C2C42] px-3 py-0.5 rounded-full text-[10px] font-black text-slate-400 font-mono tracking-wider text-center select-none border border-slate-800/40">
-                            VS
-                          </div>
-                        ) : (
-                          <div className={`px-2.5 py-0.5 rounded text-xs font-black font-mono tracking-tight text-center select-none border ${isLiveMatch ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800/80 text-slate-300 border-slate-700/30'}`}>
-                            {match.score.home} - {match.score.away}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Away Team Side */}
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigateTo({ type: 'club', id: match.awayClubId });
-                        }}
-                        className="flex-1 flex items-center justify-start space-x-2 text-left group/away truncate"
-                      >
-                        <img
-                          src={match.awayClubLogo}
-                          alt={match.awayClubName}
-                          className="w-6 h-6 rounded-full object-cover bg-slate-800 shrink-0 border border-slate-700/50 group-hover/away:scale-105 transition-transform"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="text-xs font-black text-slate-100 uppercase tracking-wide group-hover/away:text-blue-400 transition-colors truncate">
-                          {match.awayClubName}
-                        </span>
-                      </div>
-
-                      {/* Chevron Navigation Indicator */}
-                      <div className="w-6 flex-none flex justify-end text-slate-500">
-                        <ChevronRight className="w-4 h-4 text-slate-500" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <div className={`text-[9.5px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border transition-all ${
+            showOnlyFavorites 
+              ? 'bg-yellow-50 text-yellow-700 border-yellow-200/60' 
+              : 'bg-zinc-100 text-zinc-500 border-zinc-200/50'
+          }`}>
+            {showOnlyFavorites ? 'Ver Todas' : 'Ver Favoritos'}
           </div>
         </div>
 
-        {/* 4. BEAUTIFUL SOCCER NEWS INSIGHTS CAROUSEL */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">
-            📰 Notícias Recomendadas
-          </h3>
-          <div className="grid gap-3.5">
+        {/* 5. MATCH FEED GROUPS (100% WIDTH, NO CARDS, EDGE-TO-EDGE) */}
+        <div className="w-full bg-white divide-y divide-zinc-150">
+          {filteredMatches.length === 0 ? (
+            <div className="py-12 px-6 text-center text-zinc-500 space-y-1">
+              <p className="text-[12px] font-bold">Nenhuma partida agendada para hoje.</p>
+              <p className="text-[10px] text-zinc-400">Tente favoritar clubes nas outras abas ou mude a data acima.</p>
+            </div>
+          ) : (
+            Object.keys(matchesByLeague).sort().map((leagueName) => {
+              const leagueMatches = matchesByLeague[leagueName];
+              
+              return (
+                <div key={leagueName} className="w-full flex flex-col">
+                  {/* COMPETITION HEADER - OCCUPIES 100% WIDTH EDGE-TO-EDGE */}
+                  <div className="bg-[#F4F4F6] border-y border-zinc-200/60 py-1.5 px-4 flex items-center justify-between select-none">
+                    <span className="text-[10.5px] font-black text-zinc-600 uppercase tracking-wider">
+                      {leagueName}
+                    </span>
+                    <span className="text-[8.5px] text-zinc-400 font-bold uppercase tracking-widest">
+                      {leagueMatches.length} jogos
+                    </span>
+                  </div>
+
+                  {/* CONTINUOUS MATCH LIST UNDER COMPETITION */}
+                  <div className="w-full divide-y divide-zinc-100 bg-white">
+                    {leagueMatches.map((match) => {
+                      const isFav = favorites?.matches?.includes(match.id) || false;
+                      const isLive = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
+                      
+                      return (
+                        <div
+                          key={match.id}
+                          onClick={() => navigateTo({ type: 'match', id: match.id })}
+                          className="w-full flex items-center py-2 px-3 hover:bg-zinc-50/70 transition-all cursor-pointer select-none"
+                        >
+                          {/* Column 1: Star icon for Favorite */}
+                          <div className="w-7 shrink-0 flex items-center justify-start">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite('matches', match.id);
+                              }}
+                              className="p-1 -ml-1 text-zinc-300 hover:text-yellow-400 transition-colors cursor-pointer"
+                            >
+                              <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-300'}`} />
+                            </button>
+                          </div>
+
+                          {/* Column 2: Home Team (Right-aligned, flex-1) */}
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigateTo({ type: 'club', id: match.homeClubId });
+                            }}
+                            className="flex-1 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
+                          >
+                            <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
+                              {match.homeClubName}
+                            </span>
+                            <img
+                              src={match.homeClubLogo}
+                              alt={match.homeClubName}
+                              className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+
+                          {/* Column 3: Central Time/Score Column */}
+                          <div className="w-20 shrink-0 flex flex-col items-center justify-center text-center">
+                            {match.status === MatchStatus.SCHEDULED ? (
+                              <div className="flex flex-col items-center">
+                                <span className="text-[11.5px] font-black text-zinc-800 font-mono tracking-tight">
+                                  {match.time}
+                                </span>
+                                <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                  AGEND
+                    </span>
+                              </div>
+                            ) : match.status === MatchStatus.POSTPONED ? (
+                              <div className="flex flex-col items-center">
+                                <span className="text-[11.5px] font-black text-zinc-500 font-mono tracking-tight line-through">
+                                  {match.time}
+                                </span>
+                                <span className="text-[8px] bg-amber-100 text-amber-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider mt-0.5">
+                                  ADIADO
+                                </span>
+                              </div>
+                            ) : isLive ? (
+                              <div className="flex flex-col items-center">
+                                <span className="text-[13px] font-black font-mono text-rose-600 tracking-tight leading-none">
+                                  {match.score.home} - {match.score.away}
+                                </span>
+                                <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 animate-pulse">
+                                  <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
+                                  <span>
+                                    {match.status === MatchStatus.HT ? 'INT' : formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
+                                  </span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center">
+                                <span className="text-[12.5px] font-black font-mono text-zinc-500 tracking-tight leading-none">
+                                  {match.score.home} - {match.score.away}
+                                </span>
+                                <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
+                                  FIM
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Column 4: Away Team (Left-aligned, flex-1) */}
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigateTo({ type: 'club', id: match.awayClubId });
+                            }}
+                            className="flex-1 flex items-center justify-start space-x-2 text-left cursor-pointer group pl-2"
+                          >
+                            <img
+                              src={match.awayClubLogo}
+                              alt={match.awayClubName}
+                              className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                              referrerPolicy="no-referrer"
+                            />
+                            <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
+                              {match.awayClubName}
+                            </span>
+                          </div>
+
+                          {/* Column 5: Right Chevron navigation target */}
+                          <div className="w-5 shrink-0 flex items-center justify-end text-zinc-300">
+                            <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* 6. COMPACT BE-SOCCER NEWS CAROUSEL AT FOOTER */}
+        <div className="mt-6 border-t border-zinc-200/80 pt-4 px-4 space-y-3 pb-8">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm">📰</span>
+            <h3 className="text-[11px] font-black text-zinc-600 uppercase tracking-widest">
+              Notícias Recomendadas
+            </h3>
+          </div>
+          <div className="grid gap-2">
             {news.slice(0, 3).map((item) => (
               <div
                 key={item.id}
                 onClick={() => navigateTo({ type: 'noticias' })}
-                className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden hover:border-[#1E3A8A] transition-all cursor-pointer shadow-sm flex flex-col sm:flex-row"
+                className="bg-[#fafafa] hover:bg-zinc-100/80 border border-zinc-200/50 rounded-lg overflow-hidden transition-all cursor-pointer p-2.5 flex items-center space-x-3.5 shadow-sm"
               >
                 <img
                   src={item.imageUrl}
                   alt={item.title}
-                  className="h-32 sm:w-36 w-full object-cover shrink-0"
+                  className="w-16 h-14 object-cover rounded shrink-0 border border-zinc-200/20"
                   referrerPolicy="no-referrer"
                 />
-                <div className="p-3.5 space-y-1.5 flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider text-[#1E3A8A]">
-                      <span>{item.category}</span>
-                      <span className="text-zinc-400">{item.publishedAt.split(' ')[0]}</span>
-                    </div>
-                    <h4 className="font-bold text-xs text-zinc-900 dark:text-white line-clamp-2 leading-tight">
-                      {item.title}
-                    </h4>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-1">
-                      {item.summary}
-                    </p>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex justify-between items-center text-[7.5px] font-extrabold uppercase tracking-wider text-[#3C8C21]">
+                    <span>{item.category}</span>
+                    <span className="text-zinc-400">{item.publishedAt.split(' ')[0]}</span>
                   </div>
-                  <div className="flex items-center space-x-2 text-[8.5px] text-zinc-400 font-semibold pt-2 border-t border-zinc-100 dark:border-zinc-800 mt-1">
-                    <Eye className="w-3 h-3" />
-                    <span>{item.views.toLocaleString()} visualizações</span>
-                  </div>
+                  <h4 className="font-extrabold text-[10.5px] text-zinc-800 line-clamp-1 leading-tight">
+                    {item.title}
+                  </h4>
+                  <p className="text-[9px] text-zinc-400 line-clamp-1">
+                    {item.summary}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
         </div>
+
       </div>
 
-      {/* 5. INTERACTIVE 1xBET PREDICTOR GAME MODAL */}
+      {/* 7. INTERACTIVE PREDICTOR GAME MODAL */}
       {showPromoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none">
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
             onClick={() => setShowPromoModal(false)}
           ></div>
           
-          <div className="relative bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="relative bg-white border border-zinc-200 rounded-3xl w-full max-w-sm p-6 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Design Banner inside Modal */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-[#0081C9]"></div>
+            <div className={`absolute top-0 left-0 right-0 h-2 ${activeColor.bg}`}></div>
             
             <div className="flex justify-between items-start pt-2 mb-4">
               <div className="flex items-center space-x-2">
                 <Sparkles className="w-5 h-5 text-amber-500 animate-bounce" />
-                <h3 className="font-black text-slate-800 dark:text-slate-100 text-base uppercase tracking-wider">
+                <h3 className="font-black text-slate-800 text-base uppercase tracking-wider">
                   {translations[language].predictorTitulo}
                 </h3>
               </div>
               <button 
                 onClick={() => setShowPromoModal(false)}
-                className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="p-1 rounded-full hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5 text-slate-400" />
               </button>
@@ -428,23 +636,23 @@ export const LiveMatches: React.FC = () => {
 
             {predictionSubmitted ? (
               <div className="text-center py-8 space-y-4">
-                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold animate-pulse">
+                <div className={`w-16 h-16 bg-slate-100 ${activeColor.text} rounded-full flex items-center justify-center mx-auto text-3xl font-bold animate-pulse`}>
                   ✓
                 </div>
                 <div className="space-y-1.5">
-                  <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">{translations[language].palpiteSucesso}</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 px-4 leading-relaxed">
-                    {translations[language].apostouEm} <span className="font-bold text-slate-800 dark:text-slate-200">{predictedHome} x {predictedAway}</span>. {translations[language].multiplicadorEstimado} <span className="text-blue-600 font-extrabold font-mono text-sm">3.45x</span>.
+                  <h4 className="font-extrabold text-slate-900 text-sm">{translations[language].palpiteSucesso}</h4>
+                  <p className="text-xs text-slate-500 px-4 leading-relaxed">
+                    {translations[language].apostouEm} <span className="font-bold text-slate-800">{predictedHome} x {predictedAway}</span>. {translations[language].multiplicadorEstimado} <span className={`${activeColor.text} font-extrabold font-mono text-sm`}>3.45x</span>.
                   </p>
-                  <p className="text-[10.5px] text-[#1E3A8A] font-bold italic pt-2">
+                  <p className={`text-[10.5px] ${activeColor.text} font-bold italic pt-2`}>
                     {translations[language].dicaAdmin}
                   </p>
                 </div>
               </div>
             ) : (
               <form onSubmit={handlePredictorSubmit} className="space-y-4">
-                <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-                  <span className="font-bold uppercase text-[9.5px] text-[#0081C9] block">{translations[language].comoFunciona}</span>
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-[11px] text-slate-500 space-y-1">
+                  <span className={`font-bold uppercase text-[9.5px] ${activeColor.text} block`}>{translations[language].comoFunciona}</span>
                   <p>{translations[language].comoFuncionaDesc}</p>
                 </div>
 
@@ -454,7 +662,7 @@ export const LiveMatches: React.FC = () => {
                     <select
                       value={selectedMatchId}
                       onChange={(e) => setSelectedMatchId(e.target.value)}
-                      className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#0081C9]"
+                      className="w-full bg-slate-100 border border-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-slate-300"
                     >
                       {allDisplayMatches.map((m) => (
                         <option key={m.id} value={m.id}>
@@ -473,7 +681,7 @@ export const LiveMatches: React.FC = () => {
                         max="20"
                         value={predictedHome}
                         onChange={(e) => setPredictedHome(e.target.value)}
-                        className="w-full text-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-black text-lg rounded-xl py-2 focus:outline-none focus:ring-1 focus:ring-[#0081C9]"
+                        className="w-full text-center bg-slate-100 border border-slate-200 font-mono font-black text-lg rounded-xl py-2 focus:outline-none focus:ring-1 focus:ring-slate-300"
                       />
                     </div>
                     <div className="space-y-1 text-center">
@@ -484,7 +692,7 @@ export const LiveMatches: React.FC = () => {
                         max="20"
                         value={predictedAway}
                         onChange={(e) => setPredictedAway(e.target.value)}
-                        className="w-full text-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono font-black text-lg rounded-xl py-2 focus:outline-none focus:ring-1 focus:ring-[#0081C9]"
+                        className="w-full text-center bg-slate-100 border border-slate-200 font-mono font-black text-lg rounded-xl py-2 focus:outline-none focus:ring-1 focus:ring-slate-300"
                       />
                     </div>
                   </div>
@@ -492,7 +700,7 @@ export const LiveMatches: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="w-full bg-[#0081C9] hover:bg-[#006FA3] text-white font-black py-2.5 rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                  className={`w-full ${activeColor.bg} hover:opacity-95 text-white font-black py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm`}
                 >
                   {translations[language].confirmarPalpite} (Odds 3.45)
                 </button>

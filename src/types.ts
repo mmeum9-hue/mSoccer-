@@ -3,6 +3,7 @@ export enum MatchStatus {
   LIVE = 'Ao Vivo',
   HT = 'Intervalo',
   FINISHED = 'Encerrado',
+  POSTPONED = 'Adiado',
 }
 
 export interface Club {
