@@ -456,16 +456,17 @@ export const LiveMatches: React.FC = () => {
                         <div
                           key={match.id}
                           onClick={() => navigateTo({ type: 'match', id: match.id })}
-                          className="w-full flex items-center py-2 px-3 hover:bg-zinc-50/70 transition-all cursor-pointer select-none"
+                          className="w-full flex items-center py-2 pl-9 pr-9 hover:bg-zinc-50/70 transition-all cursor-pointer select-none relative"
                         >
-                          {/* Column 1: Star icon for Favorite */}
-                          <div className="w-7 shrink-0 flex items-center justify-start">
+                          {/* Symmetrical Absolute Placements for Side Controls */}
+                          {/* Column 1: Star icon for Favorite (Absolutely positioned on the left) */}
+                          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center z-10">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleFavorite('matches', match.id);
                               }}
-                              className="p-1 -ml-1 text-zinc-300 hover:text-yellow-400 transition-colors cursor-pointer"
+                              className="p-1 text-zinc-300 hover:text-yellow-400 transition-colors cursor-pointer"
                             >
                               <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-300'}`} />
                             </button>
@@ -477,7 +478,7 @@ export const LiveMatches: React.FC = () => {
                               e.stopPropagation();
                               navigateTo({ type: 'club', id: match.homeClubId });
                             }}
-                            className="flex-1 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
+                            className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
                           >
                             <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
                               {match.homeClubName}
@@ -490,19 +491,19 @@ export const LiveMatches: React.FC = () => {
                             />
                           </div>
 
-                          {/* Column 3: Central Time/Score Column */}
+                          {/* Column 3: Central Time/Score Column (Fixed width, dead center) */}
                           <div className="w-20 shrink-0 flex flex-col items-center justify-center text-center">
                             {match.status === MatchStatus.SCHEDULED ? (
-                              <div className="flex flex-col items-center">
+                              <div className="flex flex-col items-center justify-center">
                                 <span className="text-[11.5px] font-black text-zinc-800 font-mono tracking-tight">
                                   {match.time}
                                 </span>
                                 <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
                                   AGEND
-                    </span>
+                                </span>
                               </div>
                             ) : match.status === MatchStatus.POSTPONED ? (
-                              <div className="flex flex-col items-center">
+                              <div className="flex flex-col items-center justify-center">
                                 <span className="text-[11.5px] font-black text-zinc-500 font-mono tracking-tight line-through">
                                   {match.time}
                                 </span>
@@ -511,11 +512,11 @@ export const LiveMatches: React.FC = () => {
                                 </span>
                               </div>
                             ) : isLive ? (
-                              <div className="flex flex-col items-center">
+                              <div className="flex flex-col items-center justify-center">
                                 <span className="text-[13px] font-black font-mono text-rose-600 tracking-tight leading-none">
                                   {match.score.home} - {match.score.away}
                                 </span>
-                                <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 animate-pulse">
+                                <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 justify-center animate-pulse">
                                   <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
                                   <span>
                                     {match.status === MatchStatus.HT ? 'INT' : formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
@@ -523,7 +524,7 @@ export const LiveMatches: React.FC = () => {
                                 </span>
                               </div>
                             ) : (
-                              <div className="flex flex-col items-center">
+                              <div className="flex flex-col items-center justify-center">
                                 <span className="text-[12.5px] font-black font-mono text-zinc-500 tracking-tight leading-none">
                                   {match.score.home} - {match.score.away}
                                 </span>
@@ -540,7 +541,7 @@ export const LiveMatches: React.FC = () => {
                               e.stopPropagation();
                               navigateTo({ type: 'club', id: match.awayClubId });
                             }}
-                            className="flex-1 flex items-center justify-start space-x-2 text-left cursor-pointer group pl-2"
+                            className="flex-1 min-w-0 flex items-center justify-start space-x-2 text-left cursor-pointer group pl-2"
                           >
                             <img
                               src={match.awayClubLogo}
@@ -553,8 +554,8 @@ export const LiveMatches: React.FC = () => {
                             </span>
                           </div>
 
-                          {/* Column 5: Right Chevron navigation target */}
-                          <div className="w-5 shrink-0 flex items-center justify-end text-zinc-300">
+                          {/* Column 5: Right Chevron navigation target (Absolutely positioned on the right) */}
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center text-zinc-300 z-10">
                             <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />
                           </div>
                         </div>
