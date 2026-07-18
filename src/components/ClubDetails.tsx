@@ -196,12 +196,37 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
     return groups;
   }, [squadList]);
 
+  const getMonthAbbr = (month: number) => {
+    const abbrs = ['JAN.', 'FEV.', 'MAR.', 'ABR.', 'MAI.', 'JUN.', 'JUL.', 'AGO.', 'SET.', 'OUT.', 'NOV.', 'DEZ.'];
+    return abbrs[month - 1] || 'MÊS';
+  };
+
+  const formatClubName = (name: string) => {
+    if (!name) return '';
+    const words = name.trim().split(/\s+/);
+    if (words.length === 0) return '';
+    
+    const uppercaseFirst = words[0].toUpperCase();
+    const prefixes = ['CD', 'FC', 'GD', 'UD', 'AD', 'CR', 'SC', 'SL', 'AC', 'CLUB', 'CLUBE', 'ASSOCIAÇÃO', 'ASSOCIACAO'];
+    
+    if (prefixes.includes(uppercaseFirst) && words.length > 1) {
+      return `${words[0]} ${words[1]}`.substring(0, 16);
+    }
+    return words[0].substring(0, 13);
+  };
+
   // Compute club specific form (Draw: Amber, Win: Green, Loss: Red)
   const clubForm = useMemo(() => {
     // Build form dynamically for all clubs based on finished matches
-    const finished = matches.filter(
-      (m) => (m.homeClubId === club.id || m.awayClubId === club.id) && m.status === MatchStatus.FINISHED
-    ).slice(0, 5);
+    const finished = matches
+      .filter((m) => (m.homeClubId === club.id || m.awayClubId === club.id) && m.status === MatchStatus.FINISHED)
+      .sort((a, b) => {
+        const dateA = `${a.date}T${a.time || '00:00'}`;
+        const dateB = `${b.date}T${b.time || '00:00'}`;
+        return dateB.localeCompare(dateA); // Newest first
+      })
+      .slice(0, 5)
+      .reverse(); // Display oldest on left, newest on right
 
     if (finished.length === 0) {
       return [];
@@ -209,8 +234,12 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
 
     return finished.map(m => {
       const isHome = m.homeClubId === club.id;
+      const opponentId = isHome ? m.awayClubId : m.homeClubId;
       const opponentName = isHome ? m.awayClubName : m.homeClubName;
-      const opponentLogo = isHome ? m.awayClubLogo : m.homeClubLogo;
+      
+      const oppClub = clubs.find(c => c.id === opponentId) || clubs.find(c => c.name.toLowerCase() === opponentName.toLowerCase());
+      const opponentLogo = oppClub?.logoUrl || (isHome ? m.awayClubLogo : m.homeClubLogo) || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
+
       const myScore = isHome ? m.score.home : m.score.away;
       const oppScore = isHome ? m.score.away : m.score.home;
       const result = myScore > oppScore ? 'W' as const : myScore < oppScore ? 'L' as const : 'D' as const;
@@ -227,31 +256,68 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
         result
       };
     });
-  }, [club, matches]);
-
-  const getMonthAbbr = (month: number) => {
-    const abbrs = ['JAN.', 'FEV.', 'MAR.', 'ABR.', 'MAI.', 'JUN.', 'JUL.', 'AGO.', 'SET.', 'OUT.', 'NOV.', 'DEZ.'];
-    return abbrs[month - 1] || 'MÊS';
-  };
+  }, [club, matches, clubs]);
 
   // Club Matches tab list
   const tabMatches = useMemo(() => {
-    // Filter from global state
-    return matches.filter(m => m.homeClubId === club.id || m.awayClubId === club.id);
+    return matches
+      .filter(m => m.homeClubId === club.id || m.awayClubId === club.id)
+      .sort((a, b) => {
+        const dateA = `${a.date}T${a.time || '00:00'}`;
+        const dateB = `${b.date}T${b.time || '00:00'}`;
+        return dateA.localeCompare(dateB); // Chronological order
+      });
   }, [club, matches]);
 
-  // Last match and Next match computed
+  // Last match and Next match computed with robust sorting
   const lastMatch = useMemo(() => {
-    const finished = matches.filter(m => (m.homeClubId === club.id || m.awayClubId === club.id) && m.status === MatchStatus.FINISHED);
+    const finished = matches
+      .filter(m => (m.homeClubId === club.id || m.awayClubId === club.id) && m.status === MatchStatus.FINISHED)
+      .sort((a, b) => {
+        const dateA = `${a.date}T${a.time || '00:00'}`;
+        const dateB = `${b.date}T${b.time || '00:00'}`;
+        return dateB.localeCompare(dateA); // Newest first
+      });
     if (finished.length > 0) return finished[0];
     return null;
   }, [club, matches]);
 
   const nextMatch = useMemo(() => {
-    const scheduled = matches.filter(m => (m.homeClubId === club.id || m.awayClubId === club.id) && m.status === MatchStatus.SCHEDULED);
+    const scheduled = matches
+      .filter(m => (m.homeClubId === club.id || m.awayClubId === club.id) && m.status === MatchStatus.SCHEDULED)
+      .sort((a, b) => {
+        const dateA = `${a.date}T${a.time || '00:00'}`;
+        const dateB = `${b.date}T${b.time || '00:00'}`;
+        return dateA.localeCompare(dateB); // Soonest first
+      });
     if (scheduled.length > 0) return scheduled[0];
     return null;
   }, [club, matches]);
+
+  // Robust dynamic logo lookups for last and next matches
+  const lastMatchHomeLogo = useMemo(() => {
+    if (!lastMatch) return '';
+    const found = clubs.find(c => c.id === lastMatch.homeClubId) || clubs.find(c => c.name.toLowerCase() === lastMatch.homeClubName.toLowerCase());
+    return found?.logoUrl || lastMatch.homeClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
+  }, [lastMatch, clubs]);
+
+  const lastMatchAwayLogo = useMemo(() => {
+    if (!lastMatch) return '';
+    const found = clubs.find(c => c.id === lastMatch.awayClubId) || clubs.find(c => c.name.toLowerCase() === lastMatch.awayClubName.toLowerCase());
+    return found?.logoUrl || lastMatch.awayClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
+  }, [lastMatch, clubs]);
+
+  const nextMatchHomeLogo = useMemo(() => {
+    if (!nextMatch) return '';
+    const found = clubs.find(c => c.id === nextMatch.homeClubId) || clubs.find(c => c.name.toLowerCase() === nextMatch.homeClubName.toLowerCase());
+    return found?.logoUrl || nextMatch.homeClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
+  }, [nextMatch, clubs]);
+
+  const nextMatchAwayLogo = useMemo(() => {
+    if (!nextMatch) return '';
+    const found = clubs.find(c => c.id === nextMatch.awayClubId) || clubs.find(c => c.name.toLowerCase() === nextMatch.awayClubName.toLowerCase());
+    return found?.logoUrl || nextMatch.awayClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
+  }, [nextMatch, clubs]);
 
   // Club specific transfers
   const clubTransfers = useMemo(() => {
@@ -367,7 +433,7 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
               </span>
             </div>
             <span className="text-[9px] font-bold text-yellow-300 uppercase tracking-wider mt-1">
-              ABB
+              {club.shortName || club.name.substring(0, 3).toUpperCase()}
             </span>
           </div>
 
@@ -435,9 +501,11 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
                   <div className="grid grid-cols-12 gap-1 items-center">
                     {/* Home team */}
                     <div className="col-span-4 flex flex-col items-center text-center space-y-1">
-                      <img src={lastMatch.homeClubLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
-                      <span className="text-[10px] font-black tracking-tight leading-tight max-w-[80px] break-words uppercase">
-                        {lastMatch.homeClubName.split(' ')[0]}
+                      <img src={lastMatchHomeLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
+                      <span className={`text-[10px] font-black tracking-tight leading-tight max-w-[90px] break-words uppercase text-center ${
+                        lastMatch.homeClubId === club.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-300'
+                      }`}>
+                        {lastMatch.homeClubName}
                       </span>
                     </div>
 
@@ -450,9 +518,11 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
 
                     {/* Away team */}
                     <div className="col-span-4 flex flex-col items-center text-center space-y-1">
-                      <img src={lastMatch.awayClubLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
-                      <span className="text-[10px] font-black tracking-tight leading-tight max-w-[80px] break-words uppercase text-emerald-600 dark:text-emerald-400">
-                        {lastMatch.awayClubName.substring(0, 11)}
+                      <img src={lastMatchAwayLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
+                      <span className={`text-[10px] font-black tracking-tight leading-tight max-w-[90px] break-words uppercase text-center ${
+                        lastMatch.awayClubId === club.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-300'
+                      }`}>
+                        {lastMatch.awayClubName}
                       </span>
                     </div>
                   </div>
@@ -487,9 +557,11 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
                   <div className="grid grid-cols-12 gap-1 items-center">
                     {/* Home team */}
                     <div className="col-span-4 flex flex-col items-center text-center space-y-1">
-                      <img src={nextMatch.homeClubLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
-                      <span className="text-[10px] font-black tracking-tight leading-tight max-w-[80px] break-words uppercase text-emerald-600 dark:text-emerald-400">
-                        {nextMatch.homeClubName.substring(0, 11)}
+                      <img src={nextMatchHomeLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
+                      <span className={`text-[10px] font-black tracking-tight leading-tight max-w-[90px] break-words uppercase text-center ${
+                        nextMatch.homeClubId === club.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-300'
+                      }`}>
+                        {nextMatch.homeClubName}
                       </span>
                     </div>
 
@@ -505,9 +577,11 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
 
                     {/* Away team */}
                     <div className="col-span-4 flex flex-col items-center text-center space-y-1">
-                      <img src={nextMatch.awayClubLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
-                      <span className="text-[10px] font-black tracking-tight leading-tight max-w-[80px] break-words uppercase">
-                        {nextMatch.awayClubName.split(' ')[0]}
+                      <img src={nextMatchAwayLogo} alt="" className="w-8 h-8 rounded-full object-cover bg-white p-0.5 shadow-xs border" />
+                      <span className={`text-[10px] font-black tracking-tight leading-tight max-w-[90px] break-words uppercase text-center ${
+                        nextMatch.awayClubId === club.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-300'
+                      }`}>
+                        {nextMatch.awayClubName}
                       </span>
                     </div>
                   </div>
@@ -535,8 +609,15 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
 
                       {/* Competitor / Opponent and Competition badges */}
                       <div className="flex items-center justify-center gap-1 mb-1.5">
-                        <img src={f.opponentLogo} alt="" className="w-4.5 h-4.5 rounded-full object-cover bg-white shadow-xs" />
-                        <div className="w-4.5 h-4.5 rounded-full bg-[#3C8C21]/15 flex items-center justify-center text-[7px] border border-[#3C8C21]/20">
+                        <img 
+                          src={f.opponentLogo} 
+                          alt={f.opponentName} 
+                          className="w-6 h-6 rounded-full object-cover bg-white shadow-xs border border-slate-100 dark:border-slate-800" 
+                          onError={(e) => {
+                            e.currentTarget.src = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=50&h=50&fit=crop&q=80";
+                          }}
+                        />
+                        <div className="w-6 h-6 rounded-full bg-[#3C8C21]/15 flex items-center justify-center text-[10px] border border-[#3C8C21]/20 font-sans">
                           🇲🇿
                         </div>
                       </div>
@@ -704,13 +785,13 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
                         
                         <div className="flex items-center gap-2">
                           <span className={`font-black text-[11px] ${isHome ? 'text-[#3C8C21] font-black' : 'text-slate-850 dark:text-slate-200'}`}>
-                            {m.homeClubName.substring(0, 10)}
+                            {formatClubName(m.homeClubName)}
                           </span>
                           <span className="font-mono bg-zinc-950 dark:bg-slate-800 text-white font-black px-1.5 py-0.5 rounded text-[10px]">
                             {isFinished ? `${m.score.home} - ${m.score.away}` : 'VS'}
                           </span>
                           <span className={`font-black text-[11px] ${!isHome ? 'text-[#3C8C21] font-black' : 'text-slate-850 dark:text-slate-200'}`}>
-                            {m.awayClubName.substring(0, 10)}
+                            {formatClubName(m.awayClubName)}
                           </span>
                         </div>
                       </div>
