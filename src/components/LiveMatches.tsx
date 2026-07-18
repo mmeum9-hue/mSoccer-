@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 import { MatchStatus, Match, formatMatchMinute } from '../types';
 import { Star, Trophy, ChevronRight, Eye, Calendar, Sparkles, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export const LiveMatches: React.FC = () => {
   const { matches, championships, news, favorites, toggleFavorite, navigateTo, user, language, headerColor } = useApp();
@@ -98,6 +99,9 @@ export const LiveMatches: React.FC = () => {
 
   // Tab state for match filtering
   const [selectedTab, setSelectedTab] = useState<string>('today');
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('left');
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
   // Dynamic relative date helper
   const getRelativeDateStr = (offsetDays: number) => {
@@ -230,6 +234,58 @@ export const LiveMatches: React.FC = () => {
   // Sort matchTabs chronologically based on sortTime
   matchTabs.sort((a, b) => a.sortTime - b.sortTime);
 
+  const changeTab = (tabId: string) => {
+    const currentIndex = matchTabs.findIndex(t => t.id === selectedTab);
+    const targetIndex = matchTabs.findIndex(t => t.id === tabId);
+    if (targetIndex !== -1 && currentIndex !== -1 && targetIndex !== currentIndex) {
+      setSlideDirection(targetIndex > currentIndex ? 'left' : 'right');
+    }
+    setSelectedTab(tabId);
+  };
+
+  // Scroll active tab to center of tab bar
+  useEffect(() => {
+    const tabEl = document.getElementById(`tab-${selectedTab}`);
+    if (tabEl) {
+      tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [selectedTab]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null || touchStartY === null) return;
+    const diffX = touchStartX - e.changedTouches[0].clientX;
+    const diffY = touchStartY - e.changedTouches[0].clientY;
+
+    // Detect horizontal swipes only (must be significantly wider than vertical)
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      if (Math.abs(diffX) > 60) {
+        const currentIndex = matchTabs.findIndex(t => t.id === selectedTab);
+        if (diffX > 0) {
+          // Swiped left -> load next tab on the right (index + 1)
+          const nextIndex = currentIndex + 1;
+          if (nextIndex < matchTabs.length) {
+            setSlideDirection('left');
+            setSelectedTab(matchTabs[nextIndex].id);
+          }
+        } else {
+          // Swiped right -> load previous tab on the left (index - 1)
+          const prevIndex = currentIndex - 1;
+          if (prevIndex >= 0) {
+            setSlideDirection('right');
+            setSelectedTab(matchTabs[prevIndex].id);
+          }
+        }
+      }
+    }
+    setTouchStartX(null);
+    setTouchStartY(null);
+  };
+
   // Filter display matches based on selected tab and showOnlyFavorites mode
   const getFilteredMatches = () => {
     let result = allDisplayMatches;
@@ -329,7 +385,7 @@ export const LiveMatches: React.FC = () => {
               <button
                 id={`tab-${tab.id}`}
                 key={tab.id}
-                onClick={() => setSelectedTab(tab.id)}
+                onClick={() => changeTab(tab.id)}
                 className={`h-full flex items-center justify-center text-[11px] uppercase whitespace-nowrap transition-all relative cursor-pointer select-none shrink-0 ${
                   isToday && isActive
                     ? 'bg-white text-zinc-950 px-3 py-1 rounded-full text-[11px] font-black shadow-md border-0 self-center h-7 my-auto'
@@ -423,149 +479,166 @@ export const LiveMatches: React.FC = () => {
           </div>
         </div>
 
-        {/* 5. MATCH FEED GROUPS (100% WIDTH, NO CARDS, EDGE-TO-EDGE) */}
-        <div className="w-full bg-white divide-y divide-zinc-150">
-          {filteredMatches.length === 0 ? (
-            <div className="py-12 px-6 text-center text-zinc-500 space-y-1">
-              <p className="text-[12px] font-bold">Nenhuma partida agendada para hoje.</p>
-              <p className="text-[10px] text-zinc-400">Tente favoritar clubes nas outras abas ou mude a data acima.</p>
-            </div>
-          ) : (
-            Object.keys(matchesByLeague).sort().map((leagueName) => {
-              const leagueMatches = matchesByLeague[leagueName];
-              
-              return (
-                <div key={leagueName} className="w-full flex flex-col">
-                  {/* COMPETITION HEADER - OCCUPIES 100% WIDTH EDGE-TO-EDGE */}
-                  <div className="bg-[#F4F4F6] border-y border-zinc-200/60 py-1.5 px-4 flex items-center justify-between select-none">
-                    <span className="text-[10.5px] font-black text-zinc-600 uppercase tracking-wider">
-                      {leagueName}
-                    </span>
-                    <span className="text-[8.5px] text-zinc-400 font-bold uppercase tracking-widest">
-                      {leagueMatches.length} jogos
-                    </span>
+        {/* 5. MATCH FEED GROUPS (100% WIDTH, NO CARDS, EDGE-TO-EDGE, SWIPEABLE & SLIDING) */}
+        <div 
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="w-full bg-white overflow-hidden relative"
+        >
+          <AnimatePresence initial={false} mode="wait">
+            <motion.div
+              key={selectedTab}
+              initial={{ x: slideDirection === 'left' ? '100%' : '-100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: slideDirection === 'left' ? '-100%' : '100%', opacity: 0 }}
+              transition={{ type: 'tween', ease: 'easeInOut', duration: 0.22 }}
+              className="w-full"
+            >
+              <div className="w-full divide-y divide-zinc-150">
+                {filteredMatches.length === 0 ? (
+                  <div className="py-12 px-6 text-center text-zinc-500 space-y-1">
+                    <p className="text-[12px] font-bold">Nenhuma partida agendada para este dia.</p>
+                    <p className="text-[10px] text-zinc-400">Tente favoritar clubes nas outras abas ou mude a data acima.</p>
                   </div>
-
-                  {/* CONTINUOUS MATCH LIST UNDER COMPETITION */}
-                  <div className="w-full divide-y divide-zinc-100 bg-white">
-                    {leagueMatches.map((match) => {
-                      const isFav = favorites?.matches?.includes(match.id) || false;
-                      const isLive = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
-                      
-                      return (
-                        <div
-                          key={match.id}
-                          onClick={() => navigateTo({ type: 'match', id: match.id })}
-                          className="w-full flex items-center py-2 pl-9 pr-9 hover:bg-zinc-50/70 transition-all cursor-pointer select-none relative"
-                        >
-                          {/* Symmetrical Absolute Placements for Side Controls */}
-                          {/* Column 1: Star icon for Favorite (Absolutely positioned on the left) */}
-                          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center z-10">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleFavorite('matches', match.id);
-                              }}
-                              className="p-1 text-zinc-300 hover:text-yellow-400 transition-colors cursor-pointer"
-                            >
-                              <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-300'}`} />
-                            </button>
-                          </div>
-
-                          {/* Column 2: Home Team (Right-aligned, flex-1) */}
-                          <div 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigateTo({ type: 'club', id: match.homeClubId });
-                            }}
-                            className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
-                          >
-                            <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
-                              {match.homeClubName}
-                            </span>
-                            <img
-                              src={match.homeClubLogo}
-                              alt={match.homeClubName}
-                              className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-
-                          {/* Column 3: Central Time/Score Column (Fixed width, dead center) */}
-                          <div className="w-20 shrink-0 flex flex-col items-center justify-center text-center">
-                            {match.status === MatchStatus.SCHEDULED ? (
-                              <div className="flex flex-col items-center justify-center">
-                                <span className="text-[11.5px] font-black text-zinc-800 font-mono tracking-tight">
-                                  {match.time}
-                                </span>
-                                <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
-                                  AGEND
-                                </span>
-                              </div>
-                            ) : match.status === MatchStatus.POSTPONED ? (
-                              <div className="flex flex-col items-center justify-center">
-                                <span className="text-[11.5px] font-black text-zinc-500 font-mono tracking-tight line-through">
-                                  {match.time}
-                                </span>
-                                <span className="text-[8px] bg-amber-100 text-amber-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider mt-0.5">
-                                  ADIADO
-                                </span>
-                              </div>
-                            ) : isLive ? (
-                              <div className="flex flex-col items-center justify-center">
-                                <span className="text-[13px] font-black font-mono text-rose-600 tracking-tight leading-none">
-                                  {match.score.home} - {match.score.away}
-                                </span>
-                                <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 justify-center animate-pulse">
-                                  <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
-                                  <span>
-                                    {match.status === MatchStatus.HT ? 'INT' : formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
-                                  </span>
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center justify-center">
-                                <span className="text-[12.5px] font-black font-mono text-zinc-500 tracking-tight leading-none">
-                                  {match.score.home} - {match.score.away}
-                                </span>
-                                <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
-                                  FIM
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Column 4: Away Team (Left-aligned, flex-1) */}
-                          <div 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigateTo({ type: 'club', id: match.awayClubId });
-                            }}
-                            className="flex-1 min-w-0 flex items-center justify-start space-x-2 text-left cursor-pointer group pl-2"
-                          >
-                            <img
-                              src={match.awayClubLogo}
-                              alt={match.awayClubName}
-                              className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
-                              referrerPolicy="no-referrer"
-                            />
-                            <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
-                              {match.awayClubName}
-                            </span>
-                          </div>
-
-                          {/* Column 5: Right Chevron navigation target (Absolutely positioned on the right) */}
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center text-zinc-300 z-10">
-                            <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />
-                          </div>
+                ) : (
+                  Object.keys(matchesByLeague).sort().map((leagueName) => {
+                    const leagueMatches = matchesByLeague[leagueName];
+                    
+                    return (
+                      <div key={leagueName} className="w-full flex flex-col">
+                        {/* COMPETITION HEADER - OCCUPIES 100% WIDTH EDGE-TO-EDGE */}
+                        <div className="bg-[#F4F4F6] border-y border-zinc-200/60 py-1.5 px-4 flex items-center justify-between select-none">
+                          <span className="text-[10.5px] font-black text-zinc-600 uppercase tracking-wider">
+                            {leagueName}
+                          </span>
+                          <span className="text-[8.5px] text-zinc-400 font-bold uppercase tracking-widest">
+                            {leagueMatches.length} jogos
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })
-          )}
+
+                        {/* CONTINUOUS MATCH LIST UNDER COMPETITION */}
+                        <div className="w-full divide-y divide-zinc-100 bg-white">
+                          {leagueMatches.map((match) => {
+                            const isFav = favorites?.matches?.includes(match.id) || false;
+                            const isLive = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
+                            
+                            return (
+                              <div
+                                key={match.id}
+                                onClick={() => navigateTo({ type: 'match', id: match.id })}
+                                className="w-full flex items-center py-2 pl-9 pr-9 hover:bg-zinc-50/70 transition-all cursor-pointer select-none relative"
+                              >
+                                {/* Symmetrical Absolute Placements for Side Controls */}
+                                {/* Column 1: Star icon for Favorite (Absolutely positioned on the left) */}
+                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center z-10">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFavorite('matches', match.id);
+                                    }}
+                                    className="p-1 text-zinc-300 hover:text-yellow-400 transition-colors cursor-pointer"
+                                  >
+                                    <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-300'}`} />
+                                  </button>
+                                </div>
+
+                                {/* Column 2: Home Team (Right-aligned, flex-1) */}
+                                <div 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigateTo({ type: 'club', id: match.homeClubId });
+                                  }}
+                                  className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
+                                >
+                                  <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
+                                    {match.homeClubName}
+                                  </span>
+                                  <img
+                                    src={match.homeClubLogo}
+                                    alt={match.homeClubName}
+                                    className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+
+                                {/* Column 3: Central Time/Score Column (Fixed width, dead center) */}
+                                <div className="w-20 shrink-0 flex flex-col items-center justify-center text-center">
+                                  {match.status === MatchStatus.SCHEDULED ? (
+                                    <div className="flex flex-col items-center justify-center">
+                                      <span className="text-[11.5px] font-black text-zinc-800 font-mono tracking-tight">
+                                        {match.time}
+                                      </span>
+                                      <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                        AGEND
+                                      </span>
+                                    </div>
+                                  ) : match.status === MatchStatus.POSTPONED ? (
+                                    <div className="flex flex-col items-center justify-center">
+                                      <span className="text-[11.5px] font-black text-zinc-500 font-mono tracking-tight line-through">
+                                        {match.time}
+                                      </span>
+                                      <span className="text-[8px] bg-amber-100 text-amber-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider mt-0.5">
+                                        ADIADO
+                                      </span>
+                                    </div>
+                                  ) : isLive ? (
+                                    <div className="flex flex-col items-center justify-center">
+                                      <span className="text-[13px] font-black font-mono text-rose-600 tracking-tight leading-none">
+                                        {match.score.home} - {match.score.away}
+                                      </span>
+                                      <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 justify-center animate-pulse">
+                                        <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
+                                        <span>
+                                          {match.status === MatchStatus.HT ? 'INT' : formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center">
+                                      <span className="text-[12.5px] font-black font-mono text-zinc-500 tracking-tight leading-none">
+                                        {match.score.home} - {match.score.away}
+                                      </span>
+                                      <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
+                                        FIM
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Column 4: Away Team (Left-aligned, flex-1) */}
+                                <div 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigateTo({ type: 'club', id: match.awayClubId });
+                                  }}
+                                  className="flex-1 min-w-0 flex items-center justify-start space-x-2 text-left cursor-pointer group pl-2"
+                                >
+                                  <img
+                                    src={match.awayClubLogo}
+                                    alt={match.awayClubName}
+                                    className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
+                                    {match.awayClubName}
+                                  </span>
+                                </div>
+
+                                {/* Column 5: Right Chevron navigation target (Absolutely positioned on the right) */}
+                                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center text-zinc-300 z-10">
+                                  <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* 6. COMPACT BE-SOCCER NEWS CAROUSEL AT FOOTER */}
