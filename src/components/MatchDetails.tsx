@@ -417,9 +417,9 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
     const awayStandObj = getClubStanding(match.awayClubId, match.awayClubName, match.awayClubLogo);
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 w-full box-border">
         {/* 1. INFORMAÇÕES DA PARTIDA PANEL */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-4">
           <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center space-x-2">
             <span>ℹ️</span>
             <span>Informações da Partida</span>
@@ -453,7 +453,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 2. FORMA RECENTE */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-4">
           <h3 className="text-sm font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider pb-1">
             Forma Recente
           </h3>
@@ -481,8 +481,8 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
             </button>
           </div>
 
-          <div className="overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="min-w-[580px] lg:min-w-full space-y-4">
+          <div className="w-full">
+            <div className="w-full space-y-4">
               {Math.max(homeForm.length, awayForm.length) === 0 ? (
                 <div className="p-8 text-center text-slate-500 dark:text-zinc-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10">
                   <p className="text-xs font-bold uppercase tracking-wider">Nenhuma partida finalizada registrada</p>
@@ -497,29 +497,29 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                   const resAway = mAway ? getMatchResult(mAway, match.awayClubId) : 'E';
 
                   return (
-                    <div key={idx} className="grid grid-cols-2 gap-x-4 sm:gap-x-6 items-center">
+                    <div key={idx} className="grid grid-cols-2 gap-x-2 sm:gap-x-6 items-center w-full">
                       {/* Left Column (Home Team Form): [Card] [CircleBadge] */}
-                      <div className="flex items-center justify-end space-x-2 sm:space-x-3 w-full">
+                      <div className="flex items-center justify-end space-x-1.5 sm:space-x-3 w-full">
                         {mHome ? (
                           <>
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 sm:px-4 sm:py-3 flex-1 flex items-center justify-between shadow-xs max-w-sm transition-all hover:border-slate-300 dark:hover:border-slate-700">
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl px-1.5 py-1.5 sm:px-4 sm:py-3 flex-1 flex items-center justify-between shadow-xs max-w-sm transition-all hover:border-slate-300 dark:hover:border-slate-700 min-w-0">
                               <img 
                                 src={mHome.homeClubLogo} 
                                 alt="" 
-                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                className="w-5 h-5 sm:w-8 sm:h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
                                 referrerPolicy="no-referrer" 
                               />
-                              <span className="font-mono font-black text-xs sm:text-sm text-slate-800 dark:text-zinc-100 px-2 text-center flex-1">
-                                {mHome.score.home} - {mHome.score.away}
+                              <span className="font-mono font-black text-[10px] sm:text-xs md:text-sm text-slate-800 dark:text-zinc-100 px-1 sm:px-2 text-center flex-1 truncate">
+                                {mHome.score.home}-{mHome.score.away}
                               </span>
                               <img 
                                 src={mHome.awayClubLogo} 
                                 alt="" 
-                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                className="w-5 h-5 sm:w-8 sm:h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
                                 referrerPolicy="no-referrer" 
                               />
                             </div>
-                            <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-[11px] sm:text-xs shadow-sm text-white shrink-0 ${
+                            <span className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-[9px] sm:text-xs shadow-sm text-white shrink-0 ${
                               resHome === 'V'
                                 ? 'bg-[#5CB85C]'
                                 : resHome === 'E'
@@ -530,17 +530,17 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                             </span>
                           </>
                         ) : (
-                          <div className="h-12 w-full bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-[10px] text-slate-400">
+                          <div className="h-10 sm:h-12 w-full bg-slate-50 dark:bg-slate-900/30 rounded-lg sm:rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-[9px] sm:text-[10px] text-slate-400">
                             N/A
                           </div>
                         )}
                       </div>
 
                       {/* Right Column (Away Team Form): [CircleBadge] [Card] */}
-                      <div className="flex items-center justify-start space-x-2 sm:space-x-3 w-full">
+                      <div className="flex items-center justify-start space-x-1.5 sm:space-x-3 w-full">
                         {mAway ? (
                           <>
-                            <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-[11px] sm:text-xs shadow-sm text-white shrink-0 ${
+                            <span className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-[9px] sm:text-xs shadow-sm text-white shrink-0 ${
                               resAway === 'V'
                                 ? 'bg-[#5CB85C]'
                                 : resAway === 'E'
@@ -549,26 +549,26 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                             }`}>
                               {resAway}
                             </span>
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 sm:px-4 sm:py-3 flex-1 flex items-center justify-between shadow-xs max-w-sm transition-all hover:border-slate-300 dark:hover:border-slate-700">
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl px-1.5 py-1.5 sm:px-4 sm:py-3 flex-1 flex items-center justify-between shadow-xs max-w-sm transition-all hover:border-slate-300 dark:hover:border-slate-700 min-w-0">
                               <img 
                                 src={mAway.homeClubLogo} 
                                 alt="" 
-                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                className="w-5 h-5 sm:w-8 sm:h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
                                 referrerPolicy="no-referrer" 
                               />
-                              <span className="font-mono font-black text-xs sm:text-sm text-slate-800 dark:text-zinc-100 px-2 text-center flex-1">
-                                {mAway.score.home} - {mAway.score.away}
+                              <span className="font-mono font-black text-[10px] sm:text-xs md:text-sm text-slate-800 dark:text-zinc-100 px-1 sm:px-2 text-center flex-1 truncate">
+                                {mAway.score.home}-{mAway.score.away}
                               </span>
                               <img 
                                 src={mAway.awayClubLogo} 
                                 alt="" 
-                                className="w-6.5 h-6.5 sm:w-8 h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
+                                className="w-5 h-5 sm:w-8 sm:h-8 rounded-full object-contain bg-white shrink-0 border border-slate-100/30" 
                                 referrerPolicy="no-referrer" 
                               />
                             </div>
                           </>
                         ) : (
-                          <div className="h-12 w-full bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-[10px] text-slate-400">
+                          <div className="h-10 sm:h-12 w-full bg-slate-50 dark:bg-slate-900/30 rounded-lg sm:rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center text-[9px] sm:text-[10px] text-slate-400">
                             N/A
                           </div>
                         )}
@@ -582,7 +582,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 3. ÚLTIMOS JOGOS H2H */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">
               Últimos Jogos H2H
@@ -709,7 +709,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 4. CLASSIFICAÇÃO COMPARISON TABLE */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-4">
           <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center space-x-2">
             <span>📊</span>
             <span>Classificação (Comparativo de Tabela)</span>
@@ -2140,7 +2140,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
       </div>
 
       {/* 3. TABS ACTIVE COMPONENT VIEW CONTAINER */}
-      <div className="max-w-6xl mx-auto px-4 mt-4">
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 mt-4 w-full box-border">
         {activeTab === 'previa' && renderPreviaTab()}
         {activeTab === 'eventos' && renderEventosTab()}
         {activeTab === 'formacoes' && renderFormacoesTab()}

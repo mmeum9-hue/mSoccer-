@@ -21,7 +21,7 @@ import {
   INITIAL_MATCHES,
   INITIAL_NEWS,
 } from '../mockData';
-import { collection, doc, setDoc as originalSetDoc, onSnapshot, deleteDoc, getDoc, getDocs, runTransaction, updateDoc, serverTimestamp, addDoc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, setDoc as originalSetDoc, onSnapshot, deleteDoc, getDoc, getDocs, runTransaction, updateDoc, serverTimestamp, addDoc, query, orderBy, limit, where } from 'firebase/firestore';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -259,10 +259,10 @@ interface AppContextType {
   
   // Chat & Presence addition
   chatUnreadCounts: { [room: string]: number };
-  activeChatRoom: 'geral' | 'mocambola' | 'transferencias';
-  setActiveChatRoom: (room: 'geral' | 'mocambola' | 'transferencias') => void;
+  activeChatRoom: string;
+  setActiveChatRoom: (room: string) => void;
   onlineUsers: UserPresence[];
-  setMyTypingState: (room: 'geral' | 'mocambola' | 'transferencias' | null) => Promise<void>;
+  setMyTypingState: (room: string | null) => Promise<void>;
   
   // Admin triggers
   addMatch: (match: Match) => void;
@@ -448,23 +448,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Chat & Presence States
-  const [chatUnreadCounts, setChatUnreadCounts] = useState<{ [room: string]: number }>({
-    geral: 0,
-    mocambola: 0,
-    transferencias: 0
-  });
-  const [activeChatRoom, setActiveChatRoom] = useState<'geral' | 'mocambola' | 'transferencias'>('geral');
+  const [chatUnreadCounts, setChatUnreadCounts] = useState<{ [room: string]: number }>({});
+  const [activeChatRoom, setActiveChatRoom] = useState<string>('');
   const [onlineUsers, setOnlineUsers] = useState<UserPresence[]>([]);
 
   const [lastReadTimestamps, setLastReadTimestamps] = useState<{ [room: string]: number }>(() => {
     try {
-      return {
-        geral: Number(safeLocalStorage.getItem('msoccer_last_read_geral') || '0'),
-        mocambola: Number(safeLocalStorage.getItem('msoccer_last_read_mocambola') || '0'),
-        transferencias: Number(safeLocalStorage.getItem('msoccer_last_read_transferencias') || '0')
-      };
+      const saved = safeLocalStorage.getItem('msoccer_last_read_timestamps');
+      return saved ? JSON.parse(saved) : {};
     } catch (e) {
-      return { geral: 0, mocambola: 0, transferencias: 0 };
+      return {};
     }
   });
 
@@ -711,125 +704,137 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // 1. Mark active room as read and clear unread counts
   useEffect(() => {
-    if (currentView.type === 'chat') {
+    if (currentView.type === 'chat' && activeChatRoom) {
       const room = activeChatRoom;
       const now = Date.now();
       setLastReadTimestamps(prev => ({ ...prev, [room]: now }));
-      safeLocalStorage.setItem(`msoccer_last_read_${room}`, String(now));
+      const saved = safeLocalStorage.getItem('msoccer_last_read_timestamps');
+      const timestamps = saved ? JSON.parse(saved) : {};
+      timestamps[room] = now;
+      safeLocalStorage.setItem('msoccer_last_read_timestamps', JSON.stringify(timestamps));
       setChatUnreadCounts(prev => ({ ...prev, [room]: 0 }));
     }
   }, [currentView, activeChatRoom]);
 
   // 2. Background Chat Messages Listener (unread tracker, statuses, and Toast alerts)
   const notifiedMessagesRef = React.useRef<Set<string>>(new Set());
-  const isInitialRef = React.useRef(true);
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'chat_messages'),
-      orderBy('createdAt', 'desc'),
-      limit(50)
+    if (!user) {
+      setChatUnreadCounts({});
+      return;
+    }
+
+    // Subscribe to the chats where the user is a participant
+    const chatsQuery = query(
+      collection(db, 'chats'),
+      where('participants', 'array-contains', user.uid)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs: any[] = [];
-      snapshot.forEach((docSnap) => {
-        const d = docSnap.data();
-        msgs.push({ id: docSnap.id, ...d });
+    let unsubscribes: (() => void)[] = [];
+
+    const unsubscribeChats = onSnapshot(chatsQuery, (chatsSnapshot) => {
+      // Clear previous message unsubscribes
+      unsubscribes.forEach(unsub => unsub());
+      unsubscribes = [];
+
+      const activeChatIds: string[] = [];
+      const chatsMap: { [id: string]: any } = {};
+      chatsSnapshot.forEach((docSnap) => {
+        activeChatIds.push(docSnap.id);
+        chatsMap[docSnap.id] = docSnap.data();
       });
 
-      // Group messages by room
-      const messagesByRoom: { [room: string]: any[] } = { geral: [], mocambola: [], transferencias: [] };
-      msgs.forEach((m) => {
-        if (m.room && messagesByRoom[m.room] !== undefined) {
-          messagesByRoom[m.room].push(m);
-        }
-      });
-
-      const currentRoom = activeChatRoomRef.current;
-      const viewingChat = currentViewRef.current.type === 'chat';
-
-      // If currently viewing the chat room, automatically update the lastReadTimestamp to Date.now()
-      // to keep it synchronized in real-time, preventing unread counts from increasing or reverting
-      if (viewingChat) {
-        const now = Date.now();
-        const lastReadVal = lastReadTimestampsRef.current[currentRoom] || 0;
-        if (now - lastReadVal > 2000) {
-          setLastReadTimestamps(prev => ({ ...prev, [currentRoom]: now }));
-          safeLocalStorage.setItem(`msoccer_last_read_${currentRoom}`, String(now));
-        }
+      if (activeChatIds.length === 0) {
+        setChatUnreadCounts({});
+        return;
       }
 
-      // Recalculate unread counts
-      const counts = { geral: 0, mocambola: 0, transferencias: 0 };
-      Object.keys(messagesByRoom).forEach((r) => {
-        const roomMsgs = messagesByRoom[r];
-        const lastRead = lastReadTimestampsRef.current[r] || 0;
-        let unread = 0;
+      // For each active chat, listen to recent messages to update unread status and trigger notifications
+      activeChatIds.forEach((chatId) => {
+        const msgQuery = query(
+          collection(db, 'chat_messages'),
+          where('chatId', '==', chatId),
+          limit(20)
+        );
 
-        roomMsgs.forEach((m) => {
-          const mTime = m.createdAt?.toMillis ? m.createdAt.toMillis() : (m.createdAt ? new Date(m.createdAt).getTime() : Date.now());
-          const isFromMe = m.senderName === userRef.current?.name;
-          if (!isFromMe && mTime > lastRead) {
-            unread++;
-          }
-        });
-        counts[r as 'geral' | 'mocambola' | 'transferencias'] = unread;
-      });
+        const unsubMsg = onSnapshot(msgQuery, (msgSnapshot) => {
+          const chatMsgs: any[] = [];
+          msgSnapshot.forEach((docSnap) => {
+            chatMsgs.push({ id: docSnap.id, ...docSnap.data() });
+          });
 
-      // If viewing chat, active room has 0 unread
-      if (viewingChat) {
-        counts[currentRoom] = 0;
-      }
-      setChatUnreadCounts(counts);
+          const currentRoom = activeChatRoomRef.current;
+          const viewingChat = currentViewRef.current.type === 'chat';
 
-      // Handle initial load mapping
-      if (isInitialRef.current) {
-        msgs.forEach((m) => {
-          notifiedMessagesRef.current.add(m.id);
-        });
-        isInitialRef.current = false;
-      } else {
-        // Live updates / New incoming messages
-        msgs.forEach((m) => {
-          const isFromMe = m.senderName === userRef.current?.name;
-          if (!notifiedMessagesRef.current.has(m.id)) {
-            notifiedMessagesRef.current.add(m.id);
-            if (!isFromMe) {
-              const isViewingThisRoom = viewingChat && currentRoom === m.room;
-              if (!isViewingThisRoom) {
-                const roomLabel = m.room === 'transferencias' ? 'Transferências' : m.room === 'mocambola' ? 'Moçambola' : 'Geral';
-                addNotification(
-                  `💬 Chat: ${roomLabel}`,
-                  `${m.senderName}: "${m.text || 'Anexo multimédia'}"`,
-                  'sistema'
-                );
+          // Update unread count for this chat
+          const lastRead = lastReadTimestampsRef.current[chatId] || 0;
+          let unreadCount = 0;
+
+          chatMsgs.forEach((m) => {
+            const mTime = m.createdAt?.toMillis ? m.createdAt.toMillis() : (m.createdAt ? new Date(m.createdAt).getTime() : Date.now());
+            const isFromMe = m.senderId === userRef.current?.uid || m.senderName === userRef.current?.name;
+            if (!isFromMe && mTime > lastRead) {
+              unreadCount++;
+            }
+          });
+
+          setChatUnreadCounts(prev => ({
+            ...prev,
+            [chatId]: (viewingChat && currentRoom === chatId) ? 0 : unreadCount
+          }));
+
+          // Process new messages for notifications/toasts
+          msgSnapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const m = { id: change.doc.id, ...change.doc.data() } as any;
+              const isFromMe = m.senderId === userRef.current?.uid || m.senderName === userRef.current?.name;
+              if (!notifiedMessagesRef.current.has(m.id)) {
+                notifiedMessagesRef.current.add(m.id);
+                if (!isFromMe) {
+                  const isViewingThisRoom = viewingChat && currentRoom === chatId;
+                  if (!isViewingThisRoom) {
+                    const chatName = chatsMap[chatId]?.name || 'Chat Privado';
+                    addNotification(
+                      `💬 Chat: ${chatName}`,
+                      `${m.senderName}: "${m.text || 'Anexo multimédia'}"`,
+                      'sistema'
+                    );
+                  }
+                }
               }
             }
-          }
-        });
-      }
+          });
 
-      // Status updates in Firestore
-      msgs.forEach((m) => {
-        const isFromMe = m.senderName === userRef.current?.name;
-        if (!isFromMe && userRef.current?.uid) {
-          const isViewingThisRoom = viewingChat && currentRoom === m.room;
-          if (isViewingThisRoom) {
-            if (m.status !== 'read') {
-              updateDoc(doc(db, 'chat_messages', m.id), { status: 'read' }).catch(() => {});
+          // Status updates in Firestore
+          chatMsgs.forEach((m) => {
+            const isFromMe = m.senderId === userRef.current?.uid || m.senderName === userRef.current?.name;
+            if (!isFromMe && userRef.current?.uid) {
+              const isViewingThisRoom = viewingChat && currentRoom === chatId;
+              if (isViewingThisRoom) {
+                if (m.status !== 'read') {
+                  updateDoc(doc(db, 'chat_messages', m.id), { status: 'read' }).catch(() => {});
+                }
+              } else {
+                if (m.status === 'sent') {
+                  updateDoc(doc(db, 'chat_messages', m.id), { status: 'delivered' }).catch(() => {});
+                }
+              }
             }
-          } else {
-            if (m.status === 'sent') {
-              updateDoc(doc(db, 'chat_messages', m.id), { status: 'delivered' }).catch(() => {});
-            }
-          }
-        }
+          });
+
+        }, (err) => console.error(`Error listening to messages of chat ${chatId}:`, err));
+
+        unsubscribes.push(unsubMsg);
       });
-    }, (error) => console.error("Firestore bg chat listener error:", error));
 
-    return () => unsubscribe();
-  }, []);
+    }, (error) => console.error("Firestore bg chats listener error:", error));
+
+    return () => {
+      unsubscribeChats();
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [user]);
 
   // 3. User Presence updates
   useEffect(() => {

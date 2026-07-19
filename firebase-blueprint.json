@@ -1,13 +1,58 @@
 {
   "entities": {
-    "ChatMessage": {
-      "title": "ChatMessage",
-      "description": "A single community chat message",
+    "Chat": {
+      "title": "Chat",
+      "description": "A private or group conversation",
       "type": "object",
       "properties": {
-        "room": {
+        "name": {
           "type": "string",
-          "description": "The chat room/channel ID"
+          "description": "The custom name of the group or chat"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of the conversation (direct or group)",
+          "enum": ["direct", "group"]
+        },
+        "participants": {
+          "type": "array",
+          "description": "List of user UIDs participating in this chat"
+        },
+        "joinedAt": {
+          "type": "object",
+          "description": "Map of user UID to join timestamp"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "The creator of the chat"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The creation timestamp"
+        },
+        "lastMessage": {
+          "type": "string",
+          "description": "The snippet of the last message sent"
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "description": "The timestamp of the last message sent"
+        }
+      },
+      "required": ["type", "participants", "createdBy"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A single chat message within a conversation",
+      "type": "object",
+      "properties": {
+        "chatId": {
+          "type": "string",
+          "description": "The ID of the parent Chat"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "The user UID of the sender"
         },
         "senderName": {
           "type": "string",
@@ -47,7 +92,7 @@
           "enum": ["sent", "delivered", "read"]
         }
       },
-      "required": ["room", "senderName", "text"]
+      "required": ["chatId", "senderId", "senderName", "text"]
     },
     "UserPresence": {
       "title": "UserPresence",
@@ -80,9 +125,13 @@
     }
   },
   "firestore": {
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Store all conversations/chats"
+    },
     "/chat_messages/{messageId}": {
       "schema": "ChatMessage",
-      "description": "Store all community chat messages"
+      "description": "Store all chat messages"
     },
     "/user_presence/{userId}": {
       "schema": "UserPresence",
