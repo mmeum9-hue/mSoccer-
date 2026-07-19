@@ -886,18 +886,23 @@ export const AdminPanel: React.FC = () => {
 
   const handleCustomEventSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeMatchToControl || !player1Name) return;
+    if (!activeMatchToControl) return;
+
+    if (eventType !== 'Goal' && !player1Name) {
+      alert("Por favor, selecione ou digite o nome do jogador principal.");
+      return;
+    }
 
     triggerMatchEvent(activeMatchToControl.id, {
       minute: activeMatchToControl.minute || 1,
       type: eventType,
       team: eventTeam,
-      player1: player1Name,
+      player1: player1Name || '',
       player2: player2Name || undefined,
       detail: eventDetail || undefined
     });
 
-    addLog(`Evento lançado: ${eventType}`, `${player1Name} (${eventTeam === 'home' ? 'Mandante' : 'Visitante'})`, 'bg-amber-500');
+    addLog(`Evento lançado: ${eventType}`, `${player1Name || 'Gol (Sem Nome)'} (${eventTeam === 'home' ? 'Mandante' : 'Visitante'})`, 'bg-amber-500');
     setPlayer1Name('');
     setPlayer2Name('');
     setEventDetail('');
@@ -2305,7 +2310,7 @@ export const AdminPanel: React.FC = () => {
                                     }}
                                     className="w-full bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-medium"
                                   >
-                                    <option value="">Selecione o jogador...</option>
+                                    <option value="">{eventType === 'Goal' ? "Sem jogador (Apenas Minuto / Gol)..." : "Selecione o jogador..."}</option>
                                     {(() => {
                                       const starters = currentEventPlayers.filter(p => p.source === 'Titular');
                                       const subs = currentEventPlayers.filter(p => p.source !== 'Titular');
@@ -2338,7 +2343,7 @@ export const AdminPanel: React.FC = () => {
                                   {isPlayer1Custom && (
                                     <input
                                       type="text"
-                                      required
+                                      required={eventType !== 'Goal'}
                                       placeholder="Digite o nome do atleta..."
                                       value={player1Name}
                                       onChange={(e) => setPlayer1Name(e.target.value)}
@@ -2351,8 +2356,8 @@ export const AdminPanel: React.FC = () => {
                               return (
                                 <input
                                   type="text"
-                                  required
-                                  placeholder="Nome do Atleta..."
+                                  required={eventType !== 'Goal'}
+                                  placeholder={eventType === 'Goal' ? "Nome do Atleta (Opcional)..." : "Nome do Atleta..."}
                                   value={player1Name}
                                   onChange={(e) => setPlayer1Name(e.target.value)}
                                   className="w-full bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-medium"

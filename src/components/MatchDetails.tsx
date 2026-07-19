@@ -89,7 +89,8 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
   const isInitialMatch = match.id.startsWith('match_yesterday_') || match.id.startsWith('match_today_') || match.id.startsWith('match_tomorrow_');
 
   // Let's create some beautiful, realistic mocked avatars for the goalscorers/VAR players to look extremely authentic!
-  const getPlayerAvatar = (playerName: string) => {
+  const getPlayerAvatar = (playerName?: string) => {
+    if (!playerName) return 'https://i.pravatar.cc/100?img=1';
     const hash = playerName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const id = (hash % 70) + 1;
     return `https://i.pravatar.cc/100?img=${id}`;
@@ -842,15 +843,21 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     <div className="w-[45%] flex items-center justify-start space-x-2.5 pl-2">
                       {isHome ? (
                         <>
-                          <img
-                            src={avatar}
-                            alt={g.player1}
-                            className="w-8 h-8 rounded-full object-cover bg-zinc-100 border border-slate-200 dark:border-slate-800"
-                            referrerPolicy="no-referrer"
-                          />
+                          {g.player1 ? (
+                            <img
+                              src={avatar}
+                              alt={g.player1}
+                              className="w-8 h-8 rounded-full object-cover bg-zinc-100 border border-slate-200 dark:border-slate-800"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900 text-xs shrink-0 select-none">
+                              ⚽
+                            </div>
+                          )}
                           <div className="flex flex-col text-left leading-tight min-w-0">
                             <span className="font-bold text-xs text-slate-800 dark:text-white truncate">
-                              {g.player1}
+                              {g.player1 || "Gol"}
                             </span>
                             <div className="flex items-center space-x-1">
                               {g.detail?.toLowerCase().includes('pênalti') ? (
@@ -885,7 +892,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                         <>
                           <div className="flex flex-col text-right leading-tight min-w-0">
                             <span className="font-bold text-xs text-slate-800 dark:text-white truncate">
-                              {g.player1}
+                              {g.player1 || "Gol"}
                             </span>
                             <div className="flex items-center justify-end space-x-1">
                               {g.detail?.toLowerCase().includes('pênalti') ? (
@@ -901,12 +908,18 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                               )}
                             </div>
                           </div>
-                          <img
-                            src={avatar}
-                            alt={g.player1}
-                            className="w-8 h-8 rounded-full object-cover bg-zinc-100 border border-slate-200 dark:border-slate-800"
-                            referrerPolicy="no-referrer"
-                          />
+                          {g.player1 ? (
+                            <img
+                              src={avatar}
+                              alt={g.player1}
+                              className="w-8 h-8 rounded-full object-cover bg-zinc-100 border border-slate-200 dark:border-slate-800"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900 text-xs shrink-0 select-none">
+                              ⚽
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div className="h-8"></div>

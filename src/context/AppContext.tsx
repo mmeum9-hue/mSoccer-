@@ -2248,16 +2248,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         newEvents.forEach((ev) => {
           if (ev.type === 'Goal') {
+            const goalDesc = ev.player1 
+              ? `${ev.player1} marca aos ${ev.minute}'! Assistência de ${ev.player2 || 'ninguém'}. Placar: ${m.homeClubName} ${m.score.home} - ${m.score.away} ${m.awayClubName}`
+              : `Gol aos ${ev.minute}'! Placar: ${m.homeClubName} ${m.score.home} - ${m.score.away} ${m.awayClubName}`;
+            
             if (ev.team === 'home') {
               addNotification(
                 '⚽ GOL do ' + m.homeClubName + '!',
-                `${ev.player1} marca aos ${ev.minute}'! Assistência de ${ev.player2 || 'ninguém'}. Placar: ${m.homeClubName} ${m.score.home} - ${m.score.away} ${m.awayClubName}`,
+                goalDesc,
                 'golo'
               );
             } else if (ev.team === 'away') {
               addNotification(
                 '⚽ GOL do ' + m.awayClubName + '!',
-                `${ev.player1} marca aos ${ev.minute}'! Assistência de ${ev.player2 || 'ninguém'}. Placar: ${m.homeClubName} ${m.score.home} - ${m.score.away} ${m.awayClubName}`,
+                goalDesc,
                 'golo'
               );
             }
