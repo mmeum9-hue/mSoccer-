@@ -19,6 +19,9 @@
   "theme_color": "#0f172a",
   "description": "Acompanhe resultados de futebol em tempo real, tabelas e estatísticas com o mSoccer.",
   "orientation": "portrait",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "iarc_rating_id": "",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -59,6 +62,18 @@
       "type": "image/png",
       "form_factor": "wide",
       "label": "Tabelas, Classificações e Estatísticas"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "shortcuts": [
+    {
+      "name": "Resultados ao Vivo",
+      "short_name": "Ao Vivo",
+      "description": "Veja os jogos e resultados em tempo real",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
