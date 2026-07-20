@@ -1,11 +1,12 @@
-const CACHE_NAME = 'msoccer-cache-v1';
+const CACHE_NAME = 'msoccer-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.png',
   '/icon-192.png',
-  '/icon-512.png'
+  '/icon-512.png',
+  '/screenshot-mobile.png',
+  '/screenshot-desktop.png'
 ];
 
 // Instalação do Service Worker e armazenamento em cache do App Shell
