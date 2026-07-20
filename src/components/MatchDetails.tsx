@@ -1,14 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { MatchStatus, MatchEvent, formatMatchMinute } from '../types';
+import { MatchStatus, MatchEvent, formatMatchMinute, StandingRow } from '../types';
 import { 
-  ArrowLeft, Star, MapPin, User, ChevronRight, BarChart2, Shield, Flame, Activity, 
+  ArrowLeft, Star, MapPin, User, ChevronRight, ChevronLeft, Calendar, BarChart2, Shield, Flame, Activity, 
   ChevronDown, ChevronUp, TrendingDown, TrendingUp, Clock, Coins, Newspaper, Zap, AlertTriangle 
 } from 'lucide-react';
 
 interface MatchDetailsProps {
   matchId: string;
 }
+
+const abbreviateTeamName = (name: string, maxLength: number = 14) => {
+  if (!name) return '';
+  if (name.length <= maxLength) return name;
+
+  const words = name.trim().split(/\s+/);
+  if (words.length <= 1) {
+    return name.substring(0, maxLength);
+  }
+
+  let currentWords = [...words];
+  for (let i = 0; i < currentWords.length - 1; i++) {
+    const word = currentWords[i];
+    if (word.length > 1 && !word.endsWith('.')) {
+      currentWords[i] = `${word[0].toUpperCase()}.`;
+      const currentLength = currentWords.join(' ').length;
+      if (currentLength <= maxLength) {
+        return currentWords.join(' ');
+      }
+    }
+  }
+
+  const joined = currentWords.join(' ');
+  if (joined.length > maxLength) {
+    return joined.substring(0, maxLength);
+  }
+  return joined;
+};
 
 const getFormattedMatchDate = (dateStr: string, timeStr?: string) => {
   if (!dateStr) return 'DOMINGO 5 JUL.';
@@ -56,7 +84,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
     ? match.phase 
     : (champ?.type === 'Copa' ? 'Oitavos de Final' : '');
 
-  const [activeTab, setActiveTab] = useState<'formacoes' | 'eventos' | 'direto' | 'noticias' | 'previa'>(
+  const [activeTab, setActiveTab] = useState<'formacoes' | 'eventos' | 'jornada' | 'direto' | 'noticias' | 'previa' | 'classificacao'>(
     match?.status === MatchStatus.SCHEDULED ? 'previa' : 'eventos'
   );
   const [formacaoView, setFormacaoView] = useState<'campo' | 'lista'>('campo');
@@ -70,6 +98,17 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
   const [previaChampionshipOnly, setPreviaChampionshipOnly] = useState(false);
   const [h2hLimit, setH2hLimit] = useState(4);
   const [selectedH2HId, setSelectedH2HId] = useState<string | null>(null);
+
+  // Jornada specific states
+  const [jornadaRound, setJornadaRound] = useState<number>(match?.round || champ?.currentRound || 1);
+  const [jornadaCupPhase, setJornadaCupPhase] = useState<string>(match?.phase || 'Oitavos de Final');
+  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (!match) {
     return (
@@ -790,8 +829,632 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
     );
   };
 
-  // 1. TABS CONTENT RENDERERS
-  
+  const renderClassificacaoTab = () => {
+    if (!champ || !champ.standings || champ.standings.length === 0) {
+      return (
+        <div className="text-center py-12 text-slate-400 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-800/80 p-6 shadow-sm">
+          Nenhuma classificação disponível para este campeonato.
+        </div>
+      );
+    }
+
+    const standings = champ.standings;
+    const grouped: { [key: string]: StandingRow[] } = {};
+    let hasGroups = false;
+
+    standings.forEach(row => {
+      const g = row.group || 'Sem Grupo';
+      if (row.group) hasGroups = true;
+      if (!grouped[g]) grouped[g] = [];
+      grouped[g].push(row);
+    });
+
+    const getRecentFormInChamp = (clubId: string) => {
+      const clubMatches = matches
+        .filter(
+          (m) =>
+            m.championshipId === champ.id &&
+            m.status === 'Encerrado' &&
+            (m.homeClubId === clubId || m.awayClubId === clubId)
+        )
+        .sort((a, b) => {
+          const rA = Number(a.round) || 0;
+          const rB = Number(b.round) || 0;
+          if (rA !== rB) return rA - rB;
+          return a.date.localeCompare(b.date);
+        });
+
+      const last5 = clubMatches.slice(-5);
+      const formSymbols = last5.map((m) => {
+        const isHome = m.homeClubId === clubId;
+        const homeScore = m.score.home;
+        const awayScore = m.score.away;
+
+        if (homeScore === awayScore) return 'E';
+        if (isHome) {
+          return homeScore > awayScore ? 'V' : 'D';
+        } else {
+          return awayScore > homeScore ? 'V' : 'D';
+        }
+      });
+
+      while (formSymbols.length < 5) {
+        formSymbols.push('?');
+      }
+      return formSymbols;
+    };
+
+    const renderSingleStandingsTable = (rows: StandingRow[], groupTitle?: string) => {
+      const sortedRows = [...rows].sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+        return b.goalsFor - a.goalsFor;
+      });
+
+      const maxPlayed = Math.max(...sortedRows.map((r) => r.played));
+
+      return (
+        <div className="w-full space-y-3.5">
+          {groupTitle && (
+            <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest pl-1">
+              {groupTitle}
+            </h4>
+          )}
+          <div className="w-full rounded-xl border border-slate-200 dark:border-slate-800/80 overflow-hidden bg-white dark:bg-[#0F172A] shadow-sm">
+            <table className="w-full text-[10px] text-left border-collapse table-fixed">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
+                  <th className="w-[8%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">Pos</th>
+                  <th className="w-[34%] sm:w-[37%] py-2.5 text-left px-2 border-r border-slate-200 dark:border-slate-800/80">Equipe</th>
+                  <th className="w-[13%] sm:w-[10%] py-2.5 text-center font-black border-r border-slate-200 dark:border-slate-800/80 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+                  <th className="w-[10%] sm:w-[8%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">J</th>
+                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">V</th>
+                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">E</th>
+                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">D</th>
+                  <th className="hidden sm:table-cell sm:w-[8%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GP</th>
+                  <th className="hidden sm:table-cell sm:w-[8%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GC</th>
+                  <th className="w-[8%] sm:w-[9%] py-2.5 text-center">SG</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-150 dark:divide-slate-800/60 font-medium">
+                {sortedRows.map((row, idx) => {
+                  const isHomeMatchTeam = row.clubId === match.homeClubId;
+                  const isAwayMatchTeam = row.clubId === match.awayClubId;
+                  
+                  const bgClass = idx === 0
+                    ? 'bg-emerald-500'
+                    : idx >= sortedRows.length - 3 && sortedRows.length > 3
+                    ? 'bg-rose-500'
+                    : 'bg-[#94a3b8] dark:bg-zinc-600';
+
+                  let rowStyle = "hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center text-zinc-700 dark:text-zinc-300";
+                  if (isHomeMatchTeam) {
+                    rowStyle = "bg-blue-50/70 dark:bg-blue-950/20 border-l-4 border-l-blue-500 text-center text-zinc-800 dark:text-zinc-200 font-extrabold shadow-3xs";
+                  } else if (isAwayMatchTeam) {
+                    rowStyle = "bg-rose-50/70 dark:bg-rose-950/20 border-l-4 border-l-rose-500 text-center text-zinc-800 dark:text-zinc-200 font-extrabold shadow-3xs";
+                  }
+
+                  const recentForm = getRecentFormInChamp(row.clubId);
+                  const diff = row.played - maxPlayed;
+
+                  return (
+                    <tr key={row.clubId} className={rowStyle}>
+                      <td className={`p-0 text-center font-black text-xs text-white border-r border-slate-200 dark:border-slate-800/80 ${isHomeMatchTeam || isAwayMatchTeam ? '' : bgClass}`}>
+                        <div className={`w-full h-11 flex items-center justify-center ${isHomeMatchTeam ? 'bg-blue-600 text-white font-black text-xs' : isAwayMatchTeam ? 'bg-rose-600 text-white font-black text-xs' : ''}`}>
+                          {idx + 1}
+                        </div>
+                      </td>
+
+                      <td className="py-1 px-2 text-left border-r border-slate-200 dark:border-slate-800/80">
+                        <div className="flex flex-col justify-center min-w-0">
+                          <div
+                            onClick={() => navigateTo({ type: 'club', id: row.clubId })}
+                            className="flex items-center space-x-1.5 cursor-pointer group"
+                          >
+                            <img
+                              src={row.logoUrl}
+                              alt=""
+                              className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105"
+                              referrerPolicy="no-referrer"
+                            />
+                            <span className={`font-extrabold group-hover:underline text-[10.5px] transition-colors truncate leading-tight ${
+                              isHomeMatchTeam ? 'text-blue-600 dark:text-blue-400 group-hover:text-blue-700' :
+                              isAwayMatchTeam ? 'text-rose-600 dark:text-rose-400 group-hover:text-rose-700' :
+                              'text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400'
+                            }`}>
+                              {row.clubName}
+                            </span>
+                            {isHomeMatchTeam && (
+                              <span className="text-[7.5px] bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-black px-1 rounded uppercase tracking-wider scale-90">Casa</span>
+                            )}
+                            {isAwayMatchTeam && (
+                              <span className="text-[7.5px] bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-black px-1 rounded uppercase tracking-wider scale-90">Fora</span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center space-x-0.5 mt-1.5">
+                            {recentForm.map((symbol, sIdx) => {
+                              const symBg = symbol === 'V'
+                                ? 'bg-[#22c55e]'
+                                : symbol === 'E'
+                                ? 'bg-[#fbbf24]'
+                                : symbol === 'D'
+                                ? 'bg-[#ef4444]'
+                                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500';
+                              return (
+                                <span
+                                  key={sIdx}
+                                  className={`w-3.5 h-3.5 rounded-[2px] flex items-center justify-center text-[8px] font-black text-white shadow-3xs ${symBg}`}
+                                  title={symbol === 'V' ? 'Vitória' : symbol === 'E' ? 'Empate' : symbol === 'D' ? 'Derrota' : 'Sem Jogo'}
+                                >
+                                  {symbol}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className={`py-1 text-center font-black text-[12px] border-r border-slate-200 dark:border-slate-800/80 ${
+                        isHomeMatchTeam ? 'bg-blue-100/30 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-extrabold' :
+                        isAwayMatchTeam ? 'bg-rose-100/30 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-extrabold' :
+                        'text-zinc-900 dark:text-white bg-slate-50/50 dark:bg-slate-950/15'
+                      }`}>
+                        {row.points}
+                      </td>
+                      <td className="py-1 text-center border-r border-slate-200 dark:border-slate-800/80">
+                        <div className="flex flex-col items-center justify-center leading-none">
+                          <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[10px]">{row.played}</span>
+                          {diff < 0 && (
+                            <span className="text-[7.5px] text-zinc-400 dark:text-zinc-500 font-bold mt-0.5">{diff}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-1 text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.won}</td>
+                      <td className="py-1 text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.drawn}</td>
+                      <td className="py-1 text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.lost}</td>
+                      <td className="hidden sm:table-cell py-1 text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.goalsFor}</td>
+                      <td className="hidden sm:table-cell py-1 text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.goalsAgainst}</td>
+                      <td className={`py-1 text-center font-bold text-[9.5px] ${
+                        row.goalDifference > 0
+                          ? 'text-zinc-800 dark:text-zinc-200'
+                          : row.goalDifference < 0
+                          ? 'text-rose-500 font-black'
+                          : 'text-zinc-500'
+                      }`}>
+                        {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    if (!hasGroups) {
+      return renderSingleStandingsTable(standings);
+    }
+
+    Object.keys(grouped).forEach(g => {
+      grouped[g].sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+        return b.goalsFor - a.goalsFor;
+      });
+    });
+
+    const sortedGroups = Object.keys(grouped).sort();
+
+    return (
+      <div className="space-y-6">
+        {sortedGroups.map(g => (
+          <div key={g}>
+            {renderSingleStandingsTable(grouped[g], g)}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderJornadaTab = () => {
+    if (!champ) {
+      return (
+        <div className="text-center py-12 text-slate-400 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-800/80 p-6 shadow-sm mx-2">
+          Nenhum campeonato associado a esta partida.
+        </div>
+      );
+    }
+
+    const championshipMatches = matches.filter((m) => m.championshipId === champ.id);
+
+    if (championshipMatches.length === 0) {
+      return (
+        <div className="text-center py-16 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-slate-400 font-bold text-xs mx-2">
+          Nenhuma partida registrada para este campeonato.
+        </div>
+      );
+    }
+
+    const isCup = champ.type === 'Copa';
+
+    // Get all unique rounds/phases
+    const displayRounds = Array.from(
+      new Set(championshipMatches.map(m => Number(m.round)).filter(r => !isNaN(r) && r > 0))
+    ).sort((a: number, b: number) => a - b);
+
+    const displayCupPhases: string[] = Array.from(
+      new Set(
+        championshipMatches
+          .map(m => m.phase)
+          .filter((p): p is string => typeof p === 'string' && p.trim() !== '')
+      )
+    );
+    if (displayCupPhases.length === 0) {
+      displayCupPhases.push('Oitavos de Final', 'Quartos de Final', 'Semifinal', 'Final');
+    }
+
+    const maxRound = champ.roundsCount || Math.max(...championshipMatches.map(m => m.round), 1);
+    const hasPrev = isCup 
+      ? displayCupPhases.indexOf(jornadaCupPhase) > 0 
+      : jornadaRound > 1;
+    const hasNext = isCup 
+      ? displayCupPhases.indexOf(jornadaCupPhase) < displayCupPhases.length - 1 
+      : jornadaRound < maxRound;
+
+    // Helper functions for custom date/time formatting to match the reference image exactly
+    const parseDateString = (dateStr: string) => {
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return new Date(dateStr);
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    };
+
+    const formatHeaderDate = (dateStr: string) => {
+      try {
+        const date = parseDateString(dateStr);
+        const weekdays = [
+          'DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA',
+          'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO'
+        ];
+        const months = [
+          'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
+          'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'
+        ];
+        
+        const weekday = weekdays[date.getDay()];
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = months[date.getMonth()];
+        
+        return `${weekday} ${day} ${month}`;
+      } catch (e) {
+        return dateStr.toUpperCase();
+      }
+    };
+
+    const formatMatchDateTime = (dateStr: string, timeStr: string) => {
+      try {
+        const date = parseDateString(dateStr);
+        const monthsAbbr = [
+          'JAN.', 'FEV.', 'MAR.', 'ABR.', 'MAI.', 'JUN.',
+          'JUL.', 'AGO.', 'SET.', 'OUT.', 'NOV.', 'DEZ.'
+        ];
+        const day = date.getDate();
+        const month = monthsAbbr[date.getMonth()];
+        
+        const timeParts = timeStr.split(':');
+        let hour = 12;
+        let min = '00';
+        if (timeParts.length >= 2) {
+          hour = parseInt(timeParts[0], 10);
+          min = timeParts[1];
+        }
+        
+        let period = 'DAMANHÃ';
+        if (hour >= 12 && hour < 18) {
+          period = 'DATARDE';
+        } else if (hour >= 18 || hour < 5) {
+          period = 'DANOITE';
+        }
+        
+        const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+        
+        return `${day} ${month}, ${displayHour}:${min}${period}`;
+      } catch (e) {
+        return `${dateStr} ${timeStr}`;
+      }
+    };
+
+    // Safe ID generator for scrolling elements without illegal characters
+    const getSectionId = (groupKey: string) => {
+      return `round-section-${groupKey.replace(/\s+/g, '-')}`;
+    };
+
+    const handleDropdownChange = (value: string) => {
+      if (isCup) {
+        setJornadaCupPhase(value);
+        const sectionId = getSectionId(value);
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else {
+        const rVal = Number(value);
+        setJornadaRound(rVal);
+        const sectionId = getSectionId(`Ronda ${rVal}`);
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    };
+
+    const handlePrevRound = () => {
+      if (isCup) {
+        const idx = displayCupPhases.indexOf(jornadaCupPhase);
+        if (idx > 0) {
+          const prevPhase = displayCupPhases[idx - 1];
+          setJornadaCupPhase(prevPhase);
+          const element = document.getElementById(getSectionId(prevPhase));
+          if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else {
+        if (jornadaRound > 1) {
+          const prevRound = jornadaRound - 1;
+          setJornadaRound(prevRound);
+          const element = document.getElementById(getSectionId(`Ronda ${prevRound}`));
+          if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    };
+
+    const handleNextRound = () => {
+      if (isCup) {
+        const idx = displayCupPhases.indexOf(jornadaCupPhase);
+        if (idx < displayCupPhases.length - 1) {
+          const nextPhase = displayCupPhases[idx + 1];
+          setJornadaCupPhase(nextPhase);
+          const element = document.getElementById(getSectionId(nextPhase));
+          if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } else {
+        const maxRound = champ.roundsCount || Math.max(...championshipMatches.map(m => m.round), 1);
+        if (jornadaRound < maxRound) {
+          const nextRound = jornadaRound + 1;
+          setJornadaRound(nextRound);
+          const element = document.getElementById(getSectionId(`Ronda ${nextRound}`));
+          if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    };
+
+    // Grouping structure: { [RoundOrPhaseName]: { [DateStr]: Match[] } }
+    const groupedMatches: { [key: string]: { [date: string]: typeof matches } } = {};
+
+    championshipMatches.forEach((m) => {
+      const groupKey = isCup ? (m.phase || 'Fase de Copa') : `Ronda ${m.round || 1}`;
+      const dateKey = m.date;
+
+      if (!groupedMatches[groupKey]) {
+        groupedMatches[groupKey] = {};
+      }
+      if (!groupedMatches[groupKey][dateKey]) {
+        groupedMatches[groupKey][dateKey] = [];
+      }
+      groupedMatches[groupKey][dateKey].push(m);
+    });
+
+    // Sort rounds/phases
+    const sortedGroupKeys = Object.keys(groupedMatches).sort((a, b) => {
+      if (isCup) {
+        const datesA = Object.keys(groupedMatches[a]).sort();
+        const datesB = Object.keys(groupedMatches[b]).sort();
+        return (datesA[0] || '').localeCompare(datesB[0] || '');
+      } else {
+        const numA = parseInt(a.replace('Ronda ', ''), 10) || 0;
+        const numB = parseInt(b.replace('Ronda ', ''), 10) || 0;
+        return numA - numB;
+      }
+    });
+
+    return (
+      <div className="w-full flex flex-col min-h-screen bg-slate-50 dark:bg-[#0F172A]">
+        {/* Sticky Header Row Selection at Top (Sits directly at the top of the viewport when scrolling matches) */}
+        <div className="sticky top-0 z-30 bg-slate-100 dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 w-full flex items-center justify-between px-4 py-2.5 shadow-sm select-none">
+          {/* Prev Button */}
+          <button
+            onClick={handlePrevRound}
+            disabled={!hasPrev}
+            className={`p-1.5 rounded-lg border transition-all ${
+              hasPrev
+                ? 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 cursor-pointer'
+                : 'opacity-40 bg-slate-50 dark:bg-slate-800 border-slate-150 dark:border-slate-700 text-slate-400 dark:text-slate-600 cursor-not-allowed'
+            }`}
+            title="Anterior"
+          >
+            <ChevronLeft className="w-4 h-4 stroke-[3]" />
+          </button>
+
+          {/* Center Selector */}
+          <div className="relative flex items-center justify-center min-w-[180px]">
+            <select
+              value={isCup ? jornadaCupPhase : jornadaRound}
+              onChange={(e) => handleDropdownChange(e.target.value)}
+              className="appearance-none bg-transparent py-1 pl-4 pr-9 text-center text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest focus:outline-none cursor-pointer"
+            >
+              {isCup ? (
+                displayCupPhases.map((phase) => (
+                  <option key={phase} value={phase} className="dark:bg-[#1E293B]">
+                    {phase}
+                  </option>
+                ))
+              ) : (
+                Array.from({ length: maxRound }, (_, i) => i + 1).map((r) => (
+                  <option key={r} value={r} className="dark:bg-[#1E293B]">
+                    Ronda {r}
+                  </option>
+                ))
+              )}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 flex items-center text-slate-500 dark:text-slate-400">
+              <ChevronDown className="w-3.5 h-3.5 stroke-[3]" />
+            </div>
+          </div>
+
+          {/* Next Button */}
+          <button
+            onClick={handleNextRound}
+            disabled={!hasNext}
+            className={`p-1.5 rounded-lg border transition-all ${
+              hasNext
+                ? 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 cursor-pointer'
+                : 'opacity-40 bg-slate-50 dark:bg-slate-800 border-slate-150 dark:border-slate-700 text-slate-400 dark:text-slate-600 cursor-not-allowed'
+            }`}
+            title="Próxima"
+          >
+            <ChevronRight className="w-4 h-4 stroke-[3]" />
+          </button>
+        </div>
+
+        {/* Matches Continuous Vertical List */}
+        <div className="w-full flex flex-col space-y-4 pt-3 pb-20">
+          {sortedGroupKeys.map((groupKey) => {
+            const dateGroups = groupedMatches[groupKey];
+            const sortedDates = Object.keys(dateGroups).sort();
+            const isHighlightGroup = isCup 
+              ? groupKey === jornadaCupPhase 
+              : groupKey === `Ronda ${jornadaRound}`;
+
+            return (
+              <div
+                key={groupKey}
+                id={getSectionId(groupKey)}
+                className={`scroll-mt-14 w-full bg-white dark:bg-[#1E293B] border-y border-slate-200 dark:border-slate-800/85 transition-all duration-300 ${
+                  isHighlightGroup 
+                    ? 'ring-2 ring-blue-500/40 dark:ring-blue-500/30 shadow-md' 
+                    : ''
+                }`}
+              >
+                {/* 1. Group Header: "RONDA 19" */}
+                <div className="bg-white dark:bg-[#1E293B] px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-850 dark:text-slate-100 uppercase tracking-widest">
+                    {groupKey}
+                  </span>
+                  {isHighlightGroup && (
+                    <span className="bg-blue-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Selecionado
+                    </span>
+                  )}
+                </div>
+
+                {/* 2. Dates and Matches */}
+                {sortedDates.map((dateKey) => {
+                  const sortedMatches = [...dateGroups[dateKey]].sort((a, b) => a.time.localeCompare(b.time));
+
+                  return (
+                    <div key={dateKey} className="w-full">
+                      {/* Date Group Header: "SEXTA-FEIRA 17 JULHO" */}
+                      <div className="bg-emerald-50/65 dark:bg-emerald-950/20 border-b border-slate-100 dark:border-slate-800/80 text-emerald-850 dark:text-emerald-400 font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-4">
+                        {formatHeaderDate(dateKey)}
+                      </div>
+
+                      {/* Matches in date group */}
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {sortedMatches.map((m) => {
+                          const isCurrentMatch = m.id === match.id;
+                          const isLive = m.status === MatchStatus.LIVE || m.status === MatchStatus.HT;
+                          const isFinished = m.status === MatchStatus.FINISHED;
+                          const isPostponed = m.status === MatchStatus.POSTPONED;
+
+                          const isMobile = windowWidth < 640;
+                          const isSmallMobile = windowWidth < 400;
+                          const maxTeamNameLen = isSmallMobile ? 12 : (isMobile ? 16 : (windowWidth < 1024 ? 26 : 42));
+
+                          return (
+                            <div
+                              key={m.id}
+                              onClick={() => navigateTo({ type: 'match', id: m.id })}
+                              className={`relative flex items-center justify-between w-full pt-8 pb-5 px-3 sm:px-6 hover:bg-slate-50/60 dark:hover:bg-slate-800/20 transition-all cursor-pointer select-none ${
+                                isCurrentMatch 
+                                  ? 'bg-blue-50/40 dark:bg-blue-950/15' 
+                                  : ''
+                              }`}
+                            >
+                              {/* Absolute Top Right Status Badge */}
+                              <div className="absolute top-2 right-3 sm:right-6">
+                                {isFinished ? (
+                                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-extrabold text-[8px] sm:text-[9px] px-2 py-0.5 rounded uppercase tracking-wider text-center border border-slate-200 dark:border-slate-700">
+                                    FIM
+                                  </span>
+                                ) : isLive ? (
+                                  <span className="bg-rose-500 text-white font-extrabold text-[8px] sm:text-[9px] px-2 py-0.5 rounded uppercase tracking-wider text-center animate-pulse shadow-sm">
+                                    AO VIVO
+                                  </span>
+                                ) : isPostponed ? (
+                                  <span className="bg-amber-500 text-white font-extrabold text-[8px] sm:text-[9px] px-2 py-0.5 rounded uppercase tracking-wider text-center shadow-sm">
+                                    ADIADO
+                                  </span>
+                                ) : (
+                                  <span className="bg-blue-500 text-white font-extrabold text-[8px] sm:text-[9px] px-2 py-0.5 rounded uppercase tracking-wider text-center shadow-sm">
+                                    AGENDADO
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Left Side: Home Team (Right-aligned text next to logo) */}
+                              <div className="flex items-center justify-end space-x-2 sm:space-x-3.5 flex-1 min-w-0 pr-1.5 sm:pr-3">
+                                <span className="font-extrabold text-xs sm:text-sm text-slate-850 dark:text-slate-100 truncate text-right leading-tight">
+                                  {abbreviateTeamName(m.homeClubName, maxTeamNameLen)}
+                                </span>
+                                <img
+                                  src={m.homeClubLogo}
+                                  alt=""
+                                  className="w-7.5 h-7.5 sm:w-9 sm:h-9 object-contain rounded-full bg-white p-0.5 border border-slate-150 dark:border-slate-800 shrink-0 shadow-3xs"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+
+                              {/* Center column (Ronda name, Placar / Time, Date-time) */}
+                              <div className="w-24 sm:w-36 shrink-0 flex flex-col items-center justify-center px-1">
+                                <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-center block mb-0.5">
+                                  {groupKey}
+                                </span>
+                                <span className="text-xs sm:text-lg font-black text-slate-850 dark:text-slate-150 tracking-widest text-center leading-none my-0.5 sm:my-1">
+                                  {isFinished || isLive ? `${m.score.home} - ${m.score.away}` : m.time}
+                                </span>
+                                <span className="text-[8px] sm:text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider text-center block leading-none">
+                                  {formatMatchDateTime(m.date, m.time)}
+                                </span>
+                              </div>
+
+                              {/* Right Side: Away Team (Left-aligned text next to logo) */}
+                              <div className="flex items-center justify-start space-x-2 sm:space-x-3.5 flex-1 min-w-0 pl-1.5 sm:pl-3">
+                                <img
+                                  src={m.awayClubLogo}
+                                  alt=""
+                                  className="w-7.5 h-7.5 sm:w-9 sm:h-9 object-contain rounded-full bg-white p-0.5 border border-slate-150 dark:border-slate-800 shrink-0 shadow-3xs"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <span className="font-extrabold text-xs sm:text-sm text-slate-850 dark:text-slate-100 truncate text-left leading-tight">
+                                  {abbreviateTeamName(m.awayClubName, maxTeamNameLen)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // A. Eventos Tab (Custom Timeline following the user's layout exactly)
   const renderEventosTab = () => {
     const goalsList = getGoalsEvents();
@@ -2095,11 +2758,11 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 2. MATCH DETAILS TAB BAR (From Screenshot) */}
-        <div className="max-w-6xl mx-auto mt-6 px-1 border-t border-white/10 pt-2 select-none">
-          <div className="flex justify-between items-center text-[10.5px] font-black uppercase tracking-wider text-white/70">
+        <div className="max-w-6xl mx-auto mt-6 px-1 border-t border-white/10 pt-2 select-none overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full">
+          <div className="flex space-x-6 items-center text-[10.5px] font-black uppercase tracking-wider text-white/70 min-w-max pb-1 flex-nowrap">
             <button
               onClick={() => setActiveTab('previa')}
-              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer ${
+              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === 'previa' ? 'text-white' : 'hover:text-white'
               }`}
             >
@@ -2108,8 +2771,18 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
             </button>
 
             <button
+              onClick={() => setActiveTab('classificacao')}
+              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer shrink-0 whitespace-nowrap ${
+                activeTab === 'classificacao' ? 'text-white' : 'hover:text-white'
+              }`}
+            >
+              <span>Classificação</span>
+              {activeTab === 'classificacao' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full"></div>}
+            </button>
+
+            <button
               onClick={() => setActiveTab('formacoes')}
-              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer ${
+              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === 'formacoes' ? 'text-white' : 'hover:text-white'
               }`}
             >
@@ -2119,18 +2792,28 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
 
             <button
               onClick={() => setActiveTab('eventos')}
-              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer ${
+              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === 'eventos' ? 'text-white' : 'hover:text-white'
               }`}
             >
-              <span>Eventos</span>
+              <span>Evento</span>
               {activeTab === 'eventos' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full"></div>}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('jornada')}
+              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer shrink-0 whitespace-nowrap ${
+                activeTab === 'jornada' ? 'text-white' : 'hover:text-white'
+              }`}
+            >
+              <span>Jornada</span>
+              {activeTab === 'jornada' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full"></div>}
             </button>
 
             {isInitialMatch && (
               <button
                 onClick={() => setActiveTab('direto')}
-                className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer ${
+                className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer shrink-0 whitespace-nowrap ${
                   activeTab === 'direto' ? 'text-white' : 'hover:text-white'
                 }`}
               >
@@ -2141,7 +2824,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
 
             <button
               onClick={() => setActiveTab('noticias')}
-              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer ${
+              className={`pb-1.5 px-1.5 transition-colors relative cursor-pointer shrink-0 whitespace-nowrap ${
                 activeTab === 'noticias' ? 'text-white' : 'hover:text-white'
               }`}
             >
@@ -2153,9 +2836,11 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
       </div>
 
       {/* 3. TABS ACTIVE COMPONENT VIEW CONTAINER */}
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 mt-4 w-full box-border">
+      <div className={`max-w-6xl mx-auto mt-4 w-full box-border ${activeTab === 'jornada' ? 'px-0' : 'px-2 sm:px-4'}`}>
         {activeTab === 'previa' && renderPreviaTab()}
+        {activeTab === 'classificacao' && renderClassificacaoTab()}
         {activeTab === 'eventos' && renderEventosTab()}
+        {activeTab === 'jornada' && renderJornadaTab()}
         {activeTab === 'formacoes' && renderFormacoesTab()}
         {activeTab === 'direto' && isInitialMatch && renderDiretoTab()}
         {activeTab === 'noticias' && renderNoticiasTab()}
