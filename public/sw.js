@@ -3,9 +3,9 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.jpg',
-  '/icon-192.jpg',
-  '/icon-512.jpg'
+  '/icon.png',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 // Instalação do Service Worker e armazenamento em cache do App Shell
