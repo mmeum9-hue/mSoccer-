@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 import { Bell, Sun, Moon, Search, RotateCw, X, AlertCircle, Play, Pause, Zap, Menu, Calendar, User, Sliders, LogOut, ChevronRight, Globe } from 'lucide-react';
-import logoImg from '../assets/images/msoccer_logo_1783863321533.jpg';
+import logoImg from '/icon-192.png';
 
 export const Header: React.FC = () => {
   const {

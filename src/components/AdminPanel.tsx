@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer } from '../types';
 import { LineChart, DonutChart } from './AdminCharts';
 import { compressImage } from './imageCompressor';
-import logoImg from '../assets/images/msoccer_logo_1783863321533.jpg';
+import logoImg from '/icon-192.png';
 import {
   LayoutDashboard,
   Users,
