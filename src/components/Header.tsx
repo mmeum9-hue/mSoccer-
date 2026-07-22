@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 import { Bell, Sun, Moon, Search, RotateCw, X, AlertCircle, Play, Pause, Zap, Menu, Calendar, User, Sliders, LogOut, ChevronRight, Globe } from 'lucide-react';
-import logoImg from '/icon-192.png';
+import logoImg from '../assets/images/logo-official.png';
 
 export const Header: React.FC = () => {
   const {
@@ -93,7 +93,7 @@ export const Header: React.FC = () => {
             <img 
               src={logoImg} 
               alt="mSoccer" 
-              className="w-8 h-8 rounded-md object-cover shrink-0 border border-white/20 shadow-sm" 
+              className="w-9 h-9 object-contain shrink-0 rounded-xl shadow-sm" 
               referrerPolicy="no-referrer"
             />
             <div className="flex flex-col leading-tight">
@@ -193,7 +193,7 @@ export const Header: React.FC = () => {
                 <img 
                   src={logoImg} 
                   alt="mSoccer" 
-                  className="w-6 h-6 rounded-md object-cover shrink-0 border border-white/20" 
+                  className="w-7 h-7 object-contain shrink-0 rounded-lg" 
                   referrerPolicy="no-referrer" 
                 />
                 <span className="font-bold tracking-wider text-sm">mSoccer Menu</span>

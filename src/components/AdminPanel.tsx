@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer } from '../types';
 import { LineChart, DonutChart } from './AdminCharts';
 import { compressImage } from './imageCompressor';
-import logoImg from '/icon-192.png';
+import logoImg from '../assets/images/logo-official.png';
 import {
   LayoutDashboard,
   Users,
@@ -1332,7 +1332,7 @@ export const AdminPanel: React.FC = () => {
             <img 
               src={logoImg} 
               alt="mSoccer" 
-              className="w-7 h-7 rounded-md object-cover shrink-0 border border-slate-700 shadow-sm" 
+              className="w-8 h-8 object-contain shrink-0 rounded-lg shadow-sm" 
               referrerPolicy="no-referrer"
             />
             <span className="text-xl font-black text-white tracking-wider flex items-center">
@@ -1398,7 +1398,7 @@ export const AdminPanel: React.FC = () => {
                   <img 
                     src={logoImg} 
                     alt="mSoccer" 
-                    className="w-6 h-6 rounded-md object-cover shrink-0 border border-slate-700" 
+                    className="w-7 h-7 object-contain shrink-0 rounded-lg" 
                     referrerPolicy="no-referrer"
                   />
                   <span className="text-lg font-black text-white">mSoccer</span>

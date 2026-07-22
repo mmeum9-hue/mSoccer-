@@ -1,4 +1,4 @@
-const CACHE_NAME = 'msoccer-cache-v3';
+const CACHE_NAME = 'msoccer-cache-v7';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
