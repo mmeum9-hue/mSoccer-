@@ -368,8 +368,8 @@ export const LiveMatches: React.FC = () => {
   return (
     <div className="bg-white min-h-screen pb-24 flex flex-col select-none">
       {/* 1. DATE TAB NAVIGATION (BeSoccer Style, dynamic background, horizontal scrolling) */}
-      <div className={`${activeColor.bg} w-full border-b ${activeColor.border} sticky top-14 z-30`}>
-        <div className="max-w-xl mx-auto flex items-center space-x-5 px-3 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] h-10.5">
+      <div className={`${activeColor.bg} w-full border-b ${activeColor.border} sticky top-13 z-30`}>
+        <div className="w-full flex items-center space-x-4 px-2.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] h-10">
           {matchTabs.map((tab) => {
             const isToday = tab.id === 'today';
             const isActive = selectedTab === tab.id;
@@ -404,8 +404,8 @@ export const LiveMatches: React.FC = () => {
         </div>
       </div>
 
-      {/* Main layout container (desktop max-width centered) */}
-      <div className="w-full max-w-xl mx-auto">
+      {/* Main layout container */}
+      <div className="w-full mx-auto">
         
         {/* Hidden internal helper inputs to listen to simulated events from BottomNav */}
         <div className="hidden">
@@ -413,7 +413,7 @@ export const LiveMatches: React.FC = () => {
           <button id="filter-favorites" onClick={() => setShowOnlyFavorites(true)}></button>
         </div>
 
-        {/* 2. NEUTRAL mSOCCER PREDICTOR INFO CARD (REPLACED 1XBET AD BANNER) */}
+        {/* 2. NEUTRAL mSOCCER PREDICTOR INFO ROW */}
         <div 
           onClick={() => {
             if (filteredMatches.length > 0) {
@@ -421,16 +421,16 @@ export const LiveMatches: React.FC = () => {
             }
             setShowPromoModal(true);
           }}
-          className="mx-3.5 mt-3 mb-2.5 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80 cursor-pointer transition-all shadow-sm flex items-center justify-between"
+          className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800/80 cursor-pointer transition-all rounded-none shadow-none flex items-center justify-between"
         >
           <div className="flex items-center space-x-3 pr-2">
-            <div className={`w-9 h-9 rounded-full ${activeColor.bg} text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm`}>
+            <div className={`w-8 h-8 rounded-full ${activeColor.bg} text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-none`}>
               🔮
             </div>
             <div className="leading-tight">
               <h4 className="text-[10.5px] font-extrabold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide flex items-center space-x-1.5">
                 <span>Predictor mSoccer</span>
-                <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-400 text-[8px] font-black px-1.5 py-0.5 rounded-full tracking-wider">
+                <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-400 text-[8px] font-black px-1.5 py-0.5 tracking-wider">
                   GRÁTIS
                 </span>
               </h4>
@@ -439,15 +439,15 @@ export const LiveMatches: React.FC = () => {
               </p>
             </div>
           </div>
-          <button className={`${activeColor.bg} hover:opacity-90 text-white text-[9.5px] font-extrabold px-3 py-1.5 rounded-md uppercase tracking-wider shrink-0 transition-colors shadow-sm`}>
+          <button className={`${activeColor.bg} hover:opacity-90 text-white text-[9.5px] font-extrabold px-3 py-1.5 uppercase tracking-wider shrink-0 transition-colors shadow-none border-0`}>
             Palpitar
           </button>
         </div>
 
-        {/* 3. QUICK TABELA LINK */}
+        {/* 3. QUICK TABELA LINK ROW */}
         <div 
           onClick={() => navigateTo({ type: 'tabela' })}
-          className="mx-3.5 mb-3 p-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/60 rounded-lg flex items-center justify-between cursor-pointer transition-all"
+          className="w-full px-4 py-2.5 bg-zinc-50 hover:bg-zinc-100 border-b border-zinc-200/60 flex items-center justify-between cursor-pointer transition-all rounded-none shadow-none"
         >
           <div className="flex items-center space-x-2.5">
             <span className="text-base select-none">📊</span>

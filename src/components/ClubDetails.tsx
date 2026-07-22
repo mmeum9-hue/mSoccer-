@@ -340,7 +340,7 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
   }, [searchQuery, clubs]);
 
   return (
-    <div className="max-w-md mx-auto w-full h-[calc(100vh-80px)] flex flex-col bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-900 rounded-3xl overflow-hidden shadow-2xl relative my-2">
+    <div className="w-full h-[calc(100vh-80px)] flex flex-col bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-900 overflow-hidden relative">
       
       {/* 1. GREEN HEADER (VIBRANT SPORTS SOCCER BACKGROUND) */}
       <div className="bg-[#3C8C21] text-white pt-3 pb-2 px-4 relative flex flex-col shrink-0">

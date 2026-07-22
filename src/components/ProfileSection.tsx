@@ -504,9 +504,9 @@ export const ProfileSection: React.FC = () => {
 
   // Render Logged In user details
   return (
-    <div className="max-w-6xl mx-auto px-4 pt-4 pb-20 space-y-6">
-      {/* 1. Profile Bio card */}
-      <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 shadow-sm">
+    <div className="w-full mx-auto pb-20 divide-y divide-slate-200 dark:divide-slate-800">
+      {/* 1. Profile Bio row */}
+      <div className="w-full bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-none shadow-none">
         <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4">
             <img
@@ -520,7 +520,7 @@ export const ProfileSection: React.FC = () => {
                 <h2 className="text-xl font-black text-zinc-900 dark:text-white leading-tight">
                   {user.name}
                 </h2>
-                <span className="bg-blue-50 text-blue-600 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center space-x-1">
+                <span className="bg-blue-50 text-blue-600 text-[9px] font-black px-2 py-0.5 flex items-center space-x-1">
                   <Shield className="w-3 h-3" />
                   <span>{user.role}</span>
                 </span>
@@ -537,13 +537,13 @@ export const ProfileSection: React.FC = () => {
                 setEditEmail(user.email);
                 setSelectedAvatar(user.photoUrl || '');
               }}
-              className="flex-1 sm:flex-initial px-4 py-2 bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 rounded-xl text-xs font-bold cursor-pointer border border-zinc-200 dark:border-zinc-700"
+              className="flex-1 sm:flex-initial px-4 py-2 bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 text-xs font-bold cursor-pointer border border-zinc-200 dark:border-zinc-700"
             >
               {editing ? 'Cancelar' : 'Editar Perfil'}
             </button>
             <button
               onClick={logoutUser}
-              className="flex-1 sm:flex-initial px-4 py-2 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center space-x-1"
+              className="flex-1 sm:flex-initial px-4 py-2 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 text-xs font-bold cursor-pointer flex items-center justify-center space-x-1"
             >
               <LogOut className="w-4 h-4" />
               <span>Sair</span>
@@ -564,7 +564,7 @@ export const ProfileSection: React.FC = () => {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
+                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
                 />
               </div>
               <div className="space-y-1">
@@ -573,7 +573,7 @@ export const ProfileSection: React.FC = () => {
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
+                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
                 />
               </div>
             </div>
@@ -603,7 +603,7 @@ export const ProfileSection: React.FC = () => {
                 </div>
               </div>
 
-              {/* Foto de Perfil Customizada / Upload (Supports Drag & Drop & Click) */}
+              {/* Foto de Perfil Customizada / Upload */}
               <div className="space-y-2">
                 <span className="text-[10px] font-bold text-zinc-400 uppercase block">Ou Envie uma Foto Personalizada</span>
                 
@@ -612,7 +612,7 @@ export const ProfileSection: React.FC = () => {
                   onDragOver={handleDrag}
                   onDragLeave={handleDrag}
                   onDrop={handleDrop}
-                  className={`relative border-2 border-dashed rounded-2xl p-4 transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
+                  className={`relative border-2 border-dashed p-4 transition-all text-center flex flex-col items-center justify-center cursor-pointer ${
                     dragActive 
                       ? 'border-[#1E3A8A] bg-blue-50/50 dark:bg-blue-950/20' 
                       : 'border-zinc-200 dark:border-zinc-800 hover:border-[#1E3A8A] hover:bg-zinc-50 hover:dark:bg-zinc-800/40'
@@ -666,7 +666,7 @@ export const ProfileSection: React.FC = () => {
 
             <button
               onClick={handleSaveProfile}
-              className="px-4 py-2 bg-[#1E3A8A] hover:bg-[#172554] text-white rounded-xl text-xs font-bold cursor-pointer"
+              className="px-4 py-2 bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold cursor-pointer"
             >
               Salvar Alterações
             </button>
@@ -674,12 +674,10 @@ export const ProfileSection: React.FC = () => {
         )}
       </div>
 
-      {/* Admin Access Activation hidden */}
-
       {/* 2. Language & App Preferences */}
-      <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="w-full bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-none shadow-none space-y-3">
         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Preferências Gerais</h3>
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 gap-3">
           {/* Language selector */}
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-zinc-400 uppercase">Idioma</label>
@@ -688,9 +686,9 @@ export const ProfileSection: React.FC = () => {
                 <button
                   key={lang}
                   onClick={() => setLanguage(lang as any)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold cursor-pointer uppercase border transition-all ${
+                  className={`flex-1 py-1.5 text-xs font-bold cursor-pointer uppercase border transition-all ${
                     language === lang
-                      ? 'bg-[#1E3A8A] border-[#1E3A8A] text-white shadow-sm'
+                      ? 'bg-[#1E3A8A] border-[#1E3A8A] text-white font-black'
                       : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                   }`}
                 >
@@ -706,9 +704,9 @@ export const ProfileSection: React.FC = () => {
             <div className="flex space-x-2">
               <button
                 onClick={() => setTheme('light')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold cursor-pointer flex items-center justify-center space-x-1.5 border transition-all ${
+                className={`flex-1 py-1.5 text-xs font-bold cursor-pointer flex items-center justify-center space-x-1.5 border transition-all ${
                   theme === 'light'
-                    ? 'bg-[#1E3A8A] border-[#1E3A8A] text-white shadow-sm'
+                    ? 'bg-[#1E3A8A] border-[#1E3A8A] text-white font-black'
                     : 'border-zinc-200 dark:border-zinc-800 text-zinc-500'
                 }`}
               >
@@ -717,9 +715,9 @@ export const ProfileSection: React.FC = () => {
               </button>
               <button
                 onClick={() => setTheme('dark')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold cursor-pointer flex items-center justify-center space-x-1.5 border transition-all ${
+                className={`flex-1 py-1.5 text-xs font-bold cursor-pointer flex items-center justify-center space-x-1.5 border transition-all ${
                   theme === 'dark'
-                    ? 'bg-[#1E3A8A] border-[#1E3A8A] text-white shadow-sm'
+                    ? 'bg-[#1E3A8A] border-[#1E3A8A] text-white font-black'
                     : 'border-zinc-200 dark:border-zinc-800 text-zinc-500'
                 }`}
               >
@@ -732,7 +730,7 @@ export const ProfileSection: React.FC = () => {
       </div>
 
       {/* 3. Favorites Dashboard */}
-      <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="w-full bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-none shadow-none space-y-3">
         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center space-x-1.5">
           <Heart className="w-4 h-4 text-rose-500 fill-current" />
           <span>Meus Favoritos</span>
@@ -751,7 +749,7 @@ export const ProfileSection: React.FC = () => {
                 <div
                   key={club.id}
                   onClick={() => navigateTo({ type: 'club', id: club.id })}
-                  className="flex items-center space-x-2 p-2 border border-zinc-100 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-850/40 cursor-pointer hover:border-[#1E3A8A] transition-all"
+                  className="flex items-center space-x-2 p-2 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all"
                 >
                   <img src={club.logoUrl} alt="" className="w-6 h-6 rounded-full" />
                   <span className="text-xs font-bold truncate text-zinc-800 dark:text-zinc-200">
@@ -776,7 +774,7 @@ export const ProfileSection: React.FC = () => {
                 <div
                   key={player.id}
                   onClick={() => navigateTo({ type: 'player', id: player.id })}
-                  className="flex items-center space-x-2 p-2 border border-zinc-100 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-850/40 cursor-pointer hover:border-[#1E3A8A] transition-all"
+                  className="flex items-center space-x-2 p-2 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all"
                 >
                   <img src={player.photoUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
                   <span className="text-xs font-bold truncate text-zinc-800 dark:text-zinc-200">
@@ -796,17 +794,17 @@ export const ProfileSection: React.FC = () => {
           {favMatches.length === 0 ? (
             <p className="text-[11px] text-zinc-500">Nenhum jogo favoritado.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {favMatches.map((match) => (
                 <div
                   key={match.id}
                   onClick={() => navigateTo({ type: 'match', id: match.id })}
-                  className="p-2.5 border border-zinc-100 dark:border-zinc-800 rounded-xl hover:border-[#1E3A8A] transition-all cursor-pointer flex items-center justify-between text-xs"
+                  className="py-2.5 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer flex items-center justify-between text-xs"
                 >
                   <span className="font-bold text-[10px] text-blue-600">{match.championshipName}</span>
                   <div className="flex items-center space-x-2">
                     <span className="text-zinc-700 dark:text-zinc-300 font-semibold">{match.homeClubName}</span>
-                    <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                    <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5">
                       {match.score.home}-{match.score.away}
                     </span>
                     <span className="text-zinc-700 dark:text-zinc-300 font-semibold">{match.awayClubName}</span>

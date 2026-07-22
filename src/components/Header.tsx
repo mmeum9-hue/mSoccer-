@@ -74,7 +74,7 @@ export const Header: React.FC = () => {
 
   return (
     <header className={`sticky top-0 z-50 ${activeColor.bg} text-white shadow-md border-b ${activeColor.border}`}>
-      <div className="max-w-6xl mx-auto flex items-center justify-between h-14 px-4">
+      <div className="w-full flex items-center justify-between h-13 px-2.5 sm:px-3">
         {/* Left: Burger Menu & BeSoccer-style Logo */}
         <div className="flex items-center space-x-3">
           <button

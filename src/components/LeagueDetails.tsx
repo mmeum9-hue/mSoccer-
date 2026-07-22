@@ -323,7 +323,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
   const isEnded = league.status === 'Encerrado';
 
   return (
-    <div className="max-w-6xl mx-auto px-1.5 sm:px-4 pt-2.5 sm:pt-4 pb-20 space-y-3.5 sm:space-y-6">
+    <div className="w-full mx-auto px-2.5 pt-2 pb-16 space-y-2.5">
       {/* League Header */}
       <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-sm relative overflow-hidden">
         {isEnded && (

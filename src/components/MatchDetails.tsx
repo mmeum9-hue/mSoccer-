@@ -622,7 +622,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 3. ÚLTIMOS JOGOS H2H */}
-        <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-4">
+        <div className="w-full box-border bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-3.5 sm:p-5 space-y-4 rounded-none shadow-none">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">
               Últimos Jogos H2H
@@ -645,7 +645,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
           <div className="overflow-x-auto pb-1.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex space-x-3 min-w-max pb-1 w-full">
               {displayedH2H.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 dark:text-zinc-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10 w-full">
+                <div className="p-8 text-center text-slate-500 dark:text-zinc-400 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10 w-full rounded-none">
                   <p className="text-xs font-bold uppercase tracking-wider">Nenhum confronto direto registrado</p>
                   <p className="text-[10px] text-slate-400 mt-1">Os dados do H2H serão atualizados à medida que novos confrontos ocorrerem.</p>
                 </div>
@@ -660,10 +660,10 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     <div
                       key={m.id}
                       onClick={() => setSelectedH2HId(m.id)}
-                      className={`w-[145px] sm:w-[165px] shrink-0 border rounded-2xl p-4 flex flex-col items-center justify-between shadow-xs transition-all duration-200 cursor-pointer select-none ${
+                      className={`w-[145px] sm:w-[165px] shrink-0 border-b p-3 flex flex-col items-center justify-between transition-all duration-200 cursor-pointer select-none rounded-none shadow-none ${
                         isSelected
-                          ? 'bg-[#F1F3F4] dark:bg-slate-800 border-slate-300 dark:border-slate-700 shadow-sm'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs'
+                          ? 'bg-[#F1F3F4] dark:bg-slate-800 border-slate-300 dark:border-slate-700'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                       }`}
                     >
                       {/* Logos Row */}
@@ -671,13 +671,13 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                         <img 
                           src={m.homeClubLogo} 
                           alt="" 
-                          className="w-8 h-8 rounded-full object-contain bg-white shadow-xs p-0.5 border border-slate-100" 
+                          className="w-7 h-7 rounded-full object-contain bg-white p-0.5 border border-slate-100" 
                           referrerPolicy="no-referrer" 
                         />
                         <img 
                           src={m.awayClubLogo} 
                           alt="" 
-                          className="w-8 h-8 rounded-full object-contain bg-white shadow-xs p-0.5 border border-slate-100" 
+                          className="w-7 h-7 rounded-full object-contain bg-white p-0.5 border border-slate-100" 
                           referrerPolicy="no-referrer" 
                         />
                       </div>
@@ -706,56 +706,61 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
           </div>
 
           {/* H2H Stat pill summary row at the bottom */}
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3.5 mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/60">
-            <div className="flex items-center space-x-2">
-              <img 
-                src={match.homeClubLogo} 
-                alt="" 
-                className="w-7 h-7 object-contain bg-white rounded-full p-0.5 border border-slate-150" 
-                referrerPolicy="no-referrer" 
-              />
-              <div className="bg-[#F1F3F4] dark:bg-slate-800 text-slate-800 dark:text-zinc-200 font-mono font-black px-2.5 py-1 rounded-lg border border-slate-250/60 dark:border-slate-700 shadow-2xs text-xs">
-                {h2hSummary.homeWins}
+          <div className="w-full box-border bg-slate-100/80 dark:bg-slate-900/90 p-3 mt-4 border-y border-slate-200/60 dark:border-slate-800/80 rounded-none shadow-none">
+            <div className="flex items-center justify-between w-full px-1 sm:px-3">
+              {/* Home Team Wins */}
+              <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+                <img 
+                  src={match.homeClubLogo} 
+                  alt="" 
+                  className="w-6 h-6 sm:w-7 sm:h-7 object-contain bg-white rounded-full p-0.5 border border-slate-200 dark:border-slate-700 shrink-0" 
+                  referrerPolicy="no-referrer" 
+                />
+                <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-zinc-100 font-mono font-black px-2 py-0.5 sm:px-2.5 sm:py-1 border border-slate-250 dark:border-slate-700 text-xs sm:text-sm rounded-none shadow-none">
+                  {h2hSummary.homeWins}
+                </div>
+                <span className="text-[10px] sm:text-xs text-slate-600 dark:text-zinc-300 font-bold uppercase tracking-wider">
+                  VIT.
+                </span>
               </div>
-              <span className="text-[10.5px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
-                Vitórias
-              </span>
-            </div>
 
-            <div className="flex items-center space-x-2">
-              <div className="bg-[#F1F3F4] dark:bg-slate-800 text-slate-800 dark:text-zinc-200 font-mono font-black px-2.5 py-1 rounded-lg border border-slate-250/60 dark:border-slate-700 shadow-2xs text-xs">
-                {h2hSummary.draws}
+              {/* Draws */}
+              <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+                <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-zinc-100 font-mono font-black px-2 py-0.5 sm:px-2.5 sm:py-1 border border-slate-250 dark:border-slate-700 text-xs sm:text-sm rounded-none shadow-none">
+                  {h2hSummary.draws}
+                </div>
+                <span className="text-[10px] sm:text-xs text-slate-600 dark:text-zinc-300 font-bold uppercase tracking-wider">
+                  EMP.
+                </span>
               </div>
-              <span className="text-[10.5px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
-                Empates
-              </span>
-            </div>
 
-            <div className="flex items-center space-x-2">
-              <div className="bg-[#F1F3F4] dark:bg-slate-800 text-slate-800 dark:text-zinc-200 font-mono font-black px-2.5 py-1 rounded-lg border border-slate-250/60 dark:border-slate-700 shadow-2xs text-xs">
-                {h2hSummary.awayWins}
+              {/* Away Team Wins */}
+              <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+                <div className="bg-white dark:bg-slate-800 text-slate-800 dark:text-zinc-100 font-mono font-black px-2 py-0.5 sm:px-2.5 sm:py-1 border border-slate-250 dark:border-slate-700 text-xs sm:text-sm rounded-none shadow-none">
+                  {h2hSummary.awayWins}
+                </div>
+                <span className="text-[10px] sm:text-xs text-slate-600 dark:text-zinc-300 font-bold uppercase tracking-wider">
+                  VIT.
+                </span>
+                <img 
+                  src={match.awayClubLogo} 
+                  alt="" 
+                  className="w-6 h-6 sm:w-7 sm:h-7 object-contain bg-white rounded-full p-0.5 border border-slate-200 dark:border-slate-700 shrink-0" 
+                  referrerPolicy="no-referrer" 
+                />
               </div>
-              <span className="text-[10.5px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
-                Vitórias
-              </span>
-              <img 
-                src={match.awayClubLogo} 
-                alt="" 
-                className="w-7 h-7 object-contain bg-white rounded-full p-0.5 border border-slate-150" 
-                referrerPolicy="no-referrer" 
-              />
             </div>
           </div>
         </div>
 
         {/* 4. CLASSIFICAÇÃO COMPARISON TABLE */}
-        <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-4">
+        <div className="w-full box-border bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 p-3.5 sm:p-5 space-y-4 rounded-none shadow-none">
           <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center space-x-2">
             <span>📊</span>
             <span>Classificação (Comparativo de Tabela)</span>
           </h3>
 
-          <div className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-[#0F172A] shadow-xs">
+          <div className="w-full border-b border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-[#0F172A] rounded-none shadow-none">
             <table className="w-full text-[10px] text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
@@ -1483,7 +1488,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 1. COLLAPSIBLE GOLS SECTION */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+        <div className="w-full bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 rounded-none shadow-none overflow-hidden">
           <button
             onClick={() => setGolsCollapsed(!golsCollapsed)}
             className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-800/60 select-none cursor-pointer"
@@ -1596,7 +1601,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 2. COLLAPSIBLE CARTÕES SECTION */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+        <div className="w-full bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 rounded-none shadow-none overflow-hidden">
           <button
             onClick={() => setCardsCollapsed(!cardsCollapsed)}
             className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-800/60 select-none cursor-pointer"
@@ -1644,9 +1649,9 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     {/* Card type icon and minute (Center) */}
                     <div className="w-[10%] flex flex-col items-center justify-center space-y-0.5 shrink-0">
                       {isYellow ? (
-                        <div className="w-3 h-4 bg-amber-400 rounded-xs border border-amber-500 shadow-xs" title="Cartão Amarelo" />
+                        <div className="w-3 h-4 bg-amber-400 border border-amber-500 rounded-none shadow-none" title="Cartão Amarelo" />
                       ) : (
-                        <div className="w-3 h-4 bg-rose-500 rounded-xs border border-rose-600 shadow-xs animate-pulse" title="Cartão Vermelho" />
+                        <div className="w-3 h-4 bg-rose-500 border border-rose-600 rounded-none shadow-none animate-pulse" title="Cartão Vermelho" />
                       )}
                       <span className="text-[10px] font-black text-slate-400 font-mono">
                         {formatMatchMinute(c.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
@@ -1689,7 +1694,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 3. COLLAPSIBLE SUBSTITUIÇÕES SECTION */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-sm">
+        <div className="w-full bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 rounded-none shadow-none overflow-hidden">
           <button
             onClick={() => setSubsCollapsed(!subsCollapsed)}
             className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-800/60 select-none cursor-pointer"
@@ -1809,7 +1814,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 4. PREMIUM DETAILED MATCH STATISTICS (From User Screenshot) */}
-        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-6 shadow-sm">
+        <div className="w-full bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 p-5 space-y-6 rounded-none shadow-none">
           <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 text-center">
             📊 Estatísticas de Jogo
           </h3>
@@ -2576,7 +2581,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
       {/* MATCH SCORE BANNER HEADER (BEAUTIFUL DEEP BLUE DESIGN FROM SCREENSHOT) */}
       <div className="bg-[#1E3A8A] text-white shadow-lg relative overflow-hidden pb-4">
         {/* Navigation line */}
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3 sticky top-0 bg-[#1E3A8A] z-30">
+        <div className="w-full flex items-center justify-between px-2.5 sm:px-3 py-2.5 sticky top-0 bg-[#1E3A8A] z-30">
           <button
             onClick={navigateBack}
             className="p-1.5 hover:bg-white/10 rounded-full transition-all cursor-pointer"
@@ -2596,7 +2601,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* Dynamic Teams Grid & Circular Gauges from screenshot */}
-        <div className="max-w-6xl mx-auto px-4 pt-4 space-y-4">
+        <div className="w-full px-2.5 sm:px-3 pt-2.5 space-y-2.5">
           <div className="text-center">
             <span className="text-[10.5px] text-white/90 font-black tracking-widest uppercase">
               {match.championshipName.replace(/🇺🇳|🇲🇿|🇪🇺|🇪🇸|🇧🇷/g, '').trim()}
@@ -2758,7 +2763,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
         </div>
 
         {/* 2. MATCH DETAILS TAB BAR (From Screenshot) */}
-        <div className="max-w-6xl mx-auto mt-6 px-1 border-t border-white/10 pt-2 select-none overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full">
+        <div className="w-full mt-3 px-2 border-t border-white/10 pt-2 select-none overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="flex space-x-6 items-center text-[10.5px] font-black uppercase tracking-wider text-white/70 min-w-max pb-1 flex-nowrap">
             <button
               onClick={() => setActiveTab('previa')}
@@ -2836,7 +2841,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
       </div>
 
       {/* 3. TABS ACTIVE COMPONENT VIEW CONTAINER */}
-      <div className={`max-w-6xl mx-auto mt-4 w-full box-border ${activeTab === 'jornada' ? 'px-0' : 'px-2 sm:px-4'}`}>
+      <div className={`w-full mx-auto mt-2.5 box-border ${activeTab === 'jornada' ? 'px-0' : 'px-2.5 sm:px-3'}`}>
         {activeTab === 'previa' && renderPreviaTab()}
         {activeTab === 'classificacao' && renderClassificacaoTab()}
         {activeTab === 'eventos' && renderEventosTab()}

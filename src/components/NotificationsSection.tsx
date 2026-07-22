@@ -50,7 +50,7 @@ export const NotificationsSection: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto min-h-[calc(100vh-8.5rem)] flex flex-col bg-slate-50 pb-12">
+    <div className="w-full mx-auto min-h-[calc(100vh-8.5rem)] flex flex-col bg-slate-50 pb-12">
       
       {/* Header bar matching BeSoccer style blue header */}
       <div className="bg-[#1E3A8A] text-white p-4 shadow-sm shrink-0 flex items-center justify-between">

@@ -10,21 +10,21 @@ export const ChampionshipSection: React.FC = () => {
   const endedChamps = championships.filter((c) => c.status === 'Encerrado');
 
   return (
-    <div className="max-w-6xl mx-auto px-4 pt-4 pb-20 space-y-6">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="w-full mx-auto pb-20 divide-y divide-slate-200 dark:divide-slate-800">
+      {/* Header section - Single row */}
+      <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between px-2.5 py-2.5 bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 gap-2.5">
         <div className="flex items-center space-x-2">
           <Trophy className="w-5 h-5 text-blue-600" />
-          <h2 className="text-xl font-black text-zinc-900 dark:text-white">Campeonatos & Classificação</h2>
+          <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-wider">Campeonatos & Classificação</h2>
         </div>
 
         {/* Section Selector tabs */}
-        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl self-start sm:self-auto">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 self-start sm:self-auto">
           <button
             onClick={() => setActiveSection('active')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
               activeSection === 'active'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white font-black'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
@@ -33,9 +33,9 @@ export const ChampionshipSection: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveSection('history')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
               activeSection === 'history'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white font-black'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
@@ -46,9 +46,9 @@ export const ChampionshipSection: React.FC = () => {
       </div>
 
       {activeSection === 'active' ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="w-full divide-y divide-slate-200 dark:divide-slate-800">
           {activeChamps.length === 0 ? (
-            <div className="col-span-full bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center space-y-3">
+            <div className="w-full bg-white dark:bg-[#1E293B] p-10 text-center space-y-3">
               <span className="text-4xl block">🏆</span>
               <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Nenhum campeonato ativo no momento.</p>
               <p className="text-xs text-zinc-400">Você pode criar ou ativar campeonatos através do Painel Admin!</p>
@@ -58,17 +58,17 @@ export const ChampionshipSection: React.FC = () => {
               <div
                 key={champ.id}
                 onClick={() => navigateTo({ type: 'league', id: champ.id })}
-                className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:border-[#1E3A8A] transition-all cursor-pointer shadow-sm flex flex-col justify-between space-y-4"
+                className="w-full bg-white dark:bg-[#1E293B] p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col space-y-3 rounded-none shadow-none"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     {champ.logoUrl ? (
-                      <img src={champ.logoUrl} alt="" className="w-9 h-9 object-contain bg-slate-50 dark:bg-slate-800 rounded-lg p-0.5 shrink-0" />
+                      <img src={champ.logoUrl} alt="" className="w-8 h-8 object-contain bg-slate-50 dark:bg-slate-800 p-0.5 shrink-0" />
                     ) : (
                       <span className="text-2xl">🏆</span>
                     )}
                     <div>
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white leading-snug">
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-snug">
                         {champ.name}
                       </h3>
                       <p className="text-[10px] text-slate-400 font-semibold uppercase">
@@ -76,15 +76,15 @@ export const ChampionshipSection: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded">
+                  <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2 py-0.5">
                     R{champ.currentRound}
                   </span>
                 </div>
 
                 {/* Quick mini standings snapshot of top 3 */}
-                <div className="bg-slate-50 dark:bg-[#0F172A] p-3 rounded-xl space-y-2 border border-slate-100 dark:border-slate-800/50">
+                <div className="w-full bg-slate-50 dark:bg-[#0F172A] p-2.5 space-y-1.5 border-y border-slate-100 dark:border-slate-800/50">
                   <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Líderes</span>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {champ.standings.slice(0, 3).map((team, idx) => (
                       <div key={team.clubId} className="flex items-center justify-between text-xs">
                         <div 
@@ -104,7 +104,7 @@ export const ChampionshipSection: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center text-xs font-semibold pt-1">
+                <div className="flex justify-between items-center text-xs font-semibold pt-0.5">
                   <span className="text-zinc-400 flex items-center space-x-1.5 text-[10px]">
                     <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
                     <span>{champ.standings.length} clubes na disputa</span>
@@ -119,9 +119,9 @@ export const ChampionshipSection: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="w-full divide-y divide-slate-200 dark:divide-slate-800">
           {endedChamps.length === 0 ? (
-            <div className="col-span-full bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center space-y-4">
+            <div className="w-full bg-white dark:bg-[#1E293B] p-12 text-center space-y-4">
               <span className="text-4xl block">📜</span>
               <h3 className="font-bold text-sm text-zinc-800 dark:text-zinc-200">Histórico de temporadas vazio</h3>
               <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
@@ -136,22 +136,17 @@ export const ChampionshipSection: React.FC = () => {
                 <div
                   key={champ.id}
                   onClick={() => navigateTo({ type: 'league', id: champ.id })}
-                  className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:border-amber-500 transition-all cursor-pointer shadow-sm flex flex-col justify-between space-y-4 relative overflow-hidden"
+                  className="w-full bg-white dark:bg-[#1E293B] p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col space-y-3 rounded-none shadow-none"
                 >
-                  {/* Ended season gold diagonal accent or badge */}
-                  <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 font-black text-[8px] uppercase tracking-wider px-3 py-1 rounded-bl-xl shadow-sm">
-                    Histórico Congelado
-                  </div>
-
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                    {champ.logoUrl ? (
-                      <img src={champ.logoUrl} alt="" className="w-9 h-9 object-contain bg-slate-50 dark:bg-slate-800 rounded-lg p-0.5 shrink-0" />
-                    ) : (
-                      <span className="text-2xl">📜</span>
-                    )}
+                      {champ.logoUrl ? (
+                        <img src={champ.logoUrl} alt="" className="w-8 h-8 object-contain bg-slate-50 dark:bg-slate-800 p-0.5 shrink-0" />
+                      ) : (
+                        <span className="text-2xl">📜</span>
+                      )}
                       <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white leading-snug">
+                        <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-snug">
                           {champ.name}
                         </h3>
                         <p className="text-[10px] text-zinc-400 font-semibold uppercase">
@@ -159,11 +154,14 @@ export const ChampionshipSection: React.FC = () => {
                         </p>
                       </div>
                     </div>
+                    <span className="bg-amber-500 text-slate-950 font-black text-[8px] uppercase tracking-wider px-2 py-0.5">
+                      Histórico Congelado
+                    </span>
                   </div>
 
                   {/* Champion details block */}
                   {champion ? (
-                    <div className="bg-amber-500/5 dark:bg-amber-500/10 p-3.5 rounded-xl space-y-2.5 border border-amber-500/15">
+                    <div className="bg-amber-500/5 dark:bg-amber-500/10 p-3 space-y-2 border-y border-amber-500/15">
                       <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center space-x-1">
                         <Award className="w-3.5 h-3.5" />
                         <span>Campeão da Temporada</span>
@@ -188,12 +186,12 @@ export const ChampionshipSection: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-slate-50 dark:bg-[#0F172A] p-3 rounded-xl text-center text-[10px] text-zinc-500">
+                    <div className="bg-slate-50 dark:bg-[#0F172A] p-2.5 text-center text-[10px] text-zinc-500">
                       Nenhuma classificação registrada nesta temporada.
                     </div>
                   )}
 
-                  <div className="flex justify-between items-center text-xs font-semibold pt-1">
+                  <div className="flex justify-between items-center text-xs font-semibold pt-0.5">
                     <span className="text-zinc-400 flex items-center space-x-1.5 text-[10px]">
                       <Calendar className="w-3.5 h-3.5 text-zinc-400" />
                       <span>{champ.roundsCount} rodadas concluídas</span>

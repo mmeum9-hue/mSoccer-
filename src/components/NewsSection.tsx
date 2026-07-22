@@ -26,12 +26,12 @@ export const NewsSection: React.FC = () => {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 pt-4 pb-20 space-y-6">
+    <div className="w-full mx-auto pb-20 divide-y divide-slate-200 dark:divide-slate-800">
       {/* Search and Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="w-full bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 px-2.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div className="flex items-center space-x-2">
           <Newspaper className="w-5 h-5 text-emerald-500" />
-          <h2 className="text-xl font-black text-zinc-900 dark:text-white">Portal de Notícias</h2>
+          <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-wider">Portal de Notícias</h2>
         </div>
 
         {/* Local news search */}
@@ -42,21 +42,21 @@ export const NewsSection: React.FC = () => {
             placeholder="Buscar notícias..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-9 pr-4 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none"
           />
         </div>
       </div>
 
       {/* Categories Filter Pills */}
-      <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-none">
+      <div className="w-full bg-slate-50 dark:bg-[#0F172A] px-2.5 py-1.5 flex space-x-2 overflow-x-auto scrollbar-none border-b border-slate-200 dark:border-slate-800">
         {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
+            className={`px-3 py-1 text-xs font-bold shrink-0 transition-all cursor-pointer ${
               selectedCategory === cat
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-emerald-500'
+                ? 'bg-emerald-500 text-white font-black'
+                : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
             }`}
           >
             {cat === 'all' ? 'Ver Todas' : cat}
@@ -64,36 +64,36 @@ export const NewsSection: React.FC = () => {
         ))}
       </div>
 
-      {/* News Grid */}
+      {/* News List */}
       {filteredNews.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl">
+        <div className="w-full text-center py-12 bg-white dark:bg-[#1E293B]">
           <p className="text-zinc-500 dark:text-zinc-400 text-sm">Nenhuma notícia encontrada nesta categoria.</p>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="w-full divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-[#1E293B]">
           {filteredNews.map((item) => (
             <div
               key={item.id}
               onClick={() => setActiveArticle(item)}
-              className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden hover:border-emerald-500 transition-all cursor-pointer shadow-sm flex flex-col hover:shadow-md"
+              className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col sm:flex-row gap-4 items-start rounded-none shadow-none"
             >
-              <div className="relative">
+              <div className="relative shrink-0 w-full sm:w-48 h-32 overflow-hidden bg-slate-100 dark:bg-slate-800">
                 <img
                   src={item.imageUrl}
                   alt={item.title}
-                  className="h-44 w-full object-cover cursor-zoom-in hover:scale-105 transition-transform duration-300"
+                  className="h-full w-full object-cover cursor-zoom-in hover:scale-105 transition-transform duration-300"
                   referrerPolicy="no-referrer"
                   onClick={(e) => {
                     e.stopPropagation();
                     setFullscreenImageUrl(item.imageUrl);
                   }}
                 />
-                <span className="absolute top-3 left-3 bg-black/65 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                <span className="absolute top-2 left-2 bg-black/75 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5">
                   {item.category}
                 </span>
               </div>
-              <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                <div className="space-y-1.5">
+              <div className="flex-1 flex flex-col justify-between space-y-2 w-full">
+                <div className="space-y-1">
                   <div className="flex justify-between items-center text-[10px] font-semibold text-zinc-400">
                     <span className="flex items-center space-x-1">
                       <Calendar className="w-3 h-3" />
@@ -104,7 +104,7 @@ export const NewsSection: React.FC = () => {
                       <span>{item.views.toLocaleString()} lidas</span>
                     </span>
                   </div>
-                  <h3 className="font-bold text-sm text-zinc-900 dark:text-white line-clamp-2 leading-snug">
+                  <h3 className="font-extrabold text-sm text-zinc-900 dark:text-white line-clamp-2 leading-snug">
                     {item.title}
                   </h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">

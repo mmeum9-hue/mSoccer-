@@ -610,11 +610,11 @@ export const ChatSection: React.FC = () => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="max-w-6xl mx-auto h-[calc(100vh-8.5rem)] flex bg-white dark:bg-[#0F172A] border border-slate-100 dark:border-slate-800/60 rounded-2xl overflow-hidden relative shadow-md"
+      className="w-full h-[calc(100vh-8.5rem)] flex bg-white dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 overflow-hidden relative shadow-none rounded-none"
     >
       {/* Drag & Drop Overlay */}
       {isDragging && (
-        <div className="absolute inset-0 bg-[#1E3A8A]/90 backdrop-blur-xs z-50 flex flex-col items-center justify-center text-white border-4 border-dashed border-white/40 m-2 rounded-2xl transition-all pointer-events-none">
+        <div className="absolute inset-0 bg-[#1E3A8A]/90 backdrop-blur-xs z-50 flex flex-col items-center justify-center text-white border-4 border-dashed border-white/40 transition-all pointer-events-none">
           <div className="bg-white/10 p-5 rounded-full mb-3 animate-bounce">
             <Image className="w-10 h-10 text-white" />
           </div>
