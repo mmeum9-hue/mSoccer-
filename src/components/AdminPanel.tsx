@@ -210,7 +210,7 @@ export const AdminPanel: React.FC = () => {
   const champOfMatch = activeMatchToControl ? championships.find(c => c.id === activeMatchToControl.championshipId) : null;
   const isCopaMatch = champOfMatch ? champOfMatch.type === 'Copa' : false;
   const isChampOfMatchEnded = champOfMatch?.status === 'Encerrado';
-  const [eventType, setEventType] = useState<'Goal' | 'YellowCard' | 'RedCard' | 'Substitution'>('Goal');
+  const [eventType, setEventType] = useState<'Goal' | 'YellowCard' | 'RedCard' | 'Substitution' | 'Corner'>('Goal');
   const [eventTeam, setEventTeam] = useState<'home' | 'away'>('home');
   const [player1Name, setPlayer1Name] = useState('');
   const [player2Name, setPlayer2Name] = useState('');
@@ -888,21 +888,29 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     if (!activeMatchToControl) return;
 
-    if (eventType !== 'Goal' && !player1Name) {
+    if (eventType !== 'Goal' && eventType !== 'Corner' && !player1Name) {
       alert("Por favor, selecione ou digite o nome do jogador principal.");
       return;
+    }
+
+    if (eventType === 'Corner') {
+      if (eventTeam === 'home') {
+        setStatsCornersHome(prev => prev + 1);
+      } else {
+        setStatsCornersAway(prev => prev + 1);
+      }
     }
 
     triggerMatchEvent(activeMatchToControl.id, {
       minute: activeMatchToControl.minute || 1,
       type: eventType,
       team: eventTeam,
-      player1: player1Name || '',
+      player1: player1Name || (eventType === 'Corner' ? 'Escanteio' : ''),
       player2: player2Name || undefined,
-      detail: eventDetail || undefined
+      detail: eventDetail || (eventType === 'Corner' ? 'Cobrança de escanteio' : undefined)
     });
 
-    addLog(`Evento lançado: ${eventType}`, `${player1Name || 'Gol (Sem Nome)'} (${eventTeam === 'home' ? 'Mandante' : 'Visitante'})`, 'bg-amber-500');
+    addLog(`Evento lançado: ${eventType === 'Corner' ? 'Escanteio' : eventType}`, `${player1Name || (eventType === 'Corner' ? 'Escanteio' : 'Gol (Sem Nome)')} (${eventTeam === 'home' ? 'Mandante' : 'Visitante'})`, 'bg-amber-500');
     setPlayer1Name('');
     setPlayer2Name('');
     setEventDetail('');
@@ -2261,6 +2269,118 @@ export const AdminPanel: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Quick Corner Controls Panel */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center space-x-1.5">
+                          <span>🚩</span>
+                          <span>Controle Rápido de Escanteios</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-300 font-bold bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                          {statsCornersHome} x {statsCornersAway}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Home Corners Quick Buttons */}
+                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+                          <span className="text-[10px] text-zinc-300 font-bold block truncate">
+                            {activeMatchToControl.homeClubShortName || 'Mandante'}
+                          </span>
+                          <div className="flex items-center justify-between space-x-2">
+                            <button
+                              type="button"
+                              disabled={isChampOfMatchEnded}
+                              onClick={() => {
+                                const newCount = Math.max(0, statsCornersHome - 1);
+                                setStatsCornersHome(newCount);
+                                const updatedMatch = {
+                                  ...activeMatchToControl,
+                                  stats: {
+                                    ...activeMatchToControl.stats,
+                                    corners: { home: newCount, away: statsCornersAway }
+                                  }
+                                };
+                                updateMatch(updatedMatch);
+                              }}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded font-bold text-xs cursor-pointer transition-colors"
+                            >
+                              -1
+                            </button>
+                            <span className="text-sm font-black font-mono text-amber-400">{statsCornersHome}</span>
+                            <button
+                              type="button"
+                              disabled={isChampOfMatchEnded}
+                              onClick={() => {
+                                const newCount = statsCornersHome + 1;
+                                setStatsCornersHome(newCount);
+                                const updatedMatch = {
+                                  ...activeMatchToControl,
+                                  stats: {
+                                    ...activeMatchToControl.stats,
+                                    corners: { home: newCount, away: statsCornersAway }
+                                  }
+                                };
+                                updateMatch(updatedMatch);
+                                addLog('Escanteio Adicionado', `Escanteio para ${activeMatchToControl.homeClubShortName}`, 'bg-amber-500');
+                              }}
+                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded font-black text-xs cursor-pointer shadow-xs transition-colors"
+                            >
+                              +1 Escanteio
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Away Corners Quick Buttons */}
+                        <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+                          <span className="text-[10px] text-zinc-300 font-bold block truncate">
+                            {activeMatchToControl.awayClubShortName || 'Visitante'}
+                          </span>
+                          <div className="flex items-center justify-between space-x-2">
+                            <button
+                              type="button"
+                              disabled={isChampOfMatchEnded}
+                              onClick={() => {
+                                const newCount = Math.max(0, statsCornersAway - 1);
+                                setStatsCornersAway(newCount);
+                                const updatedMatch = {
+                                  ...activeMatchToControl,
+                                  stats: {
+                                    ...activeMatchToControl.stats,
+                                    corners: { home: statsCornersHome, away: newCount }
+                                  }
+                                };
+                                updateMatch(updatedMatch);
+                              }}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded font-bold text-xs cursor-pointer transition-colors"
+                            >
+                              -1
+                            </button>
+                            <span className="text-sm font-black font-mono text-amber-400">{statsCornersAway}</span>
+                            <button
+                              type="button"
+                              disabled={isChampOfMatchEnded}
+                              onClick={() => {
+                                const newCount = statsCornersAway + 1;
+                                setStatsCornersAway(newCount);
+                                const updatedMatch = {
+                                  ...activeMatchToControl,
+                                  stats: {
+                                    ...activeMatchToControl.stats,
+                                    corners: { home: statsCornersHome, away: newCount }
+                                  }
+                                };
+                                updateMatch(updatedMatch);
+                                addLog('Escanteio Adicionado', `Escanteio para ${activeMatchToControl.awayClubShortName}`, 'bg-amber-500');
+                              }}
+                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded font-black text-xs cursor-pointer shadow-xs transition-colors"
+                            >
+                              +1 Escanteio
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Injector panel for Live Match Events */}
                     <form onSubmit={handleCustomEventSubmit} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
                       <span className="text-[10px] font-black text-zinc-400 uppercase block">Injetar Evento Real-Time</span>
@@ -2276,6 +2396,7 @@ export const AdminPanel: React.FC = () => {
                             <option value="YellowCard">Cartão Amarelo</option>
                             <option value="RedCard">Cartão Vermelho</option>
                             <option value="Substitution">Substituição</option>
+                            <option value="Corner">🚩 Escanteio</option>
                           </select>
                         </div>
                         <div className="space-y-1">
@@ -2678,6 +2799,75 @@ export const AdminPanel: React.FC = () => {
                                   min="0"
                                   value={statsDangerousAttacksAway}
                                   onChange={(e) => setStatsDangerousAttacksAway(Math.max(0, Number(e.target.value)))}
+                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Escanteios */}
+                            <div className="space-y-1 bg-amber-950/20 p-2 rounded-lg border border-amber-500/20">
+                              <label className="text-[10px] font-bold text-amber-400 uppercase flex items-center justify-between">
+                                <span>🚩 Escanteios</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCornersHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsCornersHome}
+                                    onChange={(e) => setStatsCornersHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-amber-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCornersHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCornersAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsCornersAway}
+                                    onChange={(e) => setStatsCornersAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-amber-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCornersAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer"
+                                  >+</button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Cruzamentos */}
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Cruzamentos</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={statsCrossesHome}
+                                  onChange={(e) => setStatsCrossesHome(Math.max(0, Number(e.target.value)))}
+                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={statsCrossesAway}
+                                  onChange={(e) => setStatsCrossesAway(Math.max(0, Number(e.target.value)))}
                                   className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
                                 />
                               </div>

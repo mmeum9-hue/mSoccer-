@@ -1910,6 +1910,16 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     </div>
                   </div>
 
+                  {/* ATAQUE & ESCANTEIOS SECTION */}
+                  <div className="space-y-4 pt-2">
+                    <h4 className="text-[11px] font-black text-slate-400 dark:text-zinc-500 text-center tracking-wider uppercase">
+                      ATAQUE & ESCANTEIOS
+                    </h4>
+                    {renderStatRow("Escanteios", match.stats.corners?.home ?? 0, match.stats.corners?.away ?? 0, match.stats.corners?.home ?? 0, match.stats.corners?.away ?? 0)}
+                    {renderStatRow("Cruzamentos", match.stats.crosses?.home ?? 0, match.stats.crosses?.away ?? 0, match.stats.crosses?.home ?? 0, match.stats.crosses?.away ?? 0)}
+                    {renderStatRow("Ataques perigosos", match.stats.dangerousAttacks?.home ?? 0, match.stats.dangerousAttacks?.away ?? 0, match.stats.dangerousAttacks?.home ?? 0, match.stats.dangerousAttacks?.away ?? 0)}
+                  </div>
+
                   {/* ZAGUEIRO SECTION */}
                   <div className="space-y-4 pt-2">
                     <h4 className="text-[11px] font-black text-slate-400 dark:text-zinc-500 text-center tracking-wider uppercase">

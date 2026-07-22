@@ -105,7 +105,7 @@ export interface Championship {
 export interface MatchEvent {
   id: string;
   minute: number;
-  type: 'Goal' | 'YellowCard' | 'RedCard' | 'Substitution' | 'PenaltyMissed' | 'Offside' | 'VAR' | 'KickOff' | 'FullTime' | 'HalfTime';
+  type: 'Goal' | 'YellowCard' | 'RedCard' | 'Substitution' | 'PenaltyMissed' | 'Offside' | 'VAR' | 'KickOff' | 'FullTime' | 'HalfTime' | 'Corner';
   team: 'home' | 'away' | 'neutral';
   player1: string; // main player (e.g., scorer, carded player, player coming off)
   player2?: string; // secondary player (e.g., assist provider, player coming on)

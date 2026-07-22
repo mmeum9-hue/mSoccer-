@@ -1851,6 +1851,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           away: updatedMatch.score.away + 1
         };
       }
+    } else if (eventDetails.type === 'Corner') {
+      const currentCorners = updatedMatch.stats?.corners || { home: 0, away: 0 };
+      if (eventDetails.team === 'home') {
+        updatedMatch.stats.corners = {
+          ...currentCorners,
+          home: currentCorners.home + 1
+        };
+      } else if (eventDetails.team === 'away') {
+        updatedMatch.stats.corners = {
+          ...currentCorners,
+          away: currentCorners.away + 1
+        };
+      }
     }
 
     try {
