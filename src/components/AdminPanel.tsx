@@ -109,6 +109,9 @@ export const AdminPanel: React.FC = () => {
   const [matchTime, setMatchTime] = useState('16:00');
   const [matchPhase, setMatchPhase] = useState('Oitavos de Final');
   const [matchRound, setMatchRound] = useState(1);
+  const [matchStatus, setMatchStatus] = useState<MatchStatus>(MatchStatus.SCHEDULED);
+  const [homeScoreInput, setHomeScoreInput] = useState<number>(0);
+  const [awayScoreInput, setAwayScoreInput] = useState<number>(0);
 
   // States for editing club statistics
   const [editingClubId, setEditingClubId] = useState<string | null>(null);
@@ -728,12 +731,14 @@ export const AdminPanel: React.FC = () => {
       referee: referee || 'Árbitro FIFA',
       date: matchDate,
       time: matchTime,
-      minute: 0,
-      status: MatchStatus.SCHEDULED,
-      score: { home: 0, away: 0 },
-      events: [],
+      minute: matchStatus === MatchStatus.FINISHED ? 90 : 0,
+      status: matchStatus,
+      score: { home: homeScoreInput, away: awayScoreInput },
+      events: matchStatus === MatchStatus.FINISHED ? [
+        { id: 'ev_ft_' + Date.now(), minute: 90, type: 'FullTime', team: 'neutral', player1: 'Fim de Jogo', detail: 'Partida encerrada.' }
+      ] : [],
       stats: {
-        possession: { home: 0, away: 0 }, shots: { home: 0, away: 0 }, shotsOnTarget: { home: 0, away: 0 },
+        possession: { home: 50, away: 50 }, shots: { home: 0, away: 0 }, shotsOnTarget: { home: 0, away: 0 },
         passes: { home: 0, away: 0 }, passAccuracy: { home: 0, away: 0 }, crosses: { home: 0, away: 0 },
         corners: { home: 0, away: 0 }, fouls: { home: 0, away: 0 }, saves: { home: 0, away: 0 },
         blockedShots: { home: 0, away: 0 }, dangerousAttacks: { home: 0, away: 0 }
@@ -745,10 +750,12 @@ export const AdminPanel: React.FC = () => {
     };
 
     addMatch(newM);
-    addNotification('Nova Partida Criada', `${homeClub.name} x ${awayClub.name} agendada para ${matchDate}.`, 'jogo');
+    addNotification('Nova Partida Criada', `${homeClub.name} x ${awayClub.name} em ${matchDate}.`, 'jogo');
     addLog('Partida cadastrada', `${homeClub.shortName} x ${awayClub.shortName}`, 'bg-emerald-500');
     setStadium('');
     setReferee('');
+    setHomeScoreInput(0);
+    setAwayScoreInput(0);
   };
 
   const handleScoreInput = (team: 'home' | 'away', value: string) => {
@@ -3270,8 +3277,19 @@ export const AdminPanel: React.FC = () => {
                       <input
                         type="date"
                         value={matchDate}
-                        onChange={(e) => setMatchDate(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white"
+                        onChange={(e) => {
+                          const newDate = e.target.value;
+                          setMatchDate(newDate);
+                          const d = new Date();
+                          const yyyy = d.getFullYear();
+                          const mm = String(d.getMonth() + 1).padStart(2, '0');
+                          const dd = String(d.getDate()).padStart(2, '0');
+                          const todayStr = `${yyyy}-${mm}-${dd}`;
+                          if (newDate < todayStr) {
+                            setMatchStatus(MatchStatus.FINISHED);
+                          }
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white font-medium"
                       />
                     </div>
                     <div className="space-y-1">
@@ -3280,19 +3298,57 @@ export const AdminPanel: React.FC = () => {
                         type="time"
                         value={matchTime}
                         onChange={(e) => setMatchTime(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white"
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white font-medium"
                       />
                     </div>
-                    <div className="space-y-1 col-span-2 sm:col-span-1">
+                    <div className="space-y-1">
                       <label className="text-[10px] font-bold text-zinc-400 uppercase">Rodada</label>
                       <input
                         type="number"
                         min="1"
                         value={matchRound}
                         onChange={(e) => setMatchRound(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white"
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white font-medium"
                       />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase">Status Inicial</label>
+                      <select
+                        value={matchStatus}
+                        onChange={(e) => setMatchStatus(e.target.value as MatchStatus)}
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white cursor-pointer font-medium"
+                      >
+                        <option value={MatchStatus.SCHEDULED}>Agendado</option>
+                        <option value={MatchStatus.LIVE}>Ao Vivo</option>
+                        <option value={MatchStatus.FINISHED}>Encerrado / Finalizado</option>
+                        <option value={MatchStatus.POSTPONED}>Adiado</option>
+                      </select>
+                    </div>
+                    {matchStatus === MatchStatus.FINISHED && (
+                      <div className="space-y-1 col-span-2 sm:col-span-1 flex items-center space-x-2 bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+                        <div className="flex-1">
+                          <label className="text-[9px] font-bold text-zinc-400 uppercase block">Gols Casa</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={homeScoreInput}
+                            onChange={(e) => setHomeScoreInput(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                            className="w-full bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1 text-emerald-400 font-bold text-center"
+                          />
+                        </div>
+                        <span className="text-zinc-500 font-bold pt-3">x</span>
+                        <div className="flex-1">
+                          <label className="text-[9px] font-bold text-zinc-400 uppercase block">Gols Fora</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={awayScoreInput}
+                            onChange={(e) => setAwayScoreInput(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                            className="w-full bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1 text-emerald-400 font-bold text-center"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {(() => {

@@ -161,7 +161,7 @@ export const LiveMatches: React.FC = () => {
     id: 'yesterday',
     label: 'Ontem',
     isLive: false,
-    getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(-1) && m.status === MatchStatus.FINISHED).length,
+    getCount: () => allDisplayMatches.filter(m => m.date === getRelativeDateStr(-1)).length,
     sortTime: getOffsetTimestamp(-1)
   });
 
@@ -207,8 +207,44 @@ export const LiveMatches: React.FC = () => {
     });
   }
 
+  // Dynamically insert tabs for any match dates in the database that are not yet in matchTabs
+  allDisplayMatches.forEach((m) => {
+    if (m.date) {
+      const isAlreadyInTabs = matchTabs.some(
+        (t) =>
+          t.id === m.date ||
+          (t.id === 'yesterday' && m.date === getRelativeDateStr(-1)) ||
+          (t.id === 'today' && m.date === getRelativeDateStr(0)) ||
+          (t.id === 'tomorrow' && m.date === getRelativeDateStr(1))
+      );
+      if (!isAlreadyInTabs) {
+        try {
+          const parts = m.date.split('-');
+          if (parts.length === 3) {
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            const d = new Date(year, month, day, 12, 0, 0);
+            if (!isNaN(d.getTime())) {
+              const label = formatTabDate(d);
+              matchTabs.push({
+                id: m.date,
+                label: label,
+                isLive: false,
+                getCount: () => allDisplayMatches.filter((x) => x.date === m.date).length,
+                sortTime: d.getTime()
+              });
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  });
+
   // Dynamically insert custom selected date tab if not present
-  const hasSelectedTab = matchTabs.some(t => t.id === selectedTab);
+  const hasSelectedTab = matchTabs.some((t) => t.id === selectedTab);
   if (!hasSelectedTab && selectedTab !== 'live') {
     try {
       const parts = selectedTab.split('-');
@@ -217,14 +253,16 @@ export const LiveMatches: React.FC = () => {
         const month = parseInt(parts[1], 10) - 1;
         const day = parseInt(parts[2], 10);
         const d = new Date(year, month, day, 12, 0, 0);
-        const label = formatTabDate(d);
-        matchTabs.push({
-          id: selectedTab,
-          label: label,
-          isLive: false,
-          getCount: () => allDisplayMatches.filter(m => m.date === selectedTab).length,
-          sortTime: d.getTime()
-        });
+        if (!isNaN(d.getTime())) {
+          const label = formatTabDate(d);
+          matchTabs.push({
+            id: selectedTab,
+            label: label,
+            isLive: false,
+            getCount: () => allDisplayMatches.filter((m) => m.date === selectedTab).length,
+            sortTime: d.getTime()
+          });
+        }
       }
     } catch (e) {
       console.error(e);
@@ -235,8 +273,8 @@ export const LiveMatches: React.FC = () => {
   matchTabs.sort((a, b) => a.sortTime - b.sortTime);
 
   const changeTab = (tabId: string) => {
-    const currentIndex = matchTabs.findIndex(t => t.id === selectedTab);
-    const targetIndex = matchTabs.findIndex(t => t.id === tabId);
+    const currentIndex = matchTabs.findIndex((t) => t.id === selectedTab);
+    const targetIndex = matchTabs.findIndex((t) => t.id === tabId);
     if (targetIndex !== -1 && currentIndex !== -1 && targetIndex !== currentIndex) {
       setSlideDirection(targetIndex > currentIndex ? 'left' : 'right');
     }
@@ -264,7 +302,7 @@ export const LiveMatches: React.FC = () => {
     // Detect horizontal swipes only (must be significantly wider than vertical)
     if (Math.abs(diffX) > Math.abs(diffY)) {
       if (Math.abs(diffX) > 60) {
-        const currentIndex = matchTabs.findIndex(t => t.id === selectedTab);
+        const currentIndex = matchTabs.findIndex((t) => t.id === selectedTab);
         if (diffX > 0) {
           // Swiped left -> load next tab on the right (index + 1)
           const nextIndex = currentIndex + 1;
@@ -292,7 +330,7 @@ export const LiveMatches: React.FC = () => {
 
     // Filter by selected tab
     if (selectedTab === 'yesterday') {
-      result = result.filter((m) => m.date === getRelativeDateStr(-1) && m.status === MatchStatus.FINISHED);
+      result = result.filter((m) => m.date === getRelativeDateStr(-1));
     } else if (selectedTab === 'live') {
       result = result.filter((m) => m.status === MatchStatus.LIVE || m.status === MatchStatus.HT);
     } else if (selectedTab === 'today') {
@@ -312,7 +350,7 @@ export const LiveMatches: React.FC = () => {
     // Filter out duplicated/less-important matches of the same matchup
     const matchupGroups: { [key: string]: Match[] } = {};
     result.forEach((m) => {
-      const key = `${m.homeClubId || m.homeClubName}_${m.awayClubId || m.awayClubName}`;
+      const key = m.id;
       if (!matchupGroups[key]) {
         matchupGroups[key] = [];
       }

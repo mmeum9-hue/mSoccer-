@@ -1079,6 +1079,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // CRUD actions
   const addMatch = async (match: Match) => {
     try {
+      setMatches((prev) => {
+        const exists = prev.some((m) => m.id === match.id);
+        if (exists) return prev.map((m) => (m.id === match.id ? match : m));
+        return [...prev, match];
+      });
       await setDoc(doc(db, 'matches', match.id), match);
       await addAuditLog('Partida Agendada', `Agendou partida: ${match.homeClubName} x ${match.awayClubName} (${match.championshipName})`, 'bg-emerald-600');
     } catch (e) {
@@ -1102,6 +1107,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
+      setMatches((prev) => prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)));
       await setDoc(doc(db, 'matches', match.id), updatedMatch);
       await addAuditLog('Partida Sincronizada', `Atualizou partida: ${match.homeClubName} ${match.score.home} x ${match.score.away} ${match.awayClubName} (${match.status})`, 'bg-blue-600');
     } catch (e) {
@@ -1112,6 +1118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const m = matches.find(match => match.id === id);
       const label = m ? `${m.homeClubName} x ${m.awayClubName}` : id;
+      setMatches((prev) => prev.filter((match) => match.id !== id));
       await deleteDoc(doc(db, 'matches', id));
       await addAuditLog('Partida Removida', `Excluiu partida agendada: ${label}`, 'bg-rose-600');
     } catch (e) {
