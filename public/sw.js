@@ -1,21 +1,22 @@
-const CACHE_NAME = 'msoccer-cache-v7';
+const CACHE_NAME = 'msoccer-cache-v10';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
-  '/screenshot-mobile.png',
-  '/screenshot-desktop.png'
+  '/logo.png',
+  '/logo-official.svg'
 ];
 
-// Instalação do Service Worker e armazenamento em cache do App Shell
+// Instalação do Service Worker
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[Service Worker] Pré-cacheamento de assets ativos');
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -35,40 +36,44 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Interceptação de requisições
+// Interceptação de requisições: Network-First para páginas/HTML, Stale-While-Revalidate para estáticos
 self.addEventListener('fetch', (event) => {
-  // Ignora requisições que não sejam do método GET
   if (event.request.method !== 'GET') return;
   
   const url = new URL(event.request.url);
   
-  // Para requisições de terceiros ou Firebase, busca diretamente na rede
+  // Requisições externas ou Firebase/Firestore vão diretamente à rede
   if (url.origin !== self.location.origin) {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
     return;
   }
 
-  // Estratégia Stale-While-Revalidate para arquivos estáticos locais
+  // Se for navegação/página HTML, usa Network-First para garantir que novas atualizações apareçam para todos os usuários
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request) || caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Para outros assets locais, usa Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Atualiza o cache em segundo plano para a próxima visita
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
-          }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
         return networkResponse;
-      });
+      }).catch(() => {});
+
+      return cachedResponse || fetchPromise;
     })
   );
 });
