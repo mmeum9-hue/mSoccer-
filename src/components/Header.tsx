@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 import { Bell, Sun, Moon, Search, RotateCw, X, AlertCircle, Play, Pause, Zap, Menu, Calendar, User, Sliders, LogOut, ChevronRight, Globe } from 'lucide-react';
-import logoImg from '../assets/images/logo-official.png';
+import MSoccerLogo from './MSoccerLogo';
 
 export const Header: React.FC = () => {
   const {
@@ -89,13 +89,8 @@ export const Header: React.FC = () => {
             onClick={() => navigateTo({ type: 'jogos' })}
             className="flex items-center space-x-2.5 cursor-pointer select-none"
           >
-            {/* Custom BeSoccer-style Icon: logo image instead of the generic soccer ball */}
-            <img 
-              src={logoImg} 
-              alt="mSoccer" 
-              className="w-9 h-9 object-contain shrink-0 rounded-xl shadow-sm" 
-              referrerPolicy="no-referrer"
-            />
+            {/* Custom BeSoccer-style Icon: logo image */}
+            <MSoccerLogo className="w-9 h-9 sm:w-10 sm:h-10" />
             <div className="flex flex-col leading-tight">
               <span className="font-sans font-black text-base tracking-wider text-white leading-none">
                 mSoccer
@@ -190,12 +185,7 @@ export const Header: React.FC = () => {
             {/* Header */}
             <div className={`flex items-center justify-between p-4 ${activeColor.bg} text-white`}>
               <div className="flex items-center space-x-2">
-                <img 
-                  src={logoImg} 
-                  alt="mSoccer" 
-                  className="w-7 h-7 object-contain shrink-0 rounded-lg" 
-                  referrerPolicy="no-referrer" 
-                />
+                <MSoccerLogo className="w-8 h-8" />
                 <span className="font-bold tracking-wider text-sm">mSoccer Menu</span>
               </div>
               <button 
