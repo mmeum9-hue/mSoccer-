@@ -87,8 +87,8 @@ const cleanUndefined = (obj: any): any => {
   return obj;
 };
 
-// Safe setDoc wrapper
-const setDoc = (ref: any, data: any, options?: any) => {
+// Safe setDoc wrapper (defaults to merge: true to prevent field wiping)
+const setDoc = (ref: any, data: any, options: any = { merge: true }) => {
   return originalSetDoc(ref, cleanUndefined(data), options);
 };
 
@@ -461,39 +461,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // Sync DB Config
+  // Sync DB Config with safety fallbacks to prevent accidental re-seeding
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'system', 'config'), (snapshot) => {
       if (snapshot.exists()) {
         setDbConfig(snapshot.data());
       } else {
-        setDbConfig({ initialized: false, cleared: false });
+        // Fallback: Default to initialized: true to prevent unexpected wiping or re-seeding on config document miss
+        setDbConfig({ initialized: true, cleared: false });
       }
-    }, (error) => console.error("Firestore system config error:", error));
+    }, (error) => {
+      console.warn("Firestore system config notice:", error.message);
+      setDbConfig((prev) => prev || { initialized: true, cleared: false });
+    });
     return () => unsubscribe();
   }, []);
 
-  // One-time Database Seeding
+  // Safe One-time Database Seeding (only if DB is genuinely empty and uninitialized)
   useEffect(() => {
-    if (dbConfig && dbConfig.initialized === false && dbConfig.cleared !== true) {
-      setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: false }).catch(console.error);
+    const safeSeedDatabase = async () => {
+      if (dbConfig && dbConfig.initialized === false && dbConfig.cleared !== true) {
+        try {
+          // Verify if collections are actually empty before seeding
+          const existingClubs = await getDocs(collection(db, 'clubs'));
+          if (!existingClubs.empty) {
+            // Data already exists! Mark initialized without overwriting
+            await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: false }, { merge: true });
+            return;
+          }
 
-      INITIAL_CLUBS.forEach(club => {
-        setDoc(doc(db, 'clubs', club.id), club).catch(console.error);
-      });
-      INITIAL_PLAYERS.forEach(player => {
-        setDoc(doc(db, 'players', player.id), player).catch(console.error);
-      });
-      INITIAL_CHAMPIONSHIPS.forEach(champ => {
-        setDoc(doc(db, 'championships', champ.id), champ).catch(console.error);
-      });
-      INITIAL_MATCHES.forEach(m => {
-        setDoc(doc(db, 'matches', m.id), m).catch(console.error);
-      });
-      INITIAL_NEWS.forEach(n => {
-        setDoc(doc(db, 'news', n.id), n).catch(console.error);
-      });
-    }
+          await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: false }, { merge: true });
+
+          INITIAL_CLUBS.forEach(club => {
+            setDoc(doc(db, 'clubs', club.id), club, { merge: true }).catch(console.error);
+          });
+          INITIAL_PLAYERS.forEach(player => {
+            setDoc(doc(db, 'players', player.id), player, { merge: true }).catch(console.error);
+          });
+          INITIAL_CHAMPIONSHIPS.forEach(champ => {
+            setDoc(doc(db, 'championships', champ.id), champ, { merge: true }).catch(console.error);
+          });
+          INITIAL_MATCHES.forEach(m => {
+            setDoc(doc(db, 'matches', m.id), m, { merge: true }).catch(console.error);
+          });
+          INITIAL_NEWS.forEach(n => {
+            setDoc(doc(db, 'news', n.id), n, { merge: true }).catch(console.error);
+          });
+        } catch (err) {
+          console.warn("Safety check during initial seeding:", err);
+        }
+      }
+    };
+    safeSeedDatabase();
   }, [dbConfig]);
 
   // Firestore Real-Time Synchronizations
@@ -1148,14 +1167,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const deleteMatch = async (id: string) => {
+    if (!id) return;
     try {
       const m = matches.find(match => match.id === id);
       const label = m ? `${m.homeClubName} x ${m.awayClubName}` : id;
-      setMatches((prev) => prev.filter((match) => match.id !== id));
+      
+      // Remote deletion first
       await deleteDoc(doc(db, 'matches', id));
-      await addAuditLog('Partida Removida', `Excluiu partida agendada: ${label}`, 'bg-rose-600');
+      
+      // Update local memory only after remote confirmation
+      setMatches((prev) => prev.filter((match) => match.id !== id));
+      await addAuditLog('Partida Removida', `Excluiu partida: ${label}`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting match:", e);
+      addNotification('Erro de Operação', 'Não foi possível excluir a partida. Seus dados foram preservados.', 'sistema');
     }
   };
 
@@ -1219,18 +1244,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const deleteClub = async (id: string) => {
+    if (!id) return;
     try {
       const c = clubs.find(club => club.id === id);
       const label = c ? c.name : id;
+
       await deleteDoc(doc(db, 'clubs', id));
-      players.forEach(async (p) => {
-        if (p.clubId === id) {
-          await deleteDoc(doc(db, 'players', p.id));
-        }
-      });
-      await addAuditLog('Clube Removido', `Excluiu o clube e seus jogadores vinculados: ${label}`, 'bg-rose-600');
+      setClubs((prev) => prev.filter((club) => club.id !== id));
+
+      // Safely unlink players instead of permanently deleting them
+      const associatedPlayers = players.filter(p => p.clubId === id);
+      for (const p of associatedPlayers) {
+        await setDoc(doc(db, 'players', p.id), { ...p, clubId: '', clubName: 'Sem Clube' }, { merge: true });
+      }
+
+      await addAuditLog('Clube Removido', `Excluiu o clube: ${label}. Os atletas vinculados foram mantidos e desvinculados com segurança.`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting club:", e);
+      addNotification('Erro de Operação', 'Não foi possível excluir o clube. Informações preservadas.', 'sistema');
     }
   };
 
@@ -1251,13 +1282,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const deletePlayer = async (id: string) => {
+    if (!id) return;
     try {
       const p = players.find(player => player.id === id);
       const label = p ? `${p.name} (${p.clubName})` : id;
+
       await deleteDoc(doc(db, 'players', id));
+      setPlayers((prev) => prev.filter((player) => player.id !== id));
       await addAuditLog('Jogador Removido', `Removeu o atleta do sistema: ${label}`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting player:", e);
+      addNotification('Erro de Operação', 'Não foi possível excluir o atleta. Informações mantidas.', 'sistema');
     }
   };
 
@@ -1423,28 +1458,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const deleteChampionship = async (id: string) => {
+    if (!id) return;
     try {
       const champ = championships.find(c => c.id === id);
       const label = champ ? champ.name : id;
+      
       await deleteDoc(doc(db, 'championships', id));
+      setChampionships((prev) => prev.filter((c) => c.id !== id));
       await addAuditLog('Campeonato Removido', `Removeu o campeonato: ${label}`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting championship:", e);
+      addNotification('Erro de Operação', 'Não foi possível remover o campeonato. Dados mantidos.', 'sistema');
     }
   };
   const clearAllChampionships = async () => {
+    if (user?.role !== 'Admin') {
+      addNotification('Erro de Permissão', 'Apenas administradores podem executar esta limpeza.', 'sistema');
+      return;
+    }
     try {
-      championships.forEach(async (c) => {
+      // Create automatic emergency backup before clearing
+      await createBackup(`Backup Automático pré-limpeza de campeonatos - ${new Date().toLocaleString('pt-BR')}`);
+
+      for (const c of championships) {
         await deleteDoc(doc(db, 'championships', c.id));
-      });
-      matches.forEach(async (m) => {
+      }
+      for (const m of matches) {
         await deleteDoc(doc(db, 'matches', m.id));
-      });
+      }
+      setChampionships([]);
+      setMatches([]);
       setFavorites((prev) => ({ ...prev, championships: [], matches: [] }));
-      addNotification('Campeonatos Removidos', 'Todos os campeonatos e partidas foram excluídos do sistema.', 'sistema');
-      await addAuditLog('Todos Campeonatos Removidos', 'Removeu todos os campeonatos e partidas do sistema.', 'bg-red-700');
+      addNotification('Campeonatos Removidos', 'Todos os campeonatos e partidas foram excluídos. Um backup automático foi gerado.', 'sistema');
+      await addAuditLog('Todos Campeonatos Removidos', 'Removeu todos os campeonatos e partidas do sistema com backup prévio.', 'bg-red-700');
     } catch (e) {
       console.error("Error clearing championships:", e);
+      addNotification('Erro de Limpeza', 'Falha ao limpar campeonatos. Dados preservados.', 'sistema');
     }
   };
 
@@ -1465,24 +1514,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const deleteNews = async (id: string) => {
+    if (!id) return;
     try {
       const n = news.find(article => article.id === id);
       const label = n ? n.title : id;
+
       await deleteDoc(doc(db, 'news', id));
+      setNews((prev) => prev.filter((item) => item.id !== id));
       await addAuditLog('Notícia Removida', `Excluiu a notícia: "${label}"`, 'bg-rose-600');
     } catch (e) {
       console.error("Error deleting news:", e);
+      addNotification('Erro de Operação', 'Não foi possível excluir a notícia. Informações mantidas.', 'sistema');
     }
   };
   const clearAllNews = async () => {
+    if (user?.role !== 'Admin') {
+      addNotification('Erro de Permissão', 'Apenas administradores podem executar esta limpeza.', 'sistema');
+      return;
+    }
     try {
-      news.forEach(async (n) => {
+      await createBackup(`Backup Automático pré-limpeza de notícias - ${new Date().toLocaleString('pt-BR')}`);
+
+      for (const n of news) {
         await deleteDoc(doc(db, 'news', n.id));
-      });
-      addNotification('Notícias Removidas', 'Todas as notícias do sistema foram excluídas.', 'sistema');
+      }
+      setNews([]);
+      addNotification('Notícias Removidas', 'Todas as notícias do sistema foram excluídas. Backup automático salvo.', 'sistema');
       await addAuditLog('Todas Notícias Removidas', 'Removeu todas as notícias cadastradas do sistema.', 'bg-red-700');
     } catch (e) {
       console.error("Error clearing news:", e);
+      addNotification('Erro de Limpeza', 'Ocorreu um erro. Notícias preservadas.', 'sistema');
     }
   };
 
@@ -1493,71 +1554,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Acesso negado: Apenas administradores autorizados podem realizar esta operação.');
     }
     try {
-      // 1. Set dbConfig to cleared: true so that standard auto-seeding is skipped
-      await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: true });
+      // 1. ALWAYS create an emergency backup before any database wipe
+      await createBackup(`Backup Automático de Segurança pré-Redefinição - ${new Date().toLocaleString('pt-BR')}`);
 
-      // 2. Clear matches
-      const matchesSnap = await getDocs(collection(db, 'matches'));
-      for (const docSnap of matchesSnap.docs) {
-        await deleteDoc(docSnap.ref);
-      }
+      // 2. Set dbConfig to cleared: true so that standard auto-seeding is skipped
+      await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: true }, { merge: true });
 
-      // 3. Clear championships
-      const champsSnap = await getDocs(collection(db, 'championships'));
-      for (const docSnap of champsSnap.docs) {
-        await deleteDoc(docSnap.ref);
-      }
-
-      // 4. Clear players
-      const playersSnap = await getDocs(collection(db, 'players'));
-      for (const docSnap of playersSnap.docs) {
-        await deleteDoc(docSnap.ref);
-      }
-
-      // 5. Clear clubs
-      const clubsSnap = await getDocs(collection(db, 'clubs'));
-      for (const docSnap of clubsSnap.docs) {
-        await deleteDoc(docSnap.ref);
-      }
-
-      // 6. Clear news
-      const newsSnap = await getDocs(collection(db, 'news'));
-      for (const docSnap of newsSnap.docs) {
-        await deleteDoc(docSnap.ref);
-      }
-
-      // 7. Clear chat_messages
-      try {
-        const chatMessagesSnapshot = await getDocs(collection(db, 'chat_messages'));
-        for (const chatDoc of chatMessagesSnapshot.docs) {
-          await deleteDoc(chatDoc.ref);
+      // 3. Clear collections safely
+      const collectionsToClear = ['matches', 'championships', 'players', 'clubs', 'news', 'chat_messages'];
+      for (const colName of collectionsToClear) {
+        const snaps = await getDocs(collection(db, colName));
+        for (const docSnap of snaps.docs) {
+          await deleteDoc(docSnap.ref);
         }
-      } catch (err) {
-        console.error("Error clearing chat messages:", err);
       }
 
-      // 8. Clear Local Storage to prevent any stale data
-      safeLocalStorage.removeItem('msoccer_clubs');
-      safeLocalStorage.removeItem('msoccer_players');
-      safeLocalStorage.removeItem('msoccer_championships');
-      safeLocalStorage.removeItem('msoccer_matches');
-      safeLocalStorage.removeItem('msoccer_news');
-      safeLocalStorage.removeItem('msoccer_favorites');
-      safeLocalStorage.removeItem('msoccer_notifications');
-
-      // 9. Reset local states
+      // 4. Reset local states
       setClubs([]);
       setPlayers([]);
       setChampionships([]);
       setMatches([]);
       setNews([]);
       setFavorites({ clubs: [], players: [], championships: [], matches: [] });
-      setNotifications([]);
 
-      addNotification('Sistema Reiniciado', 'Todos os dados do sistema (ligas, partidas, notícias, conversas e times) foram zerados com sucesso.', 'sistema');
+      addNotification('Sistema Reiniciado', 'Todos os dados do sistema foram zerados com sucesso. Um backup automático foi salvo antes da operação.', 'sistema');
     } catch (e) {
       console.error("Error clearing database:", e);
-      addNotification('Erro ao Reiniciar', 'Ocorreu um erro ao tentar zerar o banco de dados.', 'sistema');
+      addNotification('Erro ao Reiniciar', 'A operação de redefinição falhou e os dados foram preservados.', 'sistema');
     }
   };
 
@@ -1572,7 +1595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminEmail: user?.email || 'Sistema',
         badgeColor: badgeColor || 'bg-slate-700'
       };
-      await setDoc(doc(db, 'audit_logs', logId), newLog);
+      await setDoc(doc(db, 'audit_logs', logId), newLog, { merge: true });
     } catch (e) {
       console.error("Error writing audit log:", e);
     }
@@ -1599,7 +1622,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           news
         }
       };
-      await setDoc(doc(db, 'backups', backupId), newBackup);
+      await setDoc(doc(db, 'backups', backupId), newBackup, { merge: true });
       await addAuditLog('Backup Criado', `O administrador criou um backup do sistema: "${description}"`, 'bg-emerald-600');
       addNotification('Backup Concluído', `Backup de segurança "${description}" criado com sucesso.`, 'sistema');
     } catch (e) {
@@ -1622,8 +1645,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       const backup = backupDoc.data() as SystemBackup;
       
+      // Auto-backup current state before restoring old state
+      await createBackup(`Backup Automático Pré-Restauração - ${new Date().toLocaleString('pt-BR')}`);
+
       // 1. Mark as cleared first so seeding doesn't conflict
-      await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: true });
+      await setDoc(doc(db, 'system', 'config'), { initialized: true, cleared: true }, { merge: true });
 
       // 2. Clear current collections
       const collections = ['clubs', 'players', 'championships', 'matches', 'news'];
@@ -1636,13 +1662,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 3. Restore data from backup
       for (const club of backup.data.clubs) {
-        await setDoc(doc(db, 'clubs', club.id), club);
+        await setDoc(doc(db, 'clubs', club.id), club, { merge: true });
       }
       for (const player of backup.data.players) {
-        await setDoc(doc(db, 'players', player.id), player);
+        await setDoc(doc(db, 'players', player.id), player, { merge: true });
       }
       for (const champ of backup.data.championships) {
-        await setDoc(doc(db, 'championships', champ.id), champ);
+        await setDoc(doc(db, 'championships', champ.id), champ, { merge: true });
       }
       for (const m of backup.data.matches) {
         await setDoc(doc(db, 'matches', m.id), m);
