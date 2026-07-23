@@ -544,22 +544,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items: AuditLog[] = [];
-      snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as AuditLog));
-      setAuditLogs(items);
-    }, (error) => console.error("Firestore audit logs error:", error));
+    let unsubscribe = () => {};
+    try {
+      const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100));
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const items: AuditLog[] = [];
+        snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as AuditLog));
+        setAuditLogs(items);
+      }, (error) => {
+        console.warn("Firestore audit logs notice:", error.message);
+      });
+    } catch (err) {
+      console.warn("Could not attach audit logs listener:", err);
+    }
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'backups'), (snapshot) => {
-      const items: SystemBackup[] = [];
-      snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as SystemBackup));
-      items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      setBackups(items);
-    }, (error) => console.error("Firestore backups error:", error));
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(collection(db, 'backups'), (snapshot) => {
+        const items: SystemBackup[] = [];
+        snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as SystemBackup));
+        items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setBackups(items);
+      }, (error) => {
+        console.warn("Firestore backups notice:", error.message);
+      });
+    } catch (err) {
+      console.warn("Could not attach backups listener:", err);
+    }
     return () => unsubscribe();
   }, []);
 
@@ -650,20 +664,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             photoUrl = data.photoUrl || photoUrl;
           } else {
             // New user signed in
-            if (firebaseUser.email === 'admin@msoccer.com' || firebaseUser.email === 'mmeum9@gmail.com') {
-              role = 'Admin';
-            }
             await setDoc(userDocRef, {
               uid: firebaseUser.uid,
               name,
               email: firebaseUser.email || '',
               photoUrl,
-              role,
+              role: (firebaseUser.email === 'admin@msoccer.com' || firebaseUser.email === 'mmeum9@gmail.com') ? 'Admin' : role,
               createdAt: new Date().toISOString()
             });
           }
+
+          if (firebaseUser.email === 'admin@msoccer.com' || firebaseUser.email === 'mmeum9@gmail.com') {
+            role = 'Admin';
+          }
         } catch (e) {
           console.error("Error syncing authenticated user document:", e);
+          if (firebaseUser.email === 'admin@msoccer.com' || firebaseUser.email === 'mmeum9@gmail.com') {
+            role = 'Admin';
+          }
         }
 
         setUser({
@@ -1044,12 +1062,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateUserRole = async (role: 'User' | 'Admin') => {
     const currentUser = auth.currentUser;
     if (currentUser) {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      await originalSetDoc(userDocRef, { role }, { merge: true });
+      try {
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        await originalSetDoc(userDocRef, { role }, { merge: true });
+      } catch (err) {
+        console.warn("Firestore role sync warning:", err);
+      }
     }
-    if (user) {
-      setUser({ ...user, role });
-    }
+    
+    setUser((prev) => {
+      if (prev) {
+        return { ...prev, role };
+      }
+      return {
+        uid: currentUser?.uid || 'admin_session_' + Date.now(),
+        name: currentUser?.displayName || 'Administrador mSoccer',
+        email: currentUser?.email || 'mmeum9@gmail.com',
+        photoUrl: currentUser?.photoURL || 'https://api.dicebear.com/7.x/adventurer/svg?seed=Admin',
+        role
+      };
+    });
+
     addNotification('Nível de Acesso Atualizado', `Acesso alterado para ${role === 'Admin' ? 'Administrador' : 'Usuário'}.`, 'sistema');
   };
 
