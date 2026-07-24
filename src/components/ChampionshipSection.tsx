@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatTeamName } from '../types';
 import { Trophy, ArrowRight, ShieldCheck, History, Calendar, Award } from 'lucide-react';
 import { CompetitionAdBanner } from './CompetitionAdBanner';
 import { AdsterraBanner320x50 } from './AdsterraBanner320x50';
@@ -98,7 +99,7 @@ export const ChampionshipSection: React.FC = () => {
                           >
                             <span className="font-mono text-[10px] text-zinc-400 font-black">#{idx + 1}</span>
                             <img src={team.logoUrl} alt="" className="w-4 h-4 rounded-full group-hover/leader:scale-110 transition-transform" />
-                            <span className="text-[12px] font-medium text-zinc-700 dark:text-zinc-300 group-hover/leader:text-blue-600 dark:group-hover/leader:text-blue-400 transition-colors">{team.clubName}</span>
+                            <span className="text-[12px] font-medium whitespace-pre-line text-zinc-700 dark:text-zinc-300 group-hover/leader:text-blue-600 dark:group-hover/leader:text-blue-400 transition-colors">{formatTeamName(team.clubName)}</span>
                           </div>
                           <span className="font-mono font-bold text-zinc-900 dark:text-white">{team.points} pts</span>
                         </div>

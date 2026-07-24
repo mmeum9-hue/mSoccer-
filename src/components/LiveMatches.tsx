@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
-import { MatchStatus, Match, formatMatchMinute } from '../types';
+import { MatchStatus, Match, formatMatchMinute, formatTeamName } from '../types';
 import { Star, Trophy, ChevronRight, Eye, Calendar, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompetitionAdBanner } from './CompetitionAdBanner';
@@ -594,12 +594,12 @@ export const LiveMatches: React.FC = () => {
                                     }}
                                     className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
                                   >
-                                    <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                    <span className={`text-[12px] break-words whitespace-pre-line max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
                                       isHomeWinner 
                                         ? 'font-black text-black dark:text-white' 
                                         : (isAwayWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
                                     }`}>
-                                      {match.homeClubName}
+                                      {formatTeamName(match.homeClubName)}
                                     </span>
                                     <img
                                       src={match.homeClubLogo}
@@ -671,12 +671,12 @@ export const LiveMatches: React.FC = () => {
                                       className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
                                       referrerPolicy="no-referrer"
                                     />
-                                    <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                    <span className={`text-[12px] break-words whitespace-pre-line max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
                                       isAwayWinner 
                                         ? 'font-black text-black dark:text-white' 
                                         : (isHomeWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
                                     }`}>
-                                      {match.awayClubName}
+                                      {formatTeamName(match.awayClubName)}
                                     </span>
                                   </div>
 

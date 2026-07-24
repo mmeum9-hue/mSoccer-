@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { ArrowLeft, Star, Trophy, Target, Award, ListOrdered, FileText, Calendar, MapPin } from 'lucide-react';
-import { Match, StandingRow, formatMatchMinute } from '../types';
+import { Match, StandingRow, formatMatchMinute, formatTeamName } from '../types';
 
 interface LeagueDetailsProps {
   leagueId: string;
@@ -111,8 +111,8 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                           className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105"
                           referrerPolicy="no-referrer"
                         />
-                        <span className="font-medium text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[12px] leading-snug transition-colors truncate">
-                          {row.clubName}
+                        <span className="font-medium text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[12px] leading-snug transition-colors whitespace-pre-line">
+                          {formatTeamName(row.clubName)}
                         </span>
                       </div>
                       
@@ -268,8 +268,8 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 min-w-0">
               <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white" referrerPolicy="no-referrer" />
-              <span className={`text-[10px] truncate font-bold ${isFinished && match.score.home > match.score.away ? 'text-zinc-900 dark:text-white font-black' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                {match.homeClubName}
+              <span className={`text-[10px] whitespace-pre-line font-bold ${isFinished && match.score.home > match.score.away ? 'text-zinc-900 dark:text-white font-black' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                {formatTeamName(match.homeClubName)}
               </span>
             </div>
             <span className="font-mono text-[11px] font-black">
@@ -280,8 +280,8 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 min-w-0">
               <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white" referrerPolicy="no-referrer" />
-              <span className={`text-[10px] truncate font-bold ${isFinished && match.score.away > match.score.home ? 'text-zinc-900 dark:text-white font-black' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                {match.awayClubName}
+              <span className={`text-[10px] whitespace-pre-line font-bold ${isFinished && match.score.away > match.score.home ? 'text-zinc-900 dark:text-white font-black' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                {formatTeamName(match.awayClubName)}
               </span>
             </div>
             <span className="font-mono text-[11px] font-black">
@@ -648,8 +648,8 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                               className="w-7 h-7 rounded-full object-cover bg-white p-0.5 shadow-sm shrink-0"
                               referrerPolicy="no-referrer"
                             />
-                            <span className="font-bold text-xs text-zinc-800 dark:text-white truncate">
-                              {match.homeClubName}
+                            <span className="font-bold text-xs text-zinc-800 dark:text-white whitespace-pre-line">
+                              {formatTeamName(match.homeClubName)}
                             </span>
                           </div>
 
@@ -678,8 +678,8 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
 
                           {/* Away Club */}
                           <div className="flex items-center space-x-2.5 w-[42%] justify-end text-right min-w-0">
-                            <span className="font-bold text-xs text-zinc-800 dark:text-white truncate">
-                              {match.awayClubName}
+                            <span className="font-bold text-xs text-zinc-800 dark:text-white whitespace-pre-line">
+                              {formatTeamName(match.awayClubName)}
                             </span>
                             <img
                               src={match.awayClubLogo}

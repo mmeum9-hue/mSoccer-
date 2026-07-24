@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 import { Bell, Sun, Moon, Search, RotateCw, X, AlertCircle, Play, Pause, Zap, Menu, Calendar, User, Sliders, LogOut, ChevronRight, Globe } from 'lucide-react';
 import MSoccerLogo from './MSoccerLogo';
+import { formatTeamName } from '../types';
 
 export const Header: React.FC = () => {
   const {
@@ -649,8 +650,8 @@ export const Header: React.FC = () => {
                           <span className="font-semibold text-emerald-500">{match.status}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                            {match.homeClubName} vs {match.awayClubName}
+                          <span className="font-medium text-zinc-800 dark:text-zinc-200 whitespace-pre-line">
+                            {formatTeamName(match.homeClubName)} vs {formatTeamName(match.awayClubName)}
                           </span>
                           <span className="font-mono font-bold bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-xs text-zinc-900 dark:text-white">
                             {match.score.home} - {match.score.away}

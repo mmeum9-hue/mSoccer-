@@ -208,6 +208,47 @@ export function formatMatchMinute(minute: number, injuryTime1stHalf?: number, in
   return `90+${minute - 90}'`;
 }
 
+export function formatTeamName(name: string, maxCharsPerLine = 14): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (trimmed.length <= maxCharsPerLine) {
+    return trimmed;
+  }
+
+  const words = trimmed.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    if (!currentLine) {
+      if (word.length > maxCharsPerLine) {
+        lines.push(word.slice(0, maxCharsPerLine));
+        currentLine = word.slice(maxCharsPerLine);
+      } else {
+        currentLine = word;
+      }
+    } else {
+      if ((currentLine + ' ' + word).length <= maxCharsPerLine) {
+        currentLine += ' ' + word;
+      } else {
+        lines.push(currentLine);
+        if (word.length > maxCharsPerLine) {
+          lines.push(word.slice(0, maxCharsPerLine));
+          currentLine = word.slice(maxCharsPerLine);
+        } else {
+          currentLine = word;
+        }
+      }
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.join('\n');
+}
+
 export interface NewsArticle {
   id: string;
   title: string;

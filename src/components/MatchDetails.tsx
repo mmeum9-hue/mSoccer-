@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { MatchStatus, MatchEvent, formatMatchMinute, StandingRow } from '../types';
+import { MatchStatus, MatchEvent, formatMatchMinute, StandingRow, formatTeamName } from '../types';
 import { 
   ArrowLeft, Star, MapPin, User, ChevronRight, ChevronLeft, Calendar, BarChart2, Shield, Flame, Activity, 
   ChevronDown, ChevronUp, TrendingDown, TrendingUp, Clock, Coins, Newspaper, Zap, AlertTriangle 
@@ -787,7 +787,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                   <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.homeClubId })}>
                       <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
-                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:underline text-[10px] transition-colors truncate leading-tight">{match.homeClubName}</span>
+                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.homeClubName)}</span>
                     </div>
                   </td>
                   <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-blue-50/10 dark:bg-blue-950/10">{homeStandObj.row.points}</td>
@@ -812,7 +812,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                   <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.awayClubId })}>
                       <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
-                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:underline text-[10px] transition-colors truncate leading-tight">{match.awayClubName}</span>
+                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.awayClubName)}</span>
                     </div>
                   </td>
                   <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-rose-50/10 dark:bg-rose-950/10">{awayStandObj.row.points}</td>
@@ -1409,8 +1409,8 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
 
                               {/* Left Side: Home Team (Right-aligned text next to logo) */}
                               <div className="flex items-center justify-end space-x-2 sm:space-x-3.5 flex-1 min-w-0 pr-1.5 sm:pr-3">
-                                <span className="font-extrabold text-xs sm:text-sm text-slate-850 dark:text-slate-100 truncate text-right leading-tight">
-                                  {abbreviateTeamName(m.homeClubName, maxTeamNameLen)}
+                                <span className="font-extrabold text-xs sm:text-sm text-slate-850 dark:text-slate-100 whitespace-pre-line text-right leading-tight">
+                                  {formatTeamName(m.homeClubName)}
                                 </span>
                                 <img
                                   src={m.homeClubLogo}
@@ -1441,8 +1441,8 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                                   className="w-7.5 h-7.5 sm:w-9 sm:h-9 object-contain rounded-full bg-white p-0.5 border border-slate-150 dark:border-slate-800 shrink-0 shadow-3xs"
                                   referrerPolicy="no-referrer"
                                 />
-                                <span className="font-extrabold text-xs sm:text-sm text-slate-850 dark:text-slate-100 truncate text-left leading-tight">
-                                  {abbreviateTeamName(m.awayClubName, maxTeamNameLen)}
+                                <span className="font-extrabold text-xs sm:text-sm text-slate-850 dark:text-slate-100 whitespace-pre-line text-left leading-tight">
+                                  {formatTeamName(m.awayClubName)}
                                 </span>
                               </div>
                             </div>
@@ -2668,12 +2668,12 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 <span className="text-[9.5px] text-white/80 font-black block uppercase tracking-wider">
                   {pHome}%
                 </span>
-                <span className={`text-[12px] tracking-wide block truncate max-w-[110px] group-hover/home:underline ${
+                <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/home:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away
                     ? 'font-black text-white drop-shadow-sm' 
                     : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home ? 'font-normal text-white/70' : 'font-medium text-white')
                 }`}>
-                  {match.homeClubName}
+                  {formatTeamName(match.homeClubName)}
                 </span>
               </div>
             </div>
@@ -2768,12 +2768,12 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 <span className="text-[9.5px] text-white/80 font-black block uppercase tracking-wider">
                   {pAway}%
                 </span>
-                <span className={`text-[12px] tracking-wide block truncate max-w-[110px] group-hover/away:underline ${
+                <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/away:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home
                     ? 'font-black text-white drop-shadow-sm' 
                     : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away ? 'font-normal text-white/70' : 'font-medium text-white')
                 }`}>
-                  {match.awayClubName}
+                  {formatTeamName(match.awayClubName)}
                 </span>
               </div>
             </div>

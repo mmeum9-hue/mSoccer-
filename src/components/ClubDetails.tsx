@@ -5,7 +5,7 @@ import {
   Activity, Clock, AlertCircle, ChevronRight, User, X, 
   Check, Eye, ArrowRight, TrendingUp, Edit2
 } from 'lucide-react';
-import { Club, Match, Player, NewsArticle, MatchStatus } from '../types';
+import { Club, Match, Player, NewsArticle, MatchStatus, formatTeamName } from '../types';
 
 interface ClubDetailsProps {
   clubId: string;
@@ -205,17 +205,7 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
   };
 
   const formatClubName = (name: string) => {
-    if (!name) return '';
-    const words = name.trim().split(/\s+/);
-    if (words.length === 0) return '';
-    
-    const uppercaseFirst = words[0].toUpperCase();
-    const prefixes = ['CD', 'FC', 'GD', 'UD', 'AD', 'CR', 'SC', 'SL', 'AC', 'CLUB', 'CLUBE', 'ASSOCIAÇÃO', 'ASSOCIACAO'];
-    
-    if (prefixes.includes(uppercaseFirst) && words.length > 1) {
-      return `${words[0]} ${words[1]}`.substring(0, 16);
-    }
-    return words[0].substring(0, 13);
+    return formatTeamName(name);
   };
 
   // Compute club specific form (Draw: Amber, Win: Green, Loss: Red)
@@ -830,13 +820,13 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          <span className={`font-black text-[11px] ${isHome ? 'text-[#3C8C21] font-black' : 'text-slate-850 dark:text-slate-200'}`}>
+                          <span className={`font-black text-[11px] whitespace-pre-line ${isHome ? 'text-[#3C8C21] font-black' : 'text-slate-850 dark:text-slate-200'}`}>
                             {formatClubName(m.homeClubName)}
                           </span>
                           <span className="font-mono bg-zinc-950 dark:bg-slate-800 text-white font-black px-1.5 py-0.5 rounded text-[10px]">
                             {isFinished ? `${m.score.home} - ${m.score.away}` : 'VS'}
                           </span>
-                          <span className={`font-black text-[11px] ${!isHome ? 'text-[#3C8C21] font-black' : 'text-slate-850 dark:text-slate-200'}`}>
+                          <span className={`font-black text-[11px] whitespace-pre-line ${!isHome ? 'text-[#3C8C21] font-black' : 'text-slate-850 dark:text-slate-200'}`}>
                             {formatClubName(m.awayClubName)}
                           </span>
                         </div>
