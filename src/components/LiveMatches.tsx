@@ -5,6 +5,7 @@ import { MatchStatus, Match, formatMatchMinute } from '../types';
 import { Star, Trophy, ChevronRight, Eye, Calendar, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompetitionAdBanner } from './CompetitionAdBanner';
+import { AdsterraBanner320x50 } from './AdsterraBanner320x50';
 
 export const LiveMatches: React.FC = () => {
   const { matches, championships, news, favorites, toggleFavorite, navigateTo, user, language, headerColor } = useApp();
@@ -689,11 +690,9 @@ export const LiveMatches: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* BESOCCER VIDEO AD BANNER - ONLY BETWEEN COMPETITIONS */}
+                        {/* ADSTERRA 320x50 BANNER - ONLY BETWEEN COMPETITIONS */}
                         {leagueIndex < leagueArray.length - 1 && (
-                          <div className="w-full my-2">
-                            <CompetitionAdBanner />
-                          </div>
+                          <AdsterraBanner320x50 />
                         )}
                       </React.Fragment>
                     );
@@ -704,8 +703,13 @@ export const LiveMatches: React.FC = () => {
           </AnimatePresence>
         </div>
 
-        {/* IN-LINE AD BANNER BETWEEN MATCHES SECTION AND RECOMMENDED NEWS */}
-        <div className="w-full my-4">
+        {/* ADSTERRA 320x50 BANNER AT THE END OF MATCH LIST / BEFORE NEWS SECTION */}
+        <div className="w-full my-2">
+          <AdsterraBanner320x50 />
+        </div>
+
+        {/* IN-LINE VIDEO AD BANNER */}
+        <div className="w-full my-3">
           <CompetitionAdBanner />
         </div>
 

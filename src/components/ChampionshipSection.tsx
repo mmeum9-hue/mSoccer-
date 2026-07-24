@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Trophy, ArrowRight, ShieldCheck, History, Calendar, Award } from 'lucide-react';
 import { CompetitionAdBanner } from './CompetitionAdBanner';
+import { AdsterraBanner320x50 } from './AdsterraBanner320x50';
 
 export const ChampionshipSection: React.FC = () => {
   const { championships, navigateTo } = useApp();
@@ -119,9 +120,7 @@ export const ChampionshipSection: React.FC = () => {
 
                 {/* AD BANNER BETWEEN COMPETITIONS */}
                 {index < activeChamps.length - 1 && (
-                  <div className="w-full my-2">
-                    <CompetitionAdBanner />
-                  </div>
+                  <AdsterraBanner320x50 />
                 )}
               </React.Fragment>
             ))
