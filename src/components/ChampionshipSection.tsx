@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Trophy, ArrowRight, ShieldCheck, History, Calendar, Award } from 'lucide-react';
+import { CompetitionAdBanner } from './CompetitionAdBanner';
 
 export const ChampionshipSection: React.FC = () => {
   const { championships, navigateTo } = useApp();
@@ -54,67 +55,75 @@ export const ChampionshipSection: React.FC = () => {
               <p className="text-xs text-zinc-400">Você pode criar ou ativar campeonatos através do Painel Admin!</p>
             </div>
           ) : (
-            activeChamps.map((champ) => (
-              <div
-                key={champ.id}
-                onClick={() => navigateTo({ type: 'league', id: champ.id })}
-                className="w-full bg-white dark:bg-[#1E293B] p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col space-y-3 rounded-none shadow-none"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    {champ.logoUrl ? (
-                      <img src={champ.logoUrl} alt="" className="w-8 h-8 object-contain bg-slate-50 dark:bg-slate-800 p-0.5 shrink-0" />
-                    ) : (
-                      <span className="text-2xl">🏆</span>
-                    )}
-                    <div>
-                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-snug">
-                        {champ.name}
-                      </h3>
-                      <p className="text-[10px] text-slate-400 font-semibold uppercase">
-                        Temporada {champ.season} • {champ.type}
-                      </p>
+            activeChamps.map((champ, index) => (
+              <React.Fragment key={champ.id}>
+                <div
+                  onClick={() => navigateTo({ type: 'league', id: champ.id })}
+                  className="w-full bg-white dark:bg-[#1E293B] p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col space-y-3 rounded-none shadow-none"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {champ.logoUrl ? (
+                        <img src={champ.logoUrl} alt="" className="w-8 h-8 object-contain bg-slate-50 dark:bg-slate-800 p-0.5 shrink-0" />
+                      ) : (
+                        <span className="text-2xl">🏆</span>
+                      )}
+                      <div>
+                        <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-snug">
+                          {champ.name}
+                        </h3>
+                        <p className="text-[10px] text-slate-400 font-semibold uppercase">
+                          Temporada {champ.season} • {champ.type}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2 py-0.5">
+                      R{champ.currentRound}
+                    </span>
+                  </div>
+
+                  {/* Quick mini standings snapshot of top 3 */}
+                  <div className="w-full bg-slate-50 dark:bg-[#0F172A] p-2.5 space-y-1.5 border-y border-slate-100 dark:border-slate-800/50">
+                    <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Líderes</span>
+                    <div className="space-y-1">
+                      {champ.standings.slice(0, 3).map((team, idx) => (
+                        <div key={team.clubId} className="flex items-center justify-between text-xs">
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigateTo({ type: 'club', id: team.clubId });
+                            }}
+                            className="flex items-center space-x-2 cursor-pointer group/leader"
+                          >
+                            <span className="font-mono text-[10px] text-zinc-400 font-black">#{idx + 1}</span>
+                            <img src={team.logoUrl} alt="" className="w-4 h-4 rounded-full group-hover/leader:scale-110 transition-transform" />
+                            <span className="text-[12px] font-medium text-zinc-700 dark:text-zinc-300 group-hover/leader:text-blue-600 dark:group-hover/leader:text-blue-400 transition-colors">{team.clubName}</span>
+                          </div>
+                          <span className="font-mono font-bold text-zinc-900 dark:text-white">{team.points} pts</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <span className="text-xs bg-blue-50 text-blue-600 font-bold px-2 py-0.5">
-                    R{champ.currentRound}
-                  </span>
-                </div>
 
-                {/* Quick mini standings snapshot of top 3 */}
-                <div className="w-full bg-slate-50 dark:bg-[#0F172A] p-2.5 space-y-1.5 border-y border-slate-100 dark:border-slate-800/50">
-                  <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Líderes</span>
-                  <div className="space-y-1">
-                    {champ.standings.slice(0, 3).map((team, idx) => (
-                      <div key={team.clubId} className="flex items-center justify-between text-xs">
-                        <div 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigateTo({ type: 'club', id: team.clubId });
-                          }}
-                          className="flex items-center space-x-2 cursor-pointer group/leader"
-                        >
-                          <span className="font-mono text-[10px] text-zinc-400 font-black">#{idx + 1}</span>
-                          <img src={team.logoUrl} alt="" className="w-4 h-4 rounded-full group-hover/leader:scale-110 transition-transform" />
-                          <span className="text-[12px] font-medium text-zinc-700 dark:text-zinc-300 group-hover/leader:text-blue-600 dark:group-hover/leader:text-blue-400 transition-colors">{team.clubName}</span>
-                        </div>
-                        <span className="font-mono font-bold text-zinc-900 dark:text-white">{team.points} pts</span>
-                      </div>
-                    ))}
+                  <div className="flex justify-between items-center text-xs font-semibold pt-0.5">
+                    <span className="text-zinc-400 flex items-center space-x-1.5 text-[10px]">
+                      <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>{champ.standings.length} clubes na disputa</span>
+                    </span>
+                    <span className="text-blue-600 font-bold flex items-center space-x-0.5">
+                      <span>Tabela Completa</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center text-xs font-semibold pt-0.5">
-                  <span className="text-zinc-400 flex items-center space-x-1.5 text-[10px]">
-                    <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>{champ.standings.length} clubes na disputa</span>
-                  </span>
-                  <span className="text-blue-600 font-bold flex items-center space-x-0.5">
-                    <span>Tabela Completa</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              </div>
+                {/* AD BANNER BETWEEN COMPETITIONS */}
+                {index < activeChamps.length - 1 && (
+                  <div className="w-full my-2">
+                    <CompetitionAdBanner />
+                  </div>
+                )}
+              </React.Fragment>
             ))
           )}
         </div>

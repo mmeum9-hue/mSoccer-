@@ -4,6 +4,7 @@ import { translations } from '../translations';
 import { MatchStatus, Match, formatMatchMinute } from '../types';
 import { Star, Trophy, ChevronRight, Eye, Calendar, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { CompetitionAdBanner } from './CompetitionAdBanner';
 
 export const LiveMatches: React.FC = () => {
   const { matches, championships, news, favorites, toggleFavorite, navigateTo, user, language, headerColor } = useApp();
@@ -539,159 +540,173 @@ export const LiveMatches: React.FC = () => {
                     <p className="text-[10px] text-zinc-400">Tente favoritar clubes nas outras abas ou mude a data acima.</p>
                   </div>
                 ) : (
-                  Object.keys(matchesByLeague).sort().map((leagueName) => {
+                  Object.keys(matchesByLeague).sort().map((leagueName, leagueIndex, leagueArray) => {
                     const leagueMatches = matchesByLeague[leagueName];
                     
                     return (
-                      <div key={leagueName} className="w-full flex flex-col">
-                        {/* COMPETITION HEADER - OCCUPIES 100% WIDTH EDGE-TO-EDGE */}
-                        <div className="bg-[#F4F4F6] border-y border-zinc-200/60 py-1.5 px-4 flex items-center justify-between select-none">
-                          <span className="text-[10.5px] font-black text-zinc-600 uppercase tracking-wider">
-                            {leagueName}
-                          </span>
-                          <span className="text-[8.5px] text-zinc-400 font-bold uppercase tracking-widest">
-                            {leagueMatches.length} jogos
-                          </span>
-                        </div>
+                      <React.Fragment key={leagueName}>
+                        <div className="w-full flex flex-col">
+                          {/* COMPETITION HEADER - OCCUPIES 100% WIDTH EDGE-TO-EDGE */}
+                          <div className="bg-[#F4F4F6] border-y border-zinc-200/60 py-1.5 px-4 flex items-center justify-between select-none">
+                            <span className="text-[10.5px] font-black text-zinc-600 uppercase tracking-wider">
+                              {leagueName}
+                            </span>
+                            <span className="text-[8.5px] text-zinc-400 font-bold uppercase tracking-widest">
+                              {leagueMatches.length} jogos
+                            </span>
+                          </div>
 
-                        {/* CONTINUOUS MATCH LIST UNDER COMPETITION */}
-                        <div className="w-full divide-y divide-zinc-100 bg-white">
-                          {leagueMatches.map((match) => {
-                            const isFav = favorites?.matches?.includes(match.id) || false;
-                            const isLive = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
-                            const isFinishedOrLive = match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
-                            const isHomeWinner = isFinishedOrLive && match.score.home > match.score.away;
-                            const isAwayWinner = isFinishedOrLive && match.score.away > match.score.home;
-                            
-                            return (
-                              <div
-                                key={match.id}
-                                onClick={() => navigateTo({ type: 'match', id: match.id })}
-                                className="w-full flex items-center py-2 pl-9 pr-9 hover:bg-zinc-50/70 transition-all cursor-pointer select-none relative"
-                              >
-                                {/* Symmetrical Absolute Placements for Side Controls */}
-                                {/* Column 1: Star icon for Favorite (Absolutely positioned on the left) */}
-                                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center z-10">
-                                  <button
+                          {/* CONTINUOUS MATCH LIST UNDER COMPETITION (NO ADS INSIDE MATCHES) */}
+                          <div className="w-full divide-y divide-zinc-100 bg-white">
+                            {leagueMatches.map((match) => {
+                              const isFav = favorites?.matches?.includes(match.id) || false;
+                              const isLive = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
+                              const isFinishedOrLive = match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
+                              const isHomeWinner = isFinishedOrLive && match.score.home > match.score.away;
+                              const isAwayWinner = isFinishedOrLive && match.score.away > match.score.home;
+                              
+                              return (
+                                <div
+                                  key={match.id}
+                                  onClick={() => navigateTo({ type: 'match', id: match.id })}
+                                  className="w-full flex items-center py-2 pl-9 pr-9 hover:bg-zinc-50/70 transition-all cursor-pointer select-none relative"
+                                >
+                                  {/* Symmetrical Absolute Placements for Side Controls */}
+                                  {/* Column 1: Star icon for Favorite (Absolutely positioned on the left) */}
+                                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center z-10">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleFavorite('matches', match.id);
+                                      }}
+                                      className="p-1 text-zinc-300 hover:text-yellow-400 transition-colors cursor-pointer"
+                                    >
+                                      <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-300'}`} />
+                                    </button>
+                                  </div>
+
+                                  {/* Column 2: Home Team (Right-aligned, flex-1) */}
+                                  <div 
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      toggleFavorite('matches', match.id);
+                                      navigateTo({ type: 'club', id: match.homeClubId });
                                     }}
-                                    className="p-1 text-zinc-300 hover:text-yellow-400 transition-colors cursor-pointer"
+                                    className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
                                   >
-                                    <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-300'}`} />
-                                  </button>
-                                </div>
+                                    <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                      isHomeWinner 
+                                        ? 'font-black text-black dark:text-white' 
+                                        : (isAwayWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
+                                    }`}>
+                                      {match.homeClubName}
+                                    </span>
+                                    <img
+                                      src={match.homeClubLogo}
+                                      alt={match.homeClubName}
+                                      className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  </div>
 
-                                {/* Column 2: Home Team (Right-aligned, flex-1) */}
-                                <div 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigateTo({ type: 'club', id: match.homeClubId });
-                                  }}
-                                  className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
-                                >
-                                  <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
-                                    isHomeWinner 
-                                      ? 'font-black text-black dark:text-white' 
-                                      : (isAwayWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
-                                  }`}>
-                                    {match.homeClubName}
-                                  </span>
-                                  <img
-                                    src={match.homeClubLogo}
-                                    alt={match.homeClubName}
-                                    className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-
-                                {/* Column 3: Central Time/Score Column (Fixed width, dead center) */}
-                                <div className="w-20 shrink-0 flex flex-col items-center justify-center text-center">
-                                  {match.status === MatchStatus.SCHEDULED ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                      <span className="text-[11.5px] font-black text-zinc-800 font-mono tracking-tight">
-                                        {match.time}
-                                      </span>
-                                      <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
-                                        AGEND
-                                      </span>
-                                    </div>
-                                  ) : match.status === MatchStatus.POSTPONED ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                      <span className="text-[11.5px] font-black text-zinc-500 font-mono tracking-tight line-through">
-                                        {match.time}
-                                      </span>
-                                      <span className="text-[8px] bg-amber-100 text-amber-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider mt-0.5">
-                                        ADIADO
-                                      </span>
-                                    </div>
-                                  ) : isLive ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                      <span className="text-[13px] font-mono tracking-tight leading-none">
-                                        <span className={isHomeWinner ? 'font-black text-rose-600' : (isAwayWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.home}</span>
-                                        <span className="text-zinc-400 font-normal px-0.5">-</span>
-                                        <span className={isAwayWinner ? 'font-black text-rose-600' : (isHomeWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.away}</span>
-                                      </span>
-                                      <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 justify-center animate-pulse">
-                                        <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
-                                        <span>
-                                          {match.status === MatchStatus.HT ? 'INT' : formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
+                                  {/* Column 3: Central Time/Score Column (Fixed width, dead center) */}
+                                  <div className="w-20 shrink-0 flex flex-col items-center justify-center text-center">
+                                    {match.status === MatchStatus.SCHEDULED ? (
+                                      <div className="flex flex-col items-center justify-center">
+                                        <span className="text-[11.5px] font-black text-zinc-800 font-mono tracking-tight">
+                                          {match.time}
                                         </span>
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center justify-center">
-                                      <span className="text-[12.5px] font-mono tracking-tight leading-none">
-                                        <span className={isHomeWinner ? 'font-black text-black dark:text-white' : (isAwayWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.home}</span>
-                                        <span className="text-zinc-400 font-normal px-0.5">-</span>
-                                        <span className={isAwayWinner ? 'font-black text-black dark:text-white' : (isHomeWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.away}</span>
-                                      </span>
-                                      <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
-                                        FIM
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
+                                        <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                          AGEND
+                                        </span>
+                                      </div>
+                                    ) : match.status === MatchStatus.POSTPONED ? (
+                                      <div className="flex flex-col items-center justify-center">
+                                        <span className="text-[11.5px] font-black text-zinc-500 font-mono tracking-tight line-through">
+                                          {match.time}
+                                        </span>
+                                        <span className="text-[8px] bg-amber-100 text-amber-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider mt-0.5">
+                                          ADIADO
+                                        </span>
+                                      </div>
+                                    ) : isLive ? (
+                                      <div className="flex flex-col items-center justify-center">
+                                        <span className="text-[13px] font-mono tracking-tight leading-none">
+                                          <span className={isHomeWinner ? 'font-black text-rose-600' : (isAwayWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.home}</span>
+                                          <span className="text-zinc-400 font-normal px-0.5">-</span>
+                                          <span className={isAwayWinner ? 'font-black text-rose-600' : (isHomeWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.away}</span>
+                                        </span>
+                                        <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 justify-center animate-pulse">
+                                          <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
+                                          <span>
+                                            {match.status === MatchStatus.HT ? 'INT' : formatMatchMinute(match.minute, match.injuryTime1stHalf, match.injuryTime2ndHalf)}
+                                          </span>
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-center justify-center">
+                                        <span className="text-[12.5px] font-mono tracking-tight leading-none">
+                                          <span className={isHomeWinner ? 'font-black text-black dark:text-white' : (isAwayWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.home}</span>
+                                          <span className="text-zinc-400 font-normal px-0.5">-</span>
+                                          <span className={isAwayWinner ? 'font-black text-black dark:text-white' : (isHomeWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.away}</span>
+                                        </span>
+                                        <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
+                                          FIM
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                                {/* Column 4: Away Team (Left-aligned, flex-1) */}
-                                <div 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigateTo({ type: 'club', id: match.awayClubId });
-                                  }}
-                                  className="flex-1 min-w-0 flex items-center justify-start space-x-2 text-left cursor-pointer group pl-2"
-                                >
-                                  <img
-                                    src={match.awayClubLogo}
-                                    alt={match.awayClubName}
-                                    className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
-                                    isAwayWinner 
-                                      ? 'font-black text-black dark:text-white' 
-                                      : (isHomeWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
-                                  }`}>
-                                    {match.awayClubName}
-                                  </span>
-                                </div>
+                                  {/* Column 4: Away Team (Left-aligned, flex-1) */}
+                                  <div 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigateTo({ type: 'club', id: match.awayClubId });
+                                    }}
+                                    className="flex-1 min-w-0 flex items-center justify-start space-x-2 text-left cursor-pointer group pl-2"
+                                  >
+                                    <img
+                                      src={match.awayClubLogo}
+                                      alt={match.awayClubName}
+                                      className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                      isAwayWinner 
+                                        ? 'font-black text-black dark:text-white' 
+                                        : (isHomeWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
+                                    }`}>
+                                      {match.awayClubName}
+                                    </span>
+                                  </div>
 
-                                {/* Column 5: Right Chevron navigation target (Absolutely positioned on the right) */}
-                                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center text-zinc-300 z-10">
-                                  <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />
+                                  {/* Column 5: Right Chevron navigation target (Absolutely positioned on the right) */}
+                                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center text-zinc-300 z-10">
+                                    <ChevronRight className="w-3.5 h-3.5 text-zinc-300" />
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
+
+                        {/* BESOCCER VIDEO AD BANNER - ONLY BETWEEN COMPETITIONS */}
+                        {leagueIndex < leagueArray.length - 1 && (
+                          <div className="w-full my-2">
+                            <CompetitionAdBanner />
+                          </div>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
               </div>
             </motion.div>
           </AnimatePresence>
+        </div>
+
+        {/* IN-LINE AD BANNER BETWEEN MATCHES SECTION AND RECOMMENDED NEWS */}
+        <div className="w-full my-4">
+          <CompetitionAdBanner />
         </div>
 
         {/* 6. COMPACT BE-SOCCER NEWS CAROUSEL AT FOOTER */}
