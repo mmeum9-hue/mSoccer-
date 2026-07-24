@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { 
   ArrowLeft, Star, Search, Trophy, Award, Calendar, 
   Activity, Clock, AlertCircle, ChevronRight, User, X, 
-  Check, Eye, ArrowRight, TrendingUp
+  Check, Eye, ArrowRight, TrendingUp, Edit2
 } from 'lucide-react';
 import { Club, Match, Player, NewsArticle, MatchStatus } from '../types';
 
@@ -91,12 +91,15 @@ const MOCK_SQUAD_ABB: Player[] = [
 ];
 
 export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
-  const { clubs, players, championships, matches, news, favorites, toggleFavorite, navigateBack, navigateTo } = useApp();
+  const { clubs, players, championships, matches, news, favorites, toggleFavorite, navigateBack, navigateTo, updateClub, setToast } = useApp();
 
   const [activeTab, setActiveTab] = useState<'info' | 'matches' | 'transfers' | 'squad'>('info');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNews, setSelectedNews] = useState<NewsArticle | null>(null);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [renameName, setRenameName] = useState('');
+  const [renameShortName, setRenameShortName] = useState('');
 
   // Find club
   const club = clubs.find((c) => c.id === clubId) || clubs.find((c) => c.name.toLowerCase().includes('black')) || clubs[0];
@@ -355,9 +358,23 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
           
-          <span className="text-[15px] font-black tracking-tight text-white uppercase truncate max-w-[220px]">
-            {club.name}
-          </span>
+          <div className="flex items-center gap-1.5 max-w-[220px]">
+            <span className="text-[15px] font-black tracking-tight text-white uppercase truncate">
+              {club.name}
+            </span>
+            <button
+              onClick={() => {
+                setRenameName(club.name);
+                setRenameShortName(club.shortName || '');
+                setIsRenameModalOpen(true);
+              }}
+              title="Renomear Clube"
+              className="p-1 hover:bg-white/20 rounded-full transition-colors cursor-pointer shrink-0 text-white/90 hover:text-white"
+              id="club-rename-btn"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
           
           <div className="flex items-center gap-1">
             <button 
@@ -740,6 +757,35 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
               )}
             </div>
 
+            {/* F. GESTÃO / OPÇÕES DO CLUBE */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-3 shadow-sm space-y-2.5">
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-1.5">
+                  <Edit2 className="w-3.5 h-3.5 text-[#3C8C21]" /> GESTÃO DO CLUBE
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                    {club.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold block uppercase">
+                    Sigla: {club.shortName || club.name.substring(0, 3).toUpperCase()} • Técnico: {club.manager || 'Não informado'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setRenameName(club.name);
+                    setRenameShortName(club.shortName || '');
+                    setIsRenameModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-[#3C8C21] hover:bg-[#347A1C] text-white text-[10px] font-extrabold uppercase tracking-wider rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs shrink-0"
+                >
+                  <Edit2 className="w-3 h-3" /> Renomear
+                </button>
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -1042,6 +1088,95 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
                 Fechar Artigo
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* RENAME CLUB MODAL */}
+      {isRenameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md p-5 space-y-4 relative">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                  Renomear Clube
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsRenameModalOpen(false)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!renameName.trim()) return;
+                const updatedClub: Club = {
+                  ...club,
+                  name: renameName.trim(),
+                  shortName: renameShortName.trim() || renameName.trim().substring(0, 3).toUpperCase(),
+                };
+                updateClub(updatedClub);
+                setIsRenameModalOpen(false);
+                setToast({
+                  id: Date.now().toString(),
+                  title: 'Clube Renomeado',
+                  body: `Nome do clube alterado com sucesso para "${renameName.trim()}".`,
+                  type: 'sistema'
+                });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                  Nome Completo do Clube
+                </label>
+                <input
+                  type="text"
+                  value={renameName}
+                  onChange={(e) => setRenameName(e.target.value)}
+                  required
+                  placeholder="Ex: Costa do Sol, Ferroviário de Maputo..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                  Sigla / Nome Curto
+                </label>
+                <input
+                  type="text"
+                  value={renameShortName}
+                  onChange={(e) => setRenameShortName(e.target.value)}
+                  placeholder="Ex: CDS, FER, ABB..."
+                  maxLength={10}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRenameModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#3C8C21] hover:bg-[#347A1C] text-white text-xs font-black uppercase tracking-wider transition-colors shadow-md cursor-pointer"
+                >
+                  Salvar Alteração
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

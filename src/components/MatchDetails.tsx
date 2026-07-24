@@ -2668,7 +2668,11 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 <span className="text-[9.5px] text-white/80 font-black block uppercase tracking-wider">
                   {pHome}%
                 </span>
-                <span className="text-xs font-black tracking-wide text-white block truncate max-w-[90px] group-hover/home:underline">
+                <span className={`text-[12px] tracking-wide block truncate max-w-[110px] group-hover/home:underline ${
+                  (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away
+                    ? 'font-black text-white drop-shadow-sm' 
+                    : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home ? 'font-normal text-white/70' : 'font-medium text-white')
+                }`}>
                   {match.homeClubName}
                 </span>
               </div>
@@ -2764,7 +2768,11 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 <span className="text-[9.5px] text-white/80 font-black block uppercase tracking-wider">
                   {pAway}%
                 </span>
-                <span className="text-xs font-black tracking-wide text-white block truncate max-w-[90px] group-hover/away:underline">
+                <span className={`text-[12px] tracking-wide block truncate max-w-[110px] group-hover/away:underline ${
+                  (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home
+                    ? 'font-black text-white drop-shadow-sm' 
+                    : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away ? 'font-normal text-white/70' : 'font-medium text-white')
+                }`}>
                   {match.awayClubName}
                 </span>
               </div>

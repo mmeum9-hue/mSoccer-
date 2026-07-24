@@ -559,6 +559,9 @@ export const LiveMatches: React.FC = () => {
                           {leagueMatches.map((match) => {
                             const isFav = favorites?.matches?.includes(match.id) || false;
                             const isLive = match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
+                            const isFinishedOrLive = match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT;
+                            const isHomeWinner = isFinishedOrLive && match.score.home > match.score.away;
+                            const isAwayWinner = isFinishedOrLive && match.score.away > match.score.home;
                             
                             return (
                               <div
@@ -588,7 +591,11 @@ export const LiveMatches: React.FC = () => {
                                   }}
                                   className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
                                 >
-                                  <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
+                                  <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                    isHomeWinner 
+                                      ? 'font-black text-black dark:text-white' 
+                                      : (isAwayWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
+                                  }`}>
                                     {match.homeClubName}
                                   </span>
                                   <img
@@ -621,8 +628,10 @@ export const LiveMatches: React.FC = () => {
                                     </div>
                                   ) : isLive ? (
                                     <div className="flex flex-col items-center justify-center">
-                                      <span className="text-[13px] font-black font-mono text-rose-600 tracking-tight leading-none">
-                                        {match.score.home} - {match.score.away}
+                                      <span className="text-[13px] font-mono tracking-tight leading-none">
+                                        <span className={isHomeWinner ? 'font-black text-rose-600' : (isAwayWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.home}</span>
+                                        <span className="text-zinc-400 font-normal px-0.5">-</span>
+                                        <span className={isAwayWinner ? 'font-black text-rose-600' : (isHomeWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.away}</span>
                                       </span>
                                       <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 justify-center animate-pulse">
                                         <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
@@ -633,8 +642,10 @@ export const LiveMatches: React.FC = () => {
                                     </div>
                                   ) : (
                                     <div className="flex flex-col items-center justify-center">
-                                      <span className="text-[12.5px] font-black font-mono text-zinc-500 tracking-tight leading-none">
-                                        {match.score.home} - {match.score.away}
+                                      <span className="text-[12.5px] font-mono tracking-tight leading-none">
+                                        <span className={isHomeWinner ? 'font-black text-black dark:text-white' : (isAwayWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.home}</span>
+                                        <span className="text-zinc-400 font-normal px-0.5">-</span>
+                                        <span className={isAwayWinner ? 'font-black text-black dark:text-white' : (isHomeWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.away}</span>
                                       </span>
                                       <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
                                         FIM
@@ -657,7 +668,11 @@ export const LiveMatches: React.FC = () => {
                                     className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
                                     referrerPolicy="no-referrer"
                                   />
-                                  <span className="text-[11.5px] font-black text-zinc-800 uppercase tracking-tight break-words whitespace-normal max-w-[125px] group-hover:text-[#3C8C21] transition-colors leading-tight">
+                                  <span className={`text-[12px] break-words whitespace-normal max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                    isAwayWinner 
+                                      ? 'font-black text-black dark:text-white' 
+                                      : (isHomeWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
+                                  }`}>
                                     {match.awayClubName}
                                   </span>
                                 </div>

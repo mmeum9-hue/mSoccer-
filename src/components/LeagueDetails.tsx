@@ -111,7 +111,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                           className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105"
                           referrerPolicy="no-referrer"
                         />
-                        <span className="font-extrabold text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[10px] transition-colors truncate leading-tight">
+                        <span className="font-medium text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[12px] leading-snug transition-colors truncate">
                           {row.clubName}
                         </span>
                       </div>

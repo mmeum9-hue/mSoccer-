@@ -238,6 +238,13 @@ export const AdminPanel: React.FC = () => {
   const [newClubManager, setNewClubManager] = useState('');
   const [newClubLogo, setNewClubLogo] = useState('');
 
+  // Form states - Club Editing & Renaming
+  const [editingClubInfoId, setEditingClubInfoId] = useState<string | null>(null);
+  const [editClubName, setEditClubName] = useState('');
+  const [editClubShortName, setEditClubShortName] = useState('');
+  const [editClubStadium, setEditClubStadium] = useState('');
+  const [editClubManager, setEditClubManager] = useState('');
+
   // Form states - Player Creation
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerAge, setNewPlayerAge] = useState(22);
@@ -3723,18 +3730,140 @@ export const AdminPanel: React.FC = () => {
                               />
                             </label>
                             <div>
-                              <p className="text-xs font-black text-white">{club.name}</p>
-                              <p className="text-[10px] text-zinc-400">{club.stadium}</p>
+                              <div className="flex items-center space-x-1.5">
+                                <p className="text-xs font-black text-white">{club.name}</p>
+                                {club.shortName && (
+                                  <span className="text-[9px] bg-slate-800 text-emerald-400 font-mono px-1.5 py-0.5 rounded font-extrabold uppercase">
+                                    {club.shortName}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-zinc-400">{club.stadium || 'Estádio não cadastrado'}</p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => deleteClub(club.id)}
-                            className="text-rose-500 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded-lg cursor-pointer transition-colors"
-                            title="Excluir Clube"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => {
+                                if (editingClubInfoId === club.id) {
+                                  setEditingClubInfoId(null);
+                                } else {
+                                  setEditingClubInfoId(club.id);
+                                  setEditClubName(club.name);
+                                  setEditClubShortName(club.shortName || '');
+                                  setEditClubStadium(club.stadium || '');
+                                  setEditClubManager(club.manager || '');
+                                }
+                              }}
+                              className="text-emerald-400 hover:text-emerald-300 p-1.5 hover:bg-slate-800 rounded-lg cursor-pointer transition-colors"
+                              title="Renomear Clube / Editar Dados"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => deleteClub(club.id)}
+                              className="text-rose-500 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded-lg cursor-pointer transition-colors"
+                              title="Excluir Clube"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Inline Club Renaming & Information Editor */}
+                        {editingClubInfoId === club.id && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (!editClubName.trim()) return;
+                              updateClub({
+                                ...club,
+                                name: editClubName.trim(),
+                                shortName: editClubShortName.trim() || editClubName.trim().substring(0, 3).toUpperCase(),
+                                stadium: editClubStadium.trim(),
+                                manager: editClubManager.trim(),
+                              });
+                              setEditingClubInfoId(null);
+                              addLog('Clube Renomeado', `O clube foi atualizado para "${editClubName.trim()}"`, 'bg-emerald-500');
+                            }}
+                            className="bg-slate-950 border border-emerald-500/40 rounded-xl p-3 space-y-2.5 animate-fade-in"
+                          >
+                            <div className="flex justify-between items-center pb-1 border-b border-slate-800">
+                              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                <Edit2 className="w-3 h-3" /> Renomear & Editar Clube
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setEditingClubInfoId(null)}
+                                className="text-zinc-400 hover:text-white p-0.5 rounded cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-bold text-zinc-400 uppercase block">Nome do Clube</label>
+                              <input
+                                type="text"
+                                required
+                                value={editClubName}
+                                onChange={(e) => setEditClubName(e.target.value)}
+                                placeholder="Ex: Ferroviário de Maputo"
+                                className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-bold focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-bold text-zinc-400 uppercase block">Sigla / Curto</label>
+                                <input
+                                  type="text"
+                                  value={editClubShortName}
+                                  onChange={(e) => setEditClubShortName(e.target.value)}
+                                  placeholder="Ex: FER"
+                                  maxLength={10}
+                                  className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-bold focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-bold text-zinc-400 uppercase block">Técnico</label>
+                                <input
+                                  type="text"
+                                  value={editClubManager}
+                                  onChange={(e) => setEditClubManager(e.target.value)}
+                                  placeholder="Ex: Pep Guardiola"
+                                  className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-bold text-zinc-400 uppercase block">Estádio</label>
+                              <input
+                                type="text"
+                                value={editClubStadium}
+                                onChange={(e) => setEditClubStadium(e.target.value)}
+                                placeholder="Ex: Estádio da Machava"
+                                className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="flex space-x-2 pt-1">
+                              <button
+                                type="submit"
+                                className="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[10px] rounded-lg cursor-pointer uppercase tracking-wider transition-colors shadow-xs"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingClubInfoId(null)}
+                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-zinc-400 hover:text-white font-bold text-[10px] rounded-lg cursor-pointer transition-colors"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </form>
+                        )}
 
                         {/* Club Stats Snapshot */}
                         <div className="bg-slate-950 border border-slate-800/60 rounded-xl p-2.5 flex flex-col space-y-1.5 text-[10px]">
