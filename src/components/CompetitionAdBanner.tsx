@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Volume2, VolumeX, ExternalLink, X } from 'lucide-react';
 
 interface CompetitionAdBannerProps {
@@ -10,8 +10,6 @@ interface CompetitionAdBannerProps {
   sponsor?: string;
   /** Destination link */
   linkUrl?: string;
-  /** Adsterra or third party script tag ID if available */
-  scriptSrc?: string;
 }
 
 const DEFAULT_VIDEO_ADS = [
@@ -39,17 +37,15 @@ export const CompetitionAdBanner: React.FC<CompetitionAdBannerProps> = ({
   videoUrl,
   title,
   sponsor,
-  linkUrl,
-  scriptSrc
+  linkUrl
 }) => {
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [isClosed, setIsClosed] = useState(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Randomize fallback ad if not provided
+  // Randomize ad if not provided
   const [adConfig] = useState(() => {
     const randomAd = DEFAULT_VIDEO_ADS[Math.floor(Math.random() * DEFAULT_VIDEO_ADS.length)];
     return {
@@ -59,22 +55,6 @@ export const CompetitionAdBanner: React.FC<CompetitionAdBannerProps> = ({
       linkUrl: linkUrl || randomAd.linkUrl
     };
   });
-
-  // Inject script if third-party script provided
-  useEffect(() => {
-    if (!scriptSrc) return;
-    try {
-      const script = document.createElement('script');
-      script.src = scriptSrc;
-      script.async = true;
-      script.onerror = () => setHasError(true);
-      if (containerRef.current) {
-        containerRef.current.appendChild(script);
-      }
-    } catch {
-      setHasError(true);
-    }
-  }, [scriptSrc]);
 
   // If ad failed to load or user closed it, do not render ANY container space
   if (hasError || isClosed) {
@@ -95,12 +75,8 @@ export const CompetitionAdBanner: React.FC<CompetitionAdBannerProps> = ({
   };
 
   return (
-    <div 
-      ref={containerRef}
-      className="w-full bg-zinc-950 dark:bg-black border-y border-zinc-200/80 dark:border-zinc-800 transition-all select-none relative overflow-hidden my-0"
-      id="competition-ad-banner"
-    >
-      {/* Top Banner Control Bar - Subtle & Discardable */}
+    <div className="w-full bg-zinc-950 dark:bg-black border-y border-zinc-200/80 dark:border-zinc-800 transition-all select-none relative overflow-hidden my-1">
+      {/* Top Banner Control Bar */}
       <div className="w-full bg-zinc-900/90 px-3 py-1 flex items-center justify-between border-b border-zinc-800/60 text-zinc-400">
         <div className="flex items-center space-x-1.5">
           <span className="text-[7.5px] font-black tracking-widest text-zinc-400 uppercase bg-zinc-800 px-1.5 py-0.5 rounded-xs">
@@ -112,15 +88,13 @@ export const CompetitionAdBanner: React.FC<CompetitionAdBannerProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          {!scriptSrc && (
-            <button
-              onClick={toggleMute}
-              className="text-zinc-400 hover:text-white transition-colors p-0.5 cursor-pointer"
-              title={isMuted ? "Ativar som" : "Desativar som"}
-            >
-              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
-            </button>
-          )}
+          <button
+            onClick={toggleMute}
+            className="text-zinc-400 hover:text-white transition-colors p-0.5 cursor-pointer"
+            title={isMuted ? "Ativar som" : "Desativar som"}
+          >
+            {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+          </button>
           <button
             onClick={handleClose}
             className="text-zinc-400 hover:text-white transition-colors p-0.5 cursor-pointer"
@@ -131,57 +105,51 @@ export const CompetitionAdBanner: React.FC<CompetitionAdBannerProps> = ({
         </div>
       </div>
 
-      {/* Main Video Banner Body */}
-      {!scriptSrc ? (
-        <a
-          href={adConfig.linkUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block w-full relative group cursor-pointer"
-        >
-          <div className="w-full h-28 sm:h-36 bg-black relative overflow-hidden flex items-center justify-center">
-            <video
-              ref={videoRef}
-              src={adConfig.videoUrl}
-              autoPlay
-              loop
-              muted={isMuted}
-              playsInline
-              onLoadedData={() => setIsVideoLoaded(true)}
-              onError={() => setHasError(true)}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                isVideoLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-0'
-              }`}
-            />
+      {/* Main Video Banner Body - Inline & Seamless */}
+      <a
+        href={adConfig.linkUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block w-full relative group cursor-pointer"
+      >
+        <div className="w-full h-28 sm:h-36 bg-black relative overflow-hidden flex items-center justify-center">
+          <video
+            ref={videoRef}
+            src={adConfig.videoUrl}
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+            onLoadedData={() => setIsVideoLoaded(true)}
+            onError={() => setHasError(true)}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              isVideoLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-0'
+            }`}
+          />
 
-            {!isVideoLoaded && !hasError && (
-              <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
-                <span className="text-[9px] text-zinc-500 font-medium animate-pulse">
-                  Carregando anúncio...
-                </span>
-              </div>
-            )}
+          {!isVideoLoaded && !hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
+              <span className="text-[9px] text-zinc-500 font-medium animate-pulse">
+                Carregando anúncio...
+              </span>
+            </div>
+          )}
 
-            {/* Video Gradient Overlay with Title */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black text-white tracking-tight leading-snug line-clamp-1 group-hover:text-emerald-400 transition-colors">
-                  {adConfig.title}
-                </span>
-                <span className="shrink-0 ml-2 bg-[#3C8C21] text-white text-[8.5px] font-extrabold uppercase px-2 py-0.5 rounded-full flex items-center space-x-1 shadow-sm">
-                  <span>SABER MAIS</span>
-                  <ExternalLink className="w-2.5 h-2.5" />
-                </span>
-              </div>
+          {/* Video Gradient Overlay with Title */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black text-white tracking-tight leading-snug line-clamp-1 group-hover:text-emerald-400 transition-colors">
+                {adConfig.title}
+              </span>
+              <span className="shrink-0 ml-2 bg-[#3C8C21] text-white text-[8.5px] font-extrabold uppercase px-2 py-0.5 rounded-full flex items-center space-x-1 shadow-sm">
+                <span>SABER MAIS</span>
+                <ExternalLink className="w-2.5 h-2.5" />
+              </span>
             </div>
           </div>
-        </a>
-      ) : (
-        /* Third-party ad container slot */
-        <div id="adsterra-video-container" className="w-full min-h-[90px] flex items-center justify-center">
-          {/* Adsterra script will render inside containerRef */}
         </div>
-      )}
+      </a>
     </div>
   );
 };
+
