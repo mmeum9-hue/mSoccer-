@@ -307,6 +307,15 @@ export const AdminPanel: React.FC = () => {
   const [editSGoalsAgainst, setEditSGoalsAgainst] = useState(0);
   const [editSPoints, setEditSPoints] = useState(0);
   const [editSGroup, setEditSGroup] = useState('');
+  const [editSDeduction, setEditSDeduction] = useState(0);
+  const [editSDeductionReason, setEditSDeductionReason] = useState('');
+
+  // States for Dedicated Points Deduction Modal / Tool
+  const [deductionChampId, setDeductionChampId] = useState<string>('');
+  const [deductionClubId, setDeductionClubId] = useState<string>('');
+  const [deductionPoints, setDeductionPoints] = useState<number>(3);
+  const [deductionReason, setDeductionReason] = useState<string>('Punição Desportiva / Regulamento');
+  const [isDeductionModalOpen, setIsDeductionModalOpen] = useState<boolean>(false);
 
   // Custom confirmation states to replace window.confirm (since iframes block them)
   const [champIdToConfirmEnd, setChampIdToConfirmEnd] = useState<string | null>(null);
@@ -382,6 +391,10 @@ export const AdminPanel: React.FC = () => {
   const [statsShotsAway, setStatsShotsAway] = useState(0);
   const [statsShotsOnTargetHome, setStatsShotsOnTargetHome] = useState(0);
   const [statsShotsOnTargetAway, setStatsShotsOnTargetAway] = useState(0);
+  const [statsShotsOffTargetHome, setStatsShotsOffTargetHome] = useState(0);
+  const [statsShotsOffTargetAway, setStatsShotsOffTargetAway] = useState(0);
+  const [statsOffsidesHome, setStatsOffsidesHome] = useState(0);
+  const [statsOffsidesAway, setStatsOffsidesAway] = useState(0);
   const [statsBlockedShotsHome, setStatsBlockedShotsHome] = useState(0);
   const [statsBlockedShotsAway, setStatsBlockedShotsAway] = useState(0);
   const [statsSavesHome, setStatsSavesHome] = useState(0);
@@ -417,6 +430,10 @@ export const AdminPanel: React.FC = () => {
         setStatsShotsAway(s.shots?.away ?? 0);
         setStatsShotsOnTargetHome(s.shotsOnTarget?.home ?? 0);
         setStatsShotsOnTargetAway(s.shotsOnTarget?.away ?? 0);
+        setStatsShotsOffTargetHome(s.shotsOffTarget?.home ?? Math.max(0, (s.shots?.home ?? 0) - (s.shotsOnTarget?.home ?? 0) - (s.blockedShots?.home ?? 0)));
+        setStatsShotsOffTargetAway(s.shotsOffTarget?.away ?? Math.max(0, (s.shots?.away ?? 0) - (s.shotsOnTarget?.away ?? 0) - (s.blockedShots?.away ?? 0)));
+        setStatsOffsidesHome(s.offsides?.home ?? 0);
+        setStatsOffsidesAway(s.offsides?.away ?? 0);
         setStatsBlockedShotsHome(s.blockedShots?.home ?? 0);
         setStatsBlockedShotsAway(s.blockedShots?.away ?? 0);
         setStatsSavesHome(s.saves?.home ?? 0);
@@ -622,6 +639,8 @@ export const AdminPanel: React.FC = () => {
         possession: { home: statsPossessionHome, away: 100 - statsPossessionHome },
         shots: { home: statsShotsHome, away: statsShotsAway },
         shotsOnTarget: { home: statsShotsOnTargetHome, away: statsShotsOnTargetAway },
+        shotsOffTarget: { home: statsShotsOffTargetHome, away: statsShotsOffTargetAway },
+        offsides: { home: statsOffsidesHome, away: statsOffsidesAway },
         passes: { home: statsPassesHome, away: statsPassesAway },
         passAccuracy: { home: statsPassAccuracyHome, away: statsPassAccuracyAway },
         crosses: { home: statsCrossesHome, away: statsCrossesAway },
@@ -770,6 +789,7 @@ export const AdminPanel: React.FC = () => {
       ] : [],
       stats: {
         possession: { home: 50, away: 50 }, shots: { home: 0, away: 0 }, shotsOnTarget: { home: 0, away: 0 },
+        shotsOffTarget: { home: 0, away: 0 }, offsides: { home: 0, away: 0 },
         passes: { home: 0, away: 0 }, passAccuracy: { home: 0, away: 0 }, crosses: { home: 0, away: 0 },
         corners: { home: 0, away: 0 }, fouls: { home: 0, away: 0 }, saves: { home: 0, away: 0 },
         blockedShots: { home: 0, away: 0 }, dangerousAttacks: { home: 0, away: 0 }
@@ -1245,6 +1265,66 @@ export const AdminPanel: React.FC = () => {
     setEditSGoalsAgainst(row.goalsAgainst);
     setEditSPoints(row.points);
     setEditSGroup(row.group || '');
+    setEditSDeduction(row.pointsDeduction || 0);
+    setEditSDeductionReason(row.deductionReason || '');
+  };
+
+  const handleApplyPointsDeduction = (champId: string, clubId: string, pointsToDeduct: number, reason: string) => {
+    const champ = championships.find((c) => c.id === champId);
+    if (!champ) return;
+
+    const club = clubs.find((c) => c.id === clubId);
+    const clubName = club?.name || 'Clube';
+
+    const updatedStandings = champ.standings.map((row) => {
+      if (row.clubId === clubId) {
+        const deduction = Math.max(0, pointsToDeduct);
+        return {
+          ...row,
+          pointsDeduction: deduction,
+          deductionReason: reason.trim() || undefined,
+          baseStats: {
+            ...(row.baseStats || {
+              played: row.played,
+              won: row.won,
+              drawn: row.drawn,
+              lost: row.lost,
+              goalsFor: row.goalsFor,
+              goalsAgainst: row.goalsAgainst,
+              points: row.points
+            }),
+            pointsDeduction: deduction,
+            deductionReason: reason.trim() || undefined
+          }
+        };
+      }
+      return row;
+    });
+
+    // Re-sort standings considering points
+    updatedStandings.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+      return b.goalsFor - a.goalsFor;
+    });
+
+    const updatedChamp: Championship = {
+      ...champ,
+      standings: updatedStandings
+    };
+
+    updateChampionship(updatedChamp);
+
+    if (pointsToDeduct > 0) {
+      addLog('Remoção de Pontos Aplicada', `${clubName}: -${pointsToDeduct} pts em ${champ.name}`, 'bg-rose-500');
+      addNotification(
+        'Punição de Pontos',
+        `O ${clubName} teve ${pointsToDeduct} ponto(s) deduzido(s) no campeonato ${champ.name}.${reason ? ` Motivo: ${reason}` : ''}`,
+        'campeonato'
+      );
+    } else {
+      addLog('Punição de Pontos Cancelada', `Pontos restaurados para ${clubName} em ${champ.name}`, 'bg-emerald-500');
+    }
   };
 
   const handleSaveStandingRow = (champId: string, clubId: string) => {
@@ -1253,6 +1333,7 @@ export const AdminPanel: React.FC = () => {
 
     const updatedStandings = champ.standings.map((row) => {
       if (row.clubId === clubId) {
+        const deduction = Math.max(0, Number(editSDeduction));
         return {
           ...row,
           played: Number(editSPlayed),
@@ -1263,6 +1344,8 @@ export const AdminPanel: React.FC = () => {
           goalsAgainst: Number(editSGoalsAgainst),
           goalDifference: Number(editSGoalsFor) - Number(editSGoalsAgainst),
           points: Number(editSPoints),
+          pointsDeduction: deduction,
+          deductionReason: editSDeductionReason.trim() || undefined,
           group: editSGroup.trim() || undefined,
           baseStats: {
             played: Number(editSPlayed),
@@ -1271,7 +1354,9 @@ export const AdminPanel: React.FC = () => {
             lost: Number(editSLost),
             goalsFor: Number(editSGoalsFor),
             goalsAgainst: Number(editSGoalsAgainst),
-            points: Number(editSPoints)
+            points: Number(editSPoints),
+            pointsDeduction: deduction,
+            deductionReason: editSDeductionReason.trim() || undefined
           }
         };
       }
@@ -1567,47 +1652,62 @@ export const AdminPanel: React.FC = () => {
                 <div className="pb-2 border-b border-slate-800/60">
                   <span className="text-xs font-black uppercase text-zinc-400">⚡ Ações Rápidas de Gerenciamento</span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
                   <button
                     onClick={() => setActiveTab('leagues')}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
+                    className="flex flex-col items-center justify-center p-3.5 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
                   >
-                    <span className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-lg">🏆</span>
+                    <span className="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-base">🏆</span>
                     <span>Novo Campeonato</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('clubs')}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
+                    className="flex flex-col items-center justify-center p-3.5 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
                   >
-                    <span className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-lg">🛡️</span>
+                    <span className="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-base">🛡️</span>
                     <span>Novo Clube</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('matches')}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
+                    className="flex flex-col items-center justify-center p-3.5 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
                   >
-                    <span className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-lg">⚽</span>
+                    <span className="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-base">⚽</span>
                     <span>Nova Partida</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('players')}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
+                    className="flex flex-col items-center justify-center p-3.5 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
                   >
-                    <span className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-lg">🏃</span>
+                    <span className="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-base">🏃</span>
                     <span>Novo Jogador</span>
                   </button>
                   <button
-                    onClick={() => setActiveTab('news')}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
+                    onClick={() => {
+                      if (championships.length > 0) {
+                        setDeductionChampId(championships[0].id);
+                        if (championships[0].standings.length > 0) {
+                          setDeductionClubId(championships[0].standings[0].clubId);
+                        }
+                      }
+                      setIsDeductionModalOpen(true);
+                    }}
+                    className="flex flex-col items-center justify-center p-3.5 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-rose-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
                   >
-                    <span className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-lg">📰</span>
+                    <span className="w-9 h-9 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-400 group-hover:bg-rose-500/20 transition-all text-base">⚖️</span>
+                    <span className="text-rose-300">Remover Pontos</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('news')}
+                    className="flex flex-col items-center justify-center p-3.5 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-emerald-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
+                  >
+                    <span className="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all text-base">📰</span>
                     <span>Publicar Notícia</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('notifs')}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-purple-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
+                    className="flex flex-col items-center justify-center p-3.5 border border-slate-800 bg-slate-900/20 rounded-xl hover:bg-slate-800 hover:border-purple-500/30 text-xs font-bold transition-all text-center space-y-2 group cursor-pointer"
                   >
-                    <span className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition-all text-lg">🚀</span>
+                    <span className="w-9 h-9 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition-all text-base">🚀</span>
                     <span>Enviar Notificação</span>
                   </button>
                 </div>
@@ -2425,6 +2525,7 @@ export const AdminPanel: React.FC = () => {
                             <option value="RedCard">Cartão Vermelho</option>
                             <option value="Substitution">Substituição</option>
                             <option value="Corner">🚩 Escanteio</option>
+                            <option value="Offside">🚩 Impedimento</option>
                           </select>
                         </div>
                         <div className="space-y-1">
@@ -2722,6 +2823,54 @@ export const AdminPanel: React.FC = () => {
                               </div>
                             </div>
 
+                            {/* Chutes para Fora */}
+                            <div className="space-y-1 bg-rose-950/20 p-2 rounded-lg border border-rose-500/20">
+                              <label className="text-[10px] font-bold text-rose-400 uppercase flex items-center justify-between">
+                                <span>🚫 Chutes para fora</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOffTargetHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsShotsOffTargetHome}
+                                    onChange={(e) => setStatsShotsOffTargetHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-rose-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOffTargetHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs font-bold cursor-pointer"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOffTargetAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsShotsOffTargetAway}
+                                    onChange={(e) => setStatsShotsOffTargetAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-rose-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOffTargetAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs font-bold cursor-pointer"
+                                  >+</button>
+                                </div>
+                              </div>
+                            </div>
+
                             {/* Defesas do Goleiro */}
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-zinc-400 uppercase">Defesas do Goleiro</label>
@@ -2875,6 +3024,54 @@ export const AdminPanel: React.FC = () => {
                                     type="button"
                                     onClick={() => setStatsCornersAway(prev => prev + 1)}
                                     className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer"
+                                  >+</button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Impedimentos (Offsides) */}
+                            <div className="space-y-1 bg-sky-950/20 p-2 rounded-lg border border-sky-500/20">
+                              <label className="text-[10px] font-bold text-sky-400 uppercase flex items-center justify-between">
+                                <span>🚩 Impedimentos (Offsides)</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsOffsidesHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsOffsidesHome}
+                                    onChange={(e) => setStatsOffsidesHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-sky-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsOffsidesHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30 rounded text-xs font-bold cursor-pointer"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsOffsidesAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsOffsidesAway}
+                                    onChange={(e) => setStatsOffsidesAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-sky-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsOffsidesAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30 rounded text-xs font-bold cursor-pointer"
                                   >+</button>
                                 </div>
                               </div>
@@ -4866,30 +5063,48 @@ export const AdminPanel: React.FC = () => {
 
                               {/* Add club to standings form */}
                               {!isEnded && (
-                                clubsNotInStandings.length > 0 ? (
-                                  <div className="flex items-center space-x-2">
-                                    <select
-                                      value={selectedClubToAddToStandings}
-                                      onChange={(e) => setSelectedClubToAddToStandings(e.target.value)}
-                                      className="bg-[#0f172a] border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white"
-                                    >
-                                      <option value="">-- Adicionar clube --</option>
-                                      {clubsNotInStandings.map((c) => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddClubToStandings(champ.id)}
-                                      disabled={!selectedClubToAddToStandings}
-                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-                                    >
-                                      Adicionar à Tabela
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-[10px] text-zinc-500 uppercase italic">Todos os clubes participando</span>
-                                )
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeductionChampId(champ.id);
+                                      if (champ.standings.length > 0) {
+                                        setDeductionClubId(champ.standings[0].clubId);
+                                      }
+                                      setIsDeductionModalOpen(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-rose-600/90 hover:bg-rose-500 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
+                                    title="Abrir ferramenta de remoção / perda de pontos"
+                                  >
+                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                    <span>Remover Pontos</span>
+                                  </button>
+
+                                  {clubsNotInStandings.length > 0 ? (
+                                    <>
+                                      <select
+                                        value={selectedClubToAddToStandings}
+                                        onChange={(e) => setSelectedClubToAddToStandings(e.target.value)}
+                                        className="bg-[#0f172a] border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white"
+                                      >
+                                        <option value="">-- Adicionar clube --</option>
+                                        {clubsNotInStandings.map((c) => (
+                                          <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddClubToStandings(champ.id)}
+                                        disabled={!selectedClubToAddToStandings}
+                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        Adicionar à Tabela
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-zinc-500 uppercase italic">Todos os clubes participando</span>
+                                  )}
+                                </div>
                               )}
                             </div>
 
@@ -5038,7 +5253,19 @@ export const AdminPanel: React.FC = () => {
                                                   <span className="text-zinc-600 italic text-[10px]">-</span>
                                                 )}
                                               </td>
-                                              <td className="py-2.5 text-center font-bold text-emerald-400">{row.points}</td>
+                                              <td className="py-2.5 text-center font-bold text-emerald-400">
+                                                <div className="flex flex-col items-center justify-center">
+                                                  <span>{row.points}</span>
+                                                  {row.pointsDeduction && row.pointsDeduction > 0 ? (
+                                                    <span
+                                                      className="text-[8px] text-rose-400 font-black bg-rose-500/20 px-1 py-0.2 rounded border border-rose-500/30 leading-tight"
+                                                      title={`Punição: -${row.pointsDeduction} pts${row.deductionReason ? ` (${row.deductionReason})` : ''}`}
+                                                    >
+                                                      -{row.pointsDeduction} pts
+                                                    </span>
+                                                  ) : null}
+                                                </div>
+                                              </td>
                                               <td className="py-2.5 text-center text-white">{row.played}</td>
                                               <td className="py-2.5 text-center">{row.won}</td>
                                               <td className="py-2.5 text-center">{row.drawn}</td>
@@ -5051,6 +5278,20 @@ export const AdminPanel: React.FC = () => {
                                                   <span className="text-zinc-500 font-mono text-[10px] uppercase">🔒 Congelado</span>
                                                 ) : (
                                                   <>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setDeductionChampId(champ.id);
+                                                        setDeductionClubId(row.clubId);
+                                                        setDeductionPoints(row.pointsDeduction || 3);
+                                                        setDeductionReason(row.deductionReason || 'Punição Desportiva / Regulamento');
+                                                        setIsDeductionModalOpen(true);
+                                                      }}
+                                                      className="text-amber-400 hover:text-amber-300 hover:bg-slate-800 p-1 rounded cursor-pointer transition-colors"
+                                                      title="Remover / Deduzir Pontos do Clube"
+                                                    >
+                                                      <ShieldAlert className="w-3.5 h-3.5 inline" />
+                                                    </button>
                                                     <button
                                                       type="button"
                                                       onClick={() => {
@@ -5848,6 +6089,174 @@ export const AdminPanel: React.FC = () => {
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-35 text-white font-black text-xs rounded-xl cursor-pointer transition-colors"
               >
                 Confirmar e Zerar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REMOÇÃO DE PONTOS DOS CLUBES */}
+      {isDeductionModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setIsDeductionModalOpen(false)}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3 text-rose-500">
+              <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Remover Pontos de Clube</h3>
+                <p className="text-xs text-zinc-400">Aplicar punição / perda de pontos na classificação</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Seleção do Campeonato */}
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Campeonato</label>
+                <select
+                  value={deductionChampId}
+                  onChange={(e) => {
+                    const champId = e.target.value;
+                    setDeductionChampId(champId);
+                    const selectedC = championships.find(c => c.id === champId);
+                    if (selectedC && selectedC.standings.length > 0) {
+                      setDeductionClubId(selectedC.standings[0].clubId);
+                      setDeductionPoints(selectedC.standings[0].pointsDeduction || 3);
+                      setDeductionReason(selectedC.standings[0].deductionReason || 'Punição Desportiva / Regulamento');
+                    } else {
+                      setDeductionClubId('');
+                    }
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium focus:border-rose-500 outline-none"
+                >
+                  <option value="">-- Selecione o Campeonato --</option>
+                  {championships.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.season})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seleção do Clube */}
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Clube a ser Punido</label>
+                <select
+                  value={deductionClubId}
+                  onChange={(e) => {
+                    const clubId = e.target.value;
+                    setDeductionClubId(clubId);
+                    const selChamp = championships.find(c => c.id === deductionChampId);
+                    const selRow = selChamp?.standings.find(s => s.clubId === clubId);
+                    if (selRow) {
+                      setDeductionPoints(selRow.pointsDeduction || 3);
+                      setDeductionReason(selRow.deductionReason || 'Punição Desportiva / Regulamento');
+                    }
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium focus:border-rose-500 outline-none"
+                >
+                  <option value="">-- Selecione o Clube --</option>
+                  {championships
+                    .find((c) => c.id === deductionChampId)
+                    ?.standings.map((s) => (
+                      <option key={s.clubId} value={s.clubId}>
+                        {s.clubName} (Atual: {s.points} pts{s.pointsDeduction ? ` | Punição: -${s.pointsDeduction}` : ''})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Quantidade de Pontos a Deduzir */}
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">
+                  Pontos a Remover (Dedução)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={deductionPoints}
+                    onChange={(e) => setDeductionPoints(Math.max(0, Number(e.target.value)))}
+                    className="w-24 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-rose-400 font-black text-center text-sm focus:border-rose-500 outline-none"
+                  />
+                  <span className="text-zinc-400 text-xs">ponto(s) deduzido(s)</span>
+                </div>
+                <div className="flex space-x-1.5 mt-2">
+                  {[1, 3, 6, 9, 12, 15].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setDeductionPoints(val)}
+                      className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-colors cursor-pointer ${
+                        deductionPoints === val
+                          ? 'bg-rose-500/20 text-rose-400 border-rose-500/50'
+                          : 'bg-slate-950 text-zinc-400 border-slate-800 hover:text-white'
+                      }`}
+                    >
+                      -{val} pts
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Motivo da Punição */}
+              <div>
+                <label className="block text-zinc-300 font-bold mb-1">Motivo / Decisão Regulamentar</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Escalação irregular de atleta / Decisão TJD"
+                  value={deductionReason}
+                  onChange={(e) => setDeductionReason(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium focus:border-rose-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Ações */}
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+              {(() => {
+                const selChamp = championships.find(c => c.id === deductionChampId);
+                const selRow = selChamp?.standings.find(s => s.clubId === deductionClubId);
+                if (selRow && (selRow.pointsDeduction || 0) > 0) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleApplyPointsDeduction(deductionChampId, deductionClubId, 0, '');
+                        setIsDeductionModalOpen(false);
+                      }}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-bold rounded-xl transition-colors cursor-pointer mr-auto"
+                    >
+                      Restaurar Pontos
+                    </button>
+                  );
+                }
+                return null;
+              })()}
+
+              <button
+                type="button"
+                onClick={() => setIsDeductionModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-zinc-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!deductionChampId || !deductionClubId}
+                onClick={() => {
+                  handleApplyPointsDeduction(deductionChampId, deductionClubId, deductionPoints, deductionReason);
+                  setIsDeductionModalOpen(false);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-lg shadow-rose-600/20"
+              >
+                Aplicar Perda de Pontos
               </button>
             </div>
           </div>

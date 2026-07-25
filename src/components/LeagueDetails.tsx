@@ -141,7 +141,17 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                   </td>
 
                   <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-150 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/15">
-                    {row.points}
+                    <div className="flex flex-col items-center justify-center">
+                      <span>{row.points}</span>
+                      {row.pointsDeduction && row.pointsDeduction > 0 ? (
+                        <span
+                          className="text-[7.5px] font-extrabold text-rose-500 bg-rose-500/10 dark:bg-rose-950/40 px-1 rounded border border-rose-500/20 leading-tight mt-0.5"
+                          title={`Punição: -${row.pointsDeduction} pts${row.deductionReason ? ` (${row.deductionReason})` : ''}`}
+                        >
+                          -{row.pointsDeduction} pts
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="py-1 w-[8%] text-center border-r border-zinc-150 dark:border-slate-800">
                     <div className="flex flex-col items-center justify-center leading-none">

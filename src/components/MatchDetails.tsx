@@ -1005,7 +1005,17 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                         isAwayMatchTeam ? 'bg-rose-100/30 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-extrabold' :
                         'text-zinc-900 dark:text-white bg-slate-50/50 dark:bg-slate-950/15'
                       }`}>
-                        {row.points}
+                        <div className="flex flex-col items-center justify-center">
+                          <span>{row.points}</span>
+                          {row.pointsDeduction && row.pointsDeduction > 0 ? (
+                            <span
+                              className="text-[7.5px] font-extrabold text-rose-500 bg-rose-500/10 dark:bg-rose-950/40 px-1 rounded border border-rose-500/20 leading-tight mt-0.5"
+                              title={`Punição: -${row.pointsDeduction} pts${row.deductionReason ? ` (${row.deductionReason})` : ''}`}
+                            >
+                              -{row.pointsDeduction} pts
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="py-1 text-center border-r border-slate-200 dark:border-slate-800/80">
                         <div className="flex flex-col items-center justify-center leading-none">
@@ -1889,9 +1899,9 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 );
               };
 
-              // Calculate shots off target: shots - shotsOnTarget - blockedShots (fallback to 0)
-              const homeShotsOff = Math.max(0, (match.stats.shots?.home ?? 0) - (match.stats.shotsOnTarget?.home ?? 0) - (match.stats.blockedShots?.home ?? 0));
-              const awayShotsOff = Math.max(0, (match.stats.shots?.away ?? 0) - (match.stats.shotsOnTarget?.away ?? 0) - (match.stats.blockedShots?.away ?? 0));
+              // Calculate shots off target: explicit value or fallback to shots - shotsOnTarget - blockedShots
+              const homeShotsOff = match.stats.shotsOffTarget?.home ?? Math.max(0, (match.stats.shots?.home ?? 0) - (match.stats.shotsOnTarget?.home ?? 0) - (match.stats.blockedShots?.home ?? 0));
+              const awayShotsOff = match.stats.shotsOffTarget?.away ?? Math.max(0, (match.stats.shots?.away ?? 0) - (match.stats.shotsOnTarget?.away ?? 0) - (match.stats.blockedShots?.away ?? 0));
 
               // Calculate completed passes
               const homePassesCompleted = Math.round((match.stats.passes?.home ?? 0) * ((match.stats.passAccuracy?.home ?? 80) / 100));
@@ -1916,6 +1926,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       ATAQUE & ESCANTEIOS
                     </h4>
                     {renderStatRow("Escanteios", match.stats.corners?.home ?? 0, match.stats.corners?.away ?? 0, match.stats.corners?.home ?? 0, match.stats.corners?.away ?? 0)}
+                    {renderStatRow("Impedimentos", match.stats.offsides?.home ?? 0, match.stats.offsides?.away ?? 0, match.stats.offsides?.home ?? 0, match.stats.offsides?.away ?? 0)}
                     {renderStatRow("Cruzamentos", match.stats.crosses?.home ?? 0, match.stats.crosses?.away ?? 0, match.stats.crosses?.home ?? 0, match.stats.crosses?.away ?? 0)}
                     {renderStatRow("Ataques perigosos", match.stats.dangerousAttacks?.home ?? 0, match.stats.dangerousAttacks?.away ?? 0, match.stats.dangerousAttacks?.home ?? 0, match.stats.dangerousAttacks?.away ?? 0)}
                   </div>

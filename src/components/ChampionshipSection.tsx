@@ -101,7 +101,14 @@ export const ChampionshipSection: React.FC = () => {
                             <img src={team.logoUrl} alt="" className="w-4 h-4 rounded-full group-hover/leader:scale-110 transition-transform" />
                             <span className="text-[12px] font-medium whitespace-pre-line text-zinc-700 dark:text-zinc-300 group-hover/leader:text-blue-600 dark:group-hover/leader:text-blue-400 transition-colors">{formatTeamName(team.clubName)}</span>
                           </div>
-                          <span className="font-mono font-bold text-zinc-900 dark:text-white">{team.points} pts</span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="font-mono font-bold text-zinc-900 dark:text-white">{team.points} pts</span>
+                            {team.pointsDeduction && team.pointsDeduction > 0 ? (
+                              <span className="text-[8.5px] font-bold text-rose-500 bg-rose-500/10 dark:bg-rose-950/40 px-1 rounded border border-rose-500/20" title={`Punição: -${team.pointsDeduction} pts`}>
+                                (-{team.pointsDeduction})
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       ))}
                     </div>

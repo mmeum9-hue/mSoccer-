@@ -65,6 +65,8 @@ export interface StandingRow {
   goalsAgainst: number;
   goalDifference: number;
   points: number;
+  pointsDeduction?: number;
+  deductionReason?: string;
   group?: string;
   baseStats?: {
     played: number;
@@ -74,6 +76,8 @@ export interface StandingRow {
     goalsFor: number;
     goalsAgainst: number;
     points: number;
+    pointsDeduction?: number;
+    deductionReason?: string;
   };
 }
 
@@ -116,6 +120,8 @@ export interface MatchStats {
   possession: { home: number; away: number }; // percentages
   shots: { home: number; away: number };
   shotsOnTarget: { home: number; away: number };
+  shotsOffTarget?: { home: number; away: number };
+  offsides?: { home: number; away: number };
   passes: { home: number; away: number };
   passAccuracy: { home: number; away: number }; // percentages
   crosses: { home: number; away: number };

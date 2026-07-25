@@ -1330,6 +1330,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const baseGoalsAgainst = row.baseStats?.goalsAgainst ?? club?.stats?.goalsConceded ?? row.goalsAgainst ?? 0;
         const basePlayed = row.baseStats?.played ?? (club?.stats ? (club.stats.wins + club.stats.draws + club.stats.losses) : undefined) ?? row.played ?? (baseWins + baseDraws + baseLosses);
         const basePoints = row.baseStats?.points ?? (club?.stats ? (club.stats.wins * 3 + club.stats.draws) : undefined) ?? row.points ?? (baseWins * 3 + baseDraws);
+        const pointsDeduction = row.pointsDeduction ?? row.baseStats?.pointsDeduction ?? 0;
+        const deductionReason = row.deductionReason ?? row.baseStats?.deductionReason ?? '';
 
         return {
           ...row,
@@ -1342,7 +1344,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           goalsFor: baseGoalsFor,
           goalsAgainst: baseGoalsAgainst,
           goalDifference: baseGoalsFor - baseGoalsAgainst,
-          points: basePoints
+          points: basePoints,
+          pointsDeduction,
+          deductionReason
         };
       });
 
@@ -1385,9 +1389,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
-      // Correct goalDifference
+      // Correct goalDifference and apply points deduction
       resetStandings.forEach((row) => {
         row.goalDifference = row.goalsFor - row.goalsAgainst;
+        if (row.pointsDeduction && row.pointsDeduction > 0) {
+          row.points = Math.max(0, row.points - row.pointsDeduction);
+        }
       });
 
       // Sort standings (points DESC, then goal difference DESC, then goals for DESC)
@@ -1757,6 +1764,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const baseGoalsAgainst = row.baseStats?.goalsAgainst ?? club?.stats?.goalsConceded ?? row.goalsAgainst ?? 0;
           const basePlayed = row.baseStats?.played ?? (club?.stats ? (club.stats.wins + club.stats.draws + club.stats.losses) : undefined) ?? row.played ?? (baseWins + baseDraws + baseLosses);
           const basePoints = row.baseStats?.points ?? (club?.stats ? (club.stats.wins * 3 + club.stats.draws) : undefined) ?? row.points ?? (baseWins * 3 + baseDraws);
+          const pointsDeduction = row.pointsDeduction ?? row.baseStats?.pointsDeduction ?? 0;
+          const deductionReason = row.deductionReason ?? row.baseStats?.deductionReason ?? '';
 
           return {
             ...row,
@@ -1769,7 +1778,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             goalsFor: baseGoalsFor,
             goalsAgainst: baseGoalsAgainst,
             goalDifference: baseGoalsFor - baseGoalsAgainst,
-            points: basePoints
+            points: basePoints,
+            pointsDeduction,
+            deductionReason
           };
         });
 
@@ -1812,9 +1823,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // Correct goalDifference
+        // Correct goalDifference and apply points deduction
         resetStandings.forEach((row) => {
           row.goalDifference = row.goalsFor - row.goalsAgainst;
+          if (row.pointsDeduction && row.pointsDeduction > 0) {
+            row.points = Math.max(0, row.points - row.pointsDeduction);
+          }
         });
 
         // Sort standings
