@@ -1573,13 +1573,13 @@ export const AdminPanel: React.FC = () => {
           deductionReason: editSDeductionReason.trim() || undefined,
           group: editSGroup.trim() || undefined,
           baseStats: {
-            played: targetPlayed - fPlayed,
-            won: targetWon - fWins,
-            drawn: targetDrawn - fDraws,
-            lost: targetLost - fLosses,
-            goalsFor: targetGoalsFor - fGP,
-            goalsAgainst: targetGoalsAgainst - fGC,
-            points: targetPoints - fPts,
+            played: Math.max(0, targetPlayed - fPlayed),
+            won: Math.max(0, targetWon - fWins),
+            drawn: Math.max(0, targetDrawn - fDraws),
+            lost: Math.max(0, targetLost - fLosses),
+            goalsFor: Math.max(0, targetGoalsFor - fGP),
+            goalsAgainst: Math.max(0, targetGoalsAgainst - fGC),
+            points: Math.max(0, targetPoints - fPts),
             pointsDeduction: deduction,
             deductionReason: editSDeductionReason.trim() || undefined
           }
@@ -1602,6 +1602,21 @@ export const AdminPanel: React.FC = () => {
     };
 
     updateChampionship(updatedChamp);
+
+    const club = clubs.find((c) => c.id === clubId);
+    if (club) {
+      updateClub({
+        ...club,
+        stats: {
+          wins: targetWon,
+          draws: targetDrawn,
+          losses: targetLost,
+          goalsScored: targetGoalsFor,
+          goalsConceded: targetGoalsAgainst
+        }
+      });
+    }
+
     addLog('Classificação atualizada', champ.name, 'bg-emerald-500');
     setEditingStandingClubId(null);
   };
@@ -1664,13 +1679,13 @@ export const AdminPanel: React.FC = () => {
           deductionReason: quickDeductionReason.trim() || undefined,
           group: quickGroup.trim() || undefined,
           baseStats: {
-            played: targetPlayed - fPlayed,
-            won: targetWon - fWins,
-            drawn: targetDrawn - fDraws,
-            lost: targetLost - fLosses,
-            goalsFor: targetGoalsFor - fGP,
-            goalsAgainst: targetGoalsAgainst - fGC,
-            points: targetPoints - fPts,
+            played: Math.max(0, targetPlayed - fPlayed),
+            won: Math.max(0, targetWon - fWins),
+            drawn: Math.max(0, targetDrawn - fDraws),
+            lost: Math.max(0, targetLost - fLosses),
+            goalsFor: Math.max(0, targetGoalsFor - fGP),
+            goalsAgainst: Math.max(0, targetGoalsAgainst - fGC),
+            points: Math.max(0, targetPoints - fPts),
             pointsDeduction: deduction,
             deductionReason: quickDeductionReason.trim() || undefined
           }
@@ -1696,13 +1711,13 @@ export const AdminPanel: React.FC = () => {
         deductionReason: quickDeductionReason.trim() || undefined,
         group: quickGroup.trim() || undefined,
         baseStats: {
-          played: targetPlayed - fPlayed,
-          won: targetWon - fWins,
-          drawn: targetDrawn - fDraws,
-          lost: targetLost - fLosses,
-          goalsFor: targetGoalsFor - fGP,
-          goalsAgainst: targetGoalsAgainst - fGC,
-          points: targetPoints - fPts,
+          played: Math.max(0, targetPlayed - fPlayed),
+          won: Math.max(0, targetWon - fWins),
+          drawn: Math.max(0, targetDrawn - fDraws),
+          lost: Math.max(0, targetLost - fLosses),
+          goalsFor: Math.max(0, targetGoalsFor - fGP),
+          goalsAgainst: Math.max(0, targetGoalsAgainst - fGC),
+          points: Math.max(0, targetPoints - fPts),
           pointsDeduction: deduction,
           deductionReason: quickDeductionReason.trim() || undefined
         }
