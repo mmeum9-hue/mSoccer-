@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { getPlayerPhoto, handlePlayerImageError, DEFAULT_PLAYER_AVATAR } from '../utils/avatar';
 import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer } from '../types';
 import { LineChart, DonutChart } from './AdminCharts';
 import { compressImage } from './imageCompressor';
@@ -114,6 +115,13 @@ export const AdminPanel: React.FC = () => {
   const [homeScoreInput, setHomeScoreInput] = useState<number>(0);
   const [awayScoreInput, setAwayScoreInput] = useState<number>(0);
 
+  // Accordion state for match management options
+  const [openMatchAccordion, setOpenMatchAccordion] = useState<'events' | 'stats' | 'tactics' | null>(null);
+
+  const toggleMatchAccordion = (section: 'events' | 'stats' | 'tactics') => {
+    setOpenMatchAccordion((prev) => (prev === section ? null : section));
+  };
+
   // States for editing club statistics
   const [editingClubId, setEditingClubId] = useState<string | null>(null);
   const [selectedChampIdForEdit, setSelectedChampIdForEdit] = useState<string>('global');
@@ -189,6 +197,69 @@ export const AdminPanel: React.FC = () => {
       }
     }
   }, [selectedChampIdForEdit, editingClubId, clubs, championships]);
+
+  // States for Quick Standings & Points Editing Widget
+  const [quickChampId, setQuickChampId] = useState<string>('');
+  const [quickClubId, setQuickClubId] = useState<string>('');
+  const [quickPoints, setQuickPoints] = useState<number>(0);
+  const [quickWon, setQuickWon] = useState<number>(0);
+  const [quickDrawn, setQuickDrawn] = useState<number>(0);
+  const [quickLost, setQuickLost] = useState<number>(0);
+  const [quickGoalsFor, setQuickGoalsFor] = useState<number>(0);
+  const [quickGoalsAgainst, setQuickGoalsAgainst] = useState<number>(0);
+  const [quickGroup, setQuickGroup] = useState<string>('');
+  const [quickDeduction, setQuickDeduction] = useState<number>(0);
+  const [quickDeductionReason, setQuickDeductionReason] = useState<string>('');
+
+  // Auto-sync quick standings edit widget state
+  useEffect(() => {
+    if (!quickChampId && championships.length > 0) {
+      setQuickChampId(championships[0].id);
+    }
+  }, [championships, quickChampId]);
+
+  useEffect(() => {
+    if (quickChampId) {
+      const champ = championships.find((c) => c.id === quickChampId);
+      if (champ) {
+        if (champ.standings.length > 0) {
+          if (!quickClubId || !clubs.some((c) => c.id === quickClubId)) {
+            setQuickClubId(champ.standings[0].clubId);
+          }
+        } else if (clubs.length > 0 && !quickClubId) {
+          setQuickClubId(clubs[0].id);
+        }
+      }
+    }
+  }, [quickChampId, championships, clubs, quickClubId]);
+
+  useEffect(() => {
+    if (quickChampId && quickClubId) {
+      const champ = championships.find((c) => c.id === quickChampId);
+      const row = champ?.standings.find((s) => s.clubId === quickClubId);
+      if (row) {
+        setQuickPoints(row.points);
+        setQuickWon(row.won);
+        setQuickDrawn(row.drawn);
+        setQuickLost(row.lost);
+        setQuickGoalsFor(row.goalsFor);
+        setQuickGoalsAgainst(row.goalsAgainst);
+        setQuickGroup(row.group || '');
+        setQuickDeduction(row.pointsDeduction || 0);
+        setQuickDeductionReason(row.deductionReason || '');
+      } else {
+        setQuickPoints(0);
+        setQuickWon(0);
+        setQuickDrawn(0);
+        setQuickLost(0);
+        setQuickGoalsFor(0);
+        setQuickGoalsAgainst(0);
+        setQuickGroup('');
+        setQuickDeduction(0);
+        setQuickDeductionReason('');
+      }
+    }
+  }, [quickChampId, quickClubId, championships]);
 
   // Match event live injector states - Only show matches that are NOT finished/encerradas
   const nonFinishedMatches = React.useMemo(() => {
@@ -1019,7 +1090,7 @@ export const AdminPanel: React.FC = () => {
     const newP: Player = {
       id: 'p_' + Date.now(),
       name: newPlayerName,
-      photoUrl: newPlayerPhoto || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(newPlayerName)}`,
+      photoUrl: newPlayerPhoto || DEFAULT_PLAYER_AVATAR,
       age: Number(newPlayerAge),
       nationality: newPlayerNationality,
       clubId: newPlayerClub,
@@ -1331,30 +1402,61 @@ export const AdminPanel: React.FC = () => {
     const champ = championships.find((c) => c.id === champId);
     if (!champ) return;
 
+    // Calculate finished matches stats for this club in this championship
+    const finishedMatches = matches.filter(
+      (m) => m.championshipId === champId && m.status === MatchStatus.FINISHED
+    );
+    let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0, fPts = 0, fPlayed = 0;
+    finishedMatches.forEach((match) => {
+      if (match.homeClubId === clubId) {
+        fPlayed += 1;
+        fGP += match.score.home;
+        fGC += match.score.away;
+        if (match.score.home > match.score.away) { fWins += 1; fPts += 3; }
+        else if (match.score.home < match.score.away) { fLosses += 1; }
+        else { fDraws += 1; fPts += 1; }
+      } else if (match.awayClubId === clubId) {
+        fPlayed += 1;
+        fGP += match.score.away;
+        fGC += match.score.home;
+        if (match.score.away > match.score.home) { fWins += 1; fPts += 3; }
+        else if (match.score.away < match.score.home) { fLosses += 1; }
+        else { fDraws += 1; fPts += 1; }
+      }
+    });
+
+    const targetPlayed = Number(editSPlayed);
+    const targetWon = Number(editSWon);
+    const targetDrawn = Number(editSDrawn);
+    const targetLost = Number(editSLost);
+    const targetGoalsFor = Number(editSGoalsFor);
+    const targetGoalsAgainst = Number(editSGoalsAgainst);
+    const targetPoints = Number(editSPoints);
+    const deduction = Math.max(0, Number(editSDeduction));
+
     const updatedStandings = champ.standings.map((row) => {
       if (row.clubId === clubId) {
-        const deduction = Math.max(0, Number(editSDeduction));
         return {
           ...row,
-          played: Number(editSPlayed),
-          won: Number(editSWon),
-          drawn: Number(editSDrawn),
-          lost: Number(editSLost),
-          goalsFor: Number(editSGoalsFor),
-          goalsAgainst: Number(editSGoalsAgainst),
-          goalDifference: Number(editSGoalsFor) - Number(editSGoalsAgainst),
-          points: Number(editSPoints),
+          played: targetPlayed,
+          won: targetWon,
+          drawn: targetDrawn,
+          lost: targetLost,
+          goalsFor: targetGoalsFor,
+          goalsAgainst: targetGoalsAgainst,
+          goalDifference: targetGoalsFor - targetGoalsAgainst,
+          points: targetPoints,
           pointsDeduction: deduction,
           deductionReason: editSDeductionReason.trim() || undefined,
           group: editSGroup.trim() || undefined,
           baseStats: {
-            played: Number(editSPlayed),
-            won: Number(editSWon),
-            drawn: Number(editSDrawn),
-            lost: Number(editSLost),
-            goalsFor: Number(editSGoalsFor),
-            goalsAgainst: Number(editSGoalsAgainst),
-            points: Number(editSPoints),
+            played: targetPlayed - fPlayed,
+            won: targetWon - fWins,
+            drawn: targetDrawn - fDraws,
+            lost: targetLost - fLosses,
+            goalsFor: targetGoalsFor - fGP,
+            goalsAgainst: targetGoalsAgainst - fGC,
+            points: targetPoints - fPts,
             pointsDeduction: deduction,
             deductionReason: editSDeductionReason.trim() || undefined
           }
@@ -1363,11 +1465,12 @@ export const AdminPanel: React.FC = () => {
       return row;
     });
 
-    // Sort standings
+    // Sort standings (points DESC -> goalDifference DESC -> goalsFor DESC -> won DESC)
     updatedStandings.sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-      return b.goalsFor - a.goalsFor;
+      if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+      return b.won - a.won;
     });
 
     const updatedChamp: Championship = {
@@ -1378,6 +1481,135 @@ export const AdminPanel: React.FC = () => {
     updateChampionship(updatedChamp);
     addLog('Classificação atualizada', champ.name, 'bg-emerald-500');
     setEditingStandingClubId(null);
+  };
+
+  const handleSaveQuickStanding = () => {
+    const champ = championships.find((c) => c.id === quickChampId);
+    if (!champ || !quickClubId) return;
+
+    const club = clubs.find((c) => c.id === quickClubId);
+    if (!club) return;
+
+    // Calculate finished matches stats for this club in this championship
+    const finishedMatches = matches.filter(
+      (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
+    );
+    let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0, fPts = 0, fPlayed = 0;
+    finishedMatches.forEach((match) => {
+      if (match.homeClubId === quickClubId) {
+        fPlayed += 1;
+        fGP += match.score.home;
+        fGC += match.score.away;
+        if (match.score.home > match.score.away) { fWins += 1; fPts += 3; }
+        else if (match.score.home < match.score.away) { fLosses += 1; }
+        else { fDraws += 1; fPts += 1; }
+      } else if (match.awayClubId === quickClubId) {
+        fPlayed += 1;
+        fGP += match.score.away;
+        fGC += match.score.home;
+        if (match.score.away > match.score.home) { fWins += 1; fPts += 3; }
+        else if (match.score.away < match.score.home) { fLosses += 1; }
+        else { fDraws += 1; fPts += 1; }
+      }
+    });
+
+    const targetPlayed = Number(quickWon) + Number(quickDrawn) + Number(quickLost);
+    const targetWon = Number(quickWon);
+    const targetDrawn = Number(quickDrawn);
+    const targetLost = Number(quickLost);
+    const targetGoalsFor = Number(quickGoalsFor);
+    const targetGoalsAgainst = Number(quickGoalsAgainst);
+    const targetPoints = Number(quickPoints);
+    const deduction = Math.max(0, Number(quickDeduction));
+
+    let clubFound = false;
+
+    let updatedStandings = champ.standings.map((row) => {
+      if (row.clubId === quickClubId) {
+        clubFound = true;
+        return {
+          ...row,
+          played: targetPlayed,
+          won: targetWon,
+          drawn: targetDrawn,
+          lost: targetLost,
+          goalsFor: targetGoalsFor,
+          goalsAgainst: targetGoalsAgainst,
+          goalDifference: targetGoalsFor - targetGoalsAgainst,
+          points: targetPoints,
+          pointsDeduction: deduction,
+          deductionReason: quickDeductionReason.trim() || undefined,
+          group: quickGroup.trim() || undefined,
+          baseStats: {
+            played: targetPlayed - fPlayed,
+            won: targetWon - fWins,
+            drawn: targetDrawn - fDraws,
+            lost: targetLost - fLosses,
+            goalsFor: targetGoalsFor - fGP,
+            goalsAgainst: targetGoalsAgainst - fGC,
+            points: targetPoints - fPts,
+            pointsDeduction: deduction,
+            deductionReason: quickDeductionReason.trim() || undefined
+          }
+        };
+      }
+      return row;
+    });
+
+    if (!clubFound) {
+      updatedStandings.push({
+        clubId: club.id,
+        clubName: club.name,
+        logoUrl: club.logoUrl,
+        played: targetPlayed,
+        won: targetWon,
+        drawn: targetDrawn,
+        lost: targetLost,
+        goalsFor: targetGoalsFor,
+        goalsAgainst: targetGoalsAgainst,
+        goalDifference: targetGoalsFor - targetGoalsAgainst,
+        points: targetPoints,
+        pointsDeduction: deduction,
+        deductionReason: quickDeductionReason.trim() || undefined,
+        group: quickGroup.trim() || undefined,
+        baseStats: {
+          played: targetPlayed - fPlayed,
+          won: targetWon - fWins,
+          drawn: targetDrawn - fDraws,
+          lost: targetLost - fLosses,
+          goalsFor: targetGoalsFor - fGP,
+          goalsAgainst: targetGoalsAgainst - fGC,
+          points: targetPoints - fPts,
+          pointsDeduction: deduction,
+          deductionReason: quickDeductionReason.trim() || undefined
+        }
+      });
+    }
+
+    // Sort standings (points DESC -> goalDifference DESC -> goalsFor DESC -> won DESC)
+    updatedStandings.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+      if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+      return b.won - a.won;
+    });
+
+    const updatedChamp: Championship = {
+      ...champ,
+      standings: updatedStandings
+    };
+
+    updateChampionship(updatedChamp);
+
+    const newIndex = updatedStandings.findIndex((s) => s.clubId === quickClubId);
+    const newPos = newIndex !== -1 ? newIndex + 1 : 1;
+
+    addLog('Classificação Recalculada', `${club.name}: ${targetPoints} pts (${newPos}º em ${champ.name})`, 'bg-emerald-500');
+    addNotification(
+      'Classificação Atualizada',
+      `O ${club.name} agora possui ${targetPoints} ponto(s) e ocupa a ${newPos}ª posição no campeonato ${champ.name}.`,
+      'campeonato'
+    );
   };
 
   const handleAddClubToStandings = (champId: string) => {
@@ -2509,9 +2741,25 @@ export const AdminPanel: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Injector panel for Live Match Events */}
-                    <form onSubmit={handleCustomEventSubmit} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
-                      <span className="text-[10px] font-black text-zinc-400 uppercase block">Injetar Evento Real-Time</span>
+                    {/* Accordion 1: Injetar Evento Real-Time */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden transition-all duration-300">
+                      <button
+                        type="button"
+                        onClick={() => toggleMatchAccordion('events')}
+                        className="w-full p-3.5 sm:p-4 flex items-center justify-between text-left hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <span className="text-sm sm:text-base">⚡</span>
+                          <span className="text-xs font-black text-white uppercase tracking-wider">
+                            Injetar Evento Real-Time
+                          </span>
+                        </div>
+                        <span className="text-xs font-black text-zinc-400 bg-slate-950 px-2 py-1 rounded border border-slate-800/80 transition-transform duration-200">
+                          {openMatchAccordion === 'events' ? '▲' : '▼'}
+                        </span>
+                      </button>
+                      <div className={openMatchAccordion === 'events' ? 'p-3.5 sm:p-4 pt-0 border-t border-slate-800/80 animate-fade-in' : 'hidden'}>
+                        <form onSubmit={handleCustomEventSubmit} className="space-y-4 pt-3">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <label className="text-[9px] font-bold text-zinc-400">Tipo de Lance</label>
@@ -2706,25 +2954,39 @@ export const AdminPanel: React.FC = () => {
                         </div>
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isChampOfMatchEnded}
-                        className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
-                      >
-                        Transmitir Lance ao Vivo
-                      </button>
-                    </form>
-
-                    {/* STATS CUSTOMIZATION PANEL */}
-                    <form onSubmit={handleSaveMatchStats} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
-                      <div className="border-b border-slate-800 pb-2">
-                        <span className="text-xs font-black text-indigo-400 uppercase tracking-wider block">
-                          📊 Personalização de Estatísticas da Partida
-                        </span>
-                        <p className="text-[10px] text-zinc-400 mt-0.5 leading-snug">
-                          Ajuste as métricas de desempenho em tempo real. As barras de progresso do jogo serão atualizadas instantaneamente!
-                        </p>
+                          <button
+                            type="submit"
+                            disabled={isChampOfMatchEnded}
+                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                          >
+                            Transmitir Lance ao Vivo
+                          </button>
+                        </form>
                       </div>
+                    </div>
+
+                    {/* Accordion 2: Personalização de Estatísticas da Partida */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden transition-all duration-300">
+                      <button
+                        type="button"
+                        onClick={() => toggleMatchAccordion('stats')}
+                        className="w-full p-3.5 sm:p-4 flex items-center justify-between text-left hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <span className="text-sm sm:text-base">📊</span>
+                          <span className="text-xs font-black text-white uppercase tracking-wider">
+                            Personalização de Estatísticas da Partida
+                          </span>
+                        </div>
+                        <span className="text-xs font-black text-zinc-400 bg-slate-950 px-2 py-1 rounded border border-slate-800/80 transition-transform duration-200">
+                          {openMatchAccordion === 'stats' ? '▲' : '▼'}
+                        </span>
+                      </button>
+                      <div className={openMatchAccordion === 'stats' ? 'p-3.5 sm:p-4 pt-0 border-t border-slate-800/80 animate-fade-in' : 'hidden'}>
+                        <form onSubmit={handleSaveMatchStats} className="space-y-4 pt-3">
+                          <p className="text-[10px] text-zinc-400 leading-snug">
+                            Ajuste as métricas de desempenho em tempo real. As barras de progresso do jogo serão atualizadas instantaneamente!
+                          </p>
 
                       <div className="space-y-3.5">
                         {/* Possession Row */}
@@ -2759,67 +3021,146 @@ export const AdminPanel: React.FC = () => {
                           {/* Left Column of stats */}
                           <div className="space-y-3">
                             {/* Remates Totais */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Remates totais (Chutes)</label>
+                            <div className="space-y-1 bg-indigo-950/20 p-2 rounded-lg border border-indigo-500/20">
+                              <label className="text-[10px] font-bold text-indigo-400 uppercase flex items-center justify-between">
+                                <span>⚽ Remates totais (Chutes)</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  placeholder="Mandante"
-                                  value={statsShotsHome}
-                                  onChange={(e) => setStatsShotsHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  placeholder="Visitante"
-                                  value={statsShotsAway}
-                                  onChange={(e) => setStatsShotsAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsShotsHome}
+                                    onChange={(e) => setStatsShotsHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-indigo-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsShotsAway}
+                                    onChange={(e) => setStatsShotsAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-indigo-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
 
                             {/* Chutes Bloqueados */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Chutes bloqueados</label>
+                            <div className="space-y-1 bg-purple-950/20 p-2 rounded-lg border border-purple-500/20">
+                              <label className="text-[10px] font-bold text-purple-400 uppercase flex items-center justify-between">
+                                <span>🛡️ Chutes bloqueados</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsBlockedShotsHome}
-                                  onChange={(e) => setStatsBlockedShotsHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsBlockedShotsAway}
-                                  onChange={(e) => setStatsBlockedShotsAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsBlockedShotsHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsBlockedShotsHome}
+                                    onChange={(e) => setStatsBlockedShotsHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-purple-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsBlockedShotsHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsBlockedShotsAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsBlockedShotsAway}
+                                    onChange={(e) => setStatsBlockedShotsAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-purple-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsBlockedShotsAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
 
                             {/* Chutes a Gol */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Chutes a gol (No Alvo)</label>
+                            <div className="space-y-1 bg-emerald-950/20 p-2 rounded-lg border border-emerald-500/20">
+                              <label className="text-[10px] font-bold text-emerald-400 uppercase flex items-center justify-between">
+                                <span>🎯 Chutes a gol (No Alvo)</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsShotsOnTargetHome}
-                                  onChange={(e) => setStatsShotsOnTargetHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsShotsOnTargetAway}
-                                  onChange={(e) => setStatsShotsOnTargetAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOnTargetHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsShotsOnTargetHome}
+                                    onChange={(e) => setStatsShotsOnTargetHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-emerald-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOnTargetHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOnTargetAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsShotsOnTargetAway}
+                                    onChange={(e) => setStatsShotsOnTargetAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-emerald-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsShotsOnTargetAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
 
@@ -2834,7 +3175,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsShotsOffTargetHome(prev => Math.max(0, prev - 1))}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
                                   >-</button>
                                   <input
                                     type="number"
@@ -2846,14 +3187,14 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsShotsOffTargetHome(prev => prev + 1)}
-                                    className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs font-bold cursor-pointer select-none"
                                   >+</button>
                                 </div>
                                 <div className="flex items-center space-x-1">
                                   <button
                                     type="button"
                                     onClick={() => setStatsShotsOffTargetAway(prev => Math.max(0, prev - 1))}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
                                   >-</button>
                                   <input
                                     type="number"
@@ -2865,30 +3206,105 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsShotsOffTargetAway(prev => prev + 1)}
-                                    className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs font-bold cursor-pointer select-none"
                                   >+</button>
                                 </div>
                               </div>
                             </div>
 
                             {/* Defesas do Goleiro */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Defesas do Goleiro</label>
+                            <div className="space-y-1 bg-cyan-950/20 p-2 rounded-lg border border-cyan-500/20">
+                              <label className="text-[10px] font-bold text-cyan-400 uppercase flex items-center justify-between">
+                                <span>🧤 Defesas do Goleiro</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsSavesHome}
-                                  onChange={(e) => setStatsSavesHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsSavesAway}
-                                  onChange={(e) => setStatsSavesAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsSavesHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsSavesHome}
+                                    onChange={(e) => setStatsSavesHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-cyan-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsSavesHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsSavesAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsSavesAway}
+                                    onChange={(e) => setStatsSavesAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-cyan-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsSavesAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Cruzamentos */}
+                            <div className="space-y-1 bg-teal-950/20 p-2 rounded-lg border border-teal-500/20">
+                              <label className="text-[10px] font-bold text-teal-400 uppercase flex items-center justify-between">
+                                <span>👟 Cruzamentos</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCrossesHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsCrossesHome}
+                                    onChange={(e) => setStatsCrossesHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-teal-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCrossesHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 border border-teal-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCrossesAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsCrossesAway}
+                                    onChange={(e) => setStatsCrossesAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-teal-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsCrossesAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 border border-teal-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -2896,88 +3312,196 @@ export const AdminPanel: React.FC = () => {
                           {/* Right Column of stats */}
                           <div className="space-y-3">
                             {/* Total de Passes */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Total de passes</label>
+                            <div className="space-y-1 bg-blue-950/20 p-2 rounded-lg border border-blue-500/20">
+                              <label className="text-[10px] font-bold text-blue-400 uppercase flex items-center justify-between">
+                                <span>🔄 Total de passes</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsPassesHome}
-                                  onChange={(e) => setStatsPassesHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsPassesAway}
-                                  onChange={(e) => setStatsPassesAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassesHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsPassesHome}
+                                    onChange={(e) => setStatsPassesHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-blue-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassesHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassesAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsPassesAway}
+                                    onChange={(e) => setStatsPassesAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-blue-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassesAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
 
                             {/* Precisão de Passes */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Precisão de passes (%)</label>
+                            <div className="space-y-1 bg-violet-950/20 p-2 rounded-lg border border-violet-500/20">
+                              <label className="text-[10px] font-bold text-violet-400 uppercase flex items-center justify-between">
+                                <span>🎯 Precisão de passes (%)</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={statsPassAccuracyHome}
-                                  onChange={(e) => setStatsPassAccuracyHome(Math.max(0, Math.min(100, Number(e.target.value))))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={statsPassAccuracyAway}
-                                  onChange={(e) => setStatsPassAccuracyAway(Math.max(0, Math.min(100, Number(e.target.value))))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassAccuracyHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={statsPassAccuracyHome}
+                                    onChange={(e) => setStatsPassAccuracyHome(Math.max(0, Math.min(100, Number(e.target.value))))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-violet-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassAccuracyHome(prev => Math.min(100, prev + 1))}
+                                    className="px-2 py-1 bg-violet-500/20 hover:bg-violet-500/30 text-violet-400 border border-violet-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassAccuracyAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={statsPassAccuracyAway}
+                                    onChange={(e) => setStatsPassAccuracyAway(Math.max(0, Math.min(100, Number(e.target.value))))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-violet-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsPassAccuracyAway(prev => Math.min(100, prev + 1))}
+                                    className="px-2 py-1 bg-violet-500/20 hover:bg-violet-500/30 text-violet-400 border border-violet-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
 
                             {/* Desarmes / Faltas */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Desarmes (Faltas)</label>
+                            <div className="space-y-1 bg-orange-950/20 p-2 rounded-lg border border-orange-500/20">
+                              <label className="text-[10px] font-bold text-orange-400 uppercase flex items-center justify-between">
+                                <span>⚠️ Desarmes (Faltas)</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsFoulsHome}
-                                  onChange={(e) => setStatsFoulsHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsFoulsAway}
-                                  onChange={(e) => setStatsFoulsAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsFoulsHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsFoulsHome}
+                                    onChange={(e) => setStatsFoulsHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-orange-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsFoulsHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsFoulsAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsFoulsAway}
+                                    onChange={(e) => setStatsFoulsAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-orange-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsFoulsAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
 
                             {/* Ataques Perigosos */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Ataques perigosos</label>
+                            <div className="space-y-1 bg-amber-950/20 p-2 rounded-lg border border-amber-500/20">
+                              <label className="text-[10px] font-bold text-amber-400 uppercase flex items-center justify-between">
+                                <span>⚡ Ataques perigosos</span>
+                                <span className="text-[9px] text-zinc-400 font-normal">Mandante / Visitante</span>
+                              </label>
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsDangerousAttacksHome}
-                                  onChange={(e) => setStatsDangerousAttacksHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsDangerousAttacksAway}
-                                  onChange={(e) => setStatsDangerousAttacksAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsDangerousAttacksHome(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsDangerousAttacksHome}
+                                    onChange={(e) => setStatsDangerousAttacksHome(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-amber-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsDangerousAttacksHome(prev => prev + 1)}
+                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsDangerousAttacksAway(prev => Math.max(0, prev - 1))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
+                                  >-</button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={statsDangerousAttacksAway}
+                                    onChange={(e) => setStatsDangerousAttacksAway(Math.max(0, Number(e.target.value)))}
+                                    className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-1.5 text-amber-400 font-mono text-center w-full font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setStatsDangerousAttacksAway(prev => prev + 1)}
+                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer select-none"
+                                  >+</button>
+                                </div>
                               </div>
                             </div>
 
@@ -2992,7 +3516,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsCornersHome(prev => Math.max(0, prev - 1))}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
                                   >-</button>
                                   <input
                                     type="number"
@@ -3004,14 +3528,14 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsCornersHome(prev => prev + 1)}
-                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer select-none"
                                   >+</button>
                                 </div>
                                 <div className="flex items-center space-x-1">
                                   <button
                                     type="button"
                                     onClick={() => setStatsCornersAway(prev => Math.max(0, prev - 1))}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
                                   >-</button>
                                   <input
                                     type="number"
@@ -3023,7 +3547,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsCornersAway(prev => prev + 1)}
-                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded text-xs font-bold cursor-pointer select-none"
                                   >+</button>
                                 </div>
                               </div>
@@ -3040,7 +3564,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsOffsidesHome(prev => Math.max(0, prev - 1))}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
                                   >-</button>
                                   <input
                                     type="number"
@@ -3052,14 +3576,14 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsOffsidesHome(prev => prev + 1)}
-                                    className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30 rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30 rounded text-xs font-bold cursor-pointer select-none"
                                   >+</button>
                                 </div>
                                 <div className="flex items-center space-x-1">
                                   <button
                                     type="button"
                                     onClick={() => setStatsOffsidesAway(prev => Math.max(0, prev - 1))}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-bold cursor-pointer select-none"
                                   >-</button>
                                   <input
                                     type="number"
@@ -3071,30 +3595,9 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => setStatsOffsidesAway(prev => prev + 1)}
-                                    className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30 rounded text-xs font-bold cursor-pointer"
+                                    className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30 rounded text-xs font-bold cursor-pointer select-none"
                                   >+</button>
                                 </div>
-                              </div>
-                            </div>
-
-                            {/* Cruzamentos */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-zinc-400 uppercase">Cruzamentos</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsCrossesHome}
-                                  onChange={(e) => setStatsCrossesHome(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={statsCrossesAway}
-                                  onChange={(e) => setStatsCrossesAway(Math.max(0, Number(e.target.value)))}
-                                  className="bg-slate-950 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-white font-mono text-center"
-                                />
                               </div>
                             </div>
                           </div>
@@ -3102,25 +3605,39 @@ export const AdminPanel: React.FC = () => {
                         </div>
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isChampOfMatchEnded}
-                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
-                      >
-                        💾 Salvar Estatísticas da Partida
-                      </button>
-                    </form>
-
-                    {/* TACTICAL SCHEME & LINEUP FORM */}
-                    <form onSubmit={handleSaveMatchLineups} className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-4 space-y-4">
-                      <div className="border-b border-slate-800 pb-2">
-                        <span className="text-xs font-black text-emerald-400 uppercase tracking-wider block">
-                          📋 Esquema Tático & Escalações da Partida
-                        </span>
-                        <p className="text-[10px] text-zinc-400 mt-0.5 leading-snug">
-                          Defina as táticas de jogo, técnico e a lista de 11 atletas titulares para visualização realista no campo de jogo.
-                        </p>
+                          <button
+                            type="submit"
+                            disabled={isChampOfMatchEnded}
+                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
+                          >
+                            💾 Salvar Estatísticas da Partida
+                          </button>
+                        </form>
                       </div>
+                    </div>
+
+                    {/* Accordion 3: Esquema Tático & Escalações da Partida */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden transition-all duration-300">
+                      <button
+                        type="button"
+                        onClick={() => toggleMatchAccordion('tactics')}
+                        className="w-full p-3.5 sm:p-4 flex items-center justify-between text-left hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <span className="text-sm sm:text-base">📋</span>
+                          <span className="text-xs font-black text-white uppercase tracking-wider">
+                            Esquema Tático & Escalações da Partida
+                          </span>
+                        </div>
+                        <span className="text-xs font-black text-zinc-400 bg-slate-950 px-2 py-1 rounded border border-slate-800/80 transition-transform duration-200">
+                          {openMatchAccordion === 'tactics' ? '▲' : '▼'}
+                        </span>
+                      </button>
+                      <div className={openMatchAccordion === 'tactics' ? 'p-3.5 sm:p-4 pt-0 border-t border-slate-800/80 animate-fade-in' : 'hidden'}>
+                        <form onSubmit={handleSaveMatchLineups} className="space-y-4 pt-3">
+                          <p className="text-[10px] text-zinc-400 leading-snug">
+                            Defina as táticas de jogo, técnico e a lista de 11 atletas titulares para visualização realista no campo de jogo.
+                          </p>
 
                       {/* Formation selectors side-by-side */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3389,14 +3906,16 @@ export const AdminPanel: React.FC = () => {
                         </div>
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isChampOfMatchEnded}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
-                      >
-                        💾 Salvar Esquemas e Escalações da Partida
-                      </button>
-                    </form>
+                          <button
+                            type="submit"
+                            disabled={isChampOfMatchEnded}
+                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
+                          >
+                            💾 Salvar Esquemas e Escalações da Partida
+                          </button>
+                        </form>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-xs text-zinc-500">Cadastre uma partida primeiro para habilitar o controlador ao vivo.</p>
@@ -3901,7 +4420,7 @@ export const AdminPanel: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
                             <label className="relative cursor-pointer group shrink-0" title="Clique para alterar o logo">
-                              <img src={club.logoUrl} alt="" className="w-9 h-9 rounded-full bg-slate-800 p-1 group-hover:opacity-75 transition-opacity" />
+                              <img src={club.logoUrl} alt="" className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 p-1 object-cover group-hover:opacity-75 transition-opacity" />
                               <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-white text-[7px] bg-black/55 rounded-full font-black">FOTO</span>
                               <input 
                                 type="file" 
@@ -4383,9 +4902,9 @@ export const AdminPanel: React.FC = () => {
                     <label className="text-[10px] font-bold text-zinc-400 uppercase block">Foto do Jogador</label>
                     <div className="flex items-center space-x-2 pt-0.5">
                       {newPlayerPhoto ? (
-                        <img src={newPlayerPhoto} alt="Preview" className="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700" />
+                        <img src={newPlayerPhoto} onError={handlePlayerImageError} alt="Preview" className="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[8px] font-bold text-zinc-500 border border-slate-800">Foto</div>
+                        <img src={DEFAULT_PLAYER_AVATAR} alt="Default Avatar" className="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700" />
                       )}
                       <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[10px] font-bold cursor-pointer select-none">
                         Upload
@@ -4449,7 +4968,7 @@ export const AdminPanel: React.FC = () => {
                           <tr className="hover:bg-slate-800/20 text-zinc-300 border-b border-slate-800/20">
                             <td className="py-2.5">
                               <label className="relative cursor-pointer group block w-7 h-7" title="Clique para alterar a foto">
-                                <img src={player.photoUrl} alt="" className="w-7 h-7 rounded-full bg-slate-800 object-cover group-hover:opacity-75 transition-opacity" />
+                                <img src={getPlayerPhoto(player.photoUrl)} onError={handlePlayerImageError} alt="" className="w-7 h-7 rounded-full bg-slate-800 object-cover group-hover:opacity-75 transition-opacity" />
                                 <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-white text-[6px] bg-black/50 rounded-full font-black">FOTO</span>
                                 <input 
                                   type="file" 
@@ -4812,6 +5331,340 @@ export const AdminPanel: React.FC = () => {
                 </form>
               </div>
 
+              {/* QUICK MANUAL STANDINGS & POINTS EDITING CARD */}
+              {championships.length > 0 && (
+                <div className="bg-[#0F172A] border border-emerald-500/30 rounded-2xl p-5 space-y-4 shadow-lg relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <Sliders className="w-5 h-5 text-emerald-400" />
+                      <h3 className="text-sm font-black text-white uppercase tracking-wide">
+                        Edição Manual da Classificação & Pontuação dos Clubes
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full uppercase self-start sm:self-auto">
+                      Ajuste Direto • Recálculo Automático Instântaneo
+                    </span>
+                  </div>
+
+                  {/* Selectors for Championship and Club */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase">1. Selecionar Campeonato</label>
+                      <select
+                        value={quickChampId}
+                        onChange={(e) => {
+                          setQuickChampId(e.target.value);
+                          const selChamp = championships.find(ch => ch.id === e.target.value);
+                          if (selChamp && selChamp.standings.length > 0) {
+                            setQuickClubId(selChamp.standings[0].clubId);
+                          }
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white font-bold cursor-pointer"
+                      >
+                        {championships.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.type} • {c.season}) {c.status === 'Encerrado' ? '[Encerrado]' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase">2. Selecionar Clube para Ajuste de Pontos</label>
+                      <select
+                        value={quickClubId}
+                        onChange={(e) => setQuickClubId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white font-bold cursor-pointer"
+                      >
+                        {(() => {
+                          const currentChamp = championships.find(c => c.id === quickChampId);
+                          const availableClubs = currentChamp && currentChamp.standings.length > 0
+                            ? currentChamp.standings.map(s => clubs.find(cl => cl.id === s.clubId)).filter(Boolean)
+                            : clubs;
+                          return availableClubs.map((c: any) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} {c.shortName ? `(${c.shortName})` : ''}
+                            </option>
+                          ));
+                        })()}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Active Selected Club Stats Editor Box */}
+                  {(() => {
+                    const activeChamp = championships.find(c => c.id === quickChampId);
+                    const activeClub = clubs.find(c => c.id === quickClubId);
+                    const activePosIndex = activeChamp ? activeChamp.standings.findIndex(s => s.clubId === quickClubId) : -1;
+
+                    if (!activeChamp || !activeClub) return null;
+
+                    return (
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                          <div className="flex items-center space-x-3">
+                            <img
+                              src={activeClub.logoUrl || ''}
+                              alt=""
+                              className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 p-1 object-cover border border-slate-700 shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-black text-white">{activeClub.name}</span>
+                                {activePosIndex !== -1 && (
+                                  <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                                    {activePosIndex + 1}º Lugar
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-zinc-400 font-mono uppercase">
+                                {activeChamp.name} • {activeChamp.season}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase block">Saldo de Gols</span>
+                            <span className={`text-sm font-black font-mono ${quickGoalsFor - quickGoalsAgainst >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {quickGoalsFor - quickGoalsAgainst > 0 ? `+${quickGoalsFor - quickGoalsAgainst}` : quickGoalsFor - quickGoalsAgainst}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Main Points Adjustment Widget */}
+                        <div className="bg-slate-950 border border-emerald-500/20 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5">
+                              <span>🏆 Pontuação Manual do Clube</span>
+                            </label>
+                            <span className="text-[10px] text-zinc-400 font-bold uppercase">Aumente ou diminua sem precisar de jornada</span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            {/* Quick decrease buttons */}
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setQuickPoints((p) => Math.max(0, p - 3))}
+                                className="px-2.5 py-2 bg-rose-500/15 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-black transition-all cursor-pointer active:scale-95"
+                                title="Subtrair 3 Pontos"
+                              >
+                                -3 Pts
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQuickPoints((p) => Math.max(0, p - 1))}
+                                className="px-2.5 py-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 border border-rose-500/40 rounded-lg text-xs font-black transition-all cursor-pointer active:scale-95"
+                                title="Subtrair 1 Ponto"
+                              >
+                                -1 Pts
+                              </button>
+                            </div>
+
+                            {/* Large Points Input Display */}
+                            <div className="flex items-center space-x-2 bg-slate-900 border-2 border-emerald-500 px-4 py-1.5 rounded-xl">
+                              <span className="text-xs font-bold text-zinc-400 uppercase">Pontos:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={quickPoints}
+                                onChange={(e) => setQuickPoints(Math.max(0, Number(e.target.value)))}
+                                className="w-16 bg-transparent text-center text-xl font-black text-emerald-400 focus:outline-none"
+                              />
+                              <span className="text-xs font-black text-emerald-400">PTS</span>
+                            </div>
+
+                            {/* Quick increase buttons */}
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setQuickPoints((p) => p + 1)}
+                                className="px-2.5 py-2 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-black transition-all cursor-pointer active:scale-95"
+                                title="Adicionar 1 Ponto"
+                              >
+                                +1 Pts
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQuickPoints((p) => p + 3)}
+                                className="px-2.5 py-2 bg-emerald-500/25 hover:bg-emerald-500/50 text-emerald-200 border border-emerald-500/50 rounded-lg text-xs font-black transition-all cursor-pointer active:scale-95"
+                                title="Adicionar 3 Pontos (Vitória)"
+                              >
+                                +3 Pts
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Tie-breaker Criteria (Wins, Draws, Losses, Goals For, Goals Against) */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase block">
+                            📊 Critérios de Desempate (Vitórias, Empates, Derrotas e Gols)
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                            {/* Vitórias */}
+                            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl text-center space-y-1">
+                              <span className="text-[9px] font-bold text-zinc-400 uppercase block">Vitórias (V)</span>
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickWon((v) => Math.max(0, v - 1))}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={quickWon}
+                                  onChange={(e) => setQuickWon(Math.max(0, Number(e.target.value)))}
+                                  className="w-10 bg-transparent text-center font-bold text-xs text-white focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickWon((v) => v + 1)}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Empates */}
+                            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl text-center space-y-1">
+                              <span className="text-[9px] font-bold text-zinc-400 uppercase block">Empates (E)</span>
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickDrawn((v) => Math.max(0, v - 1))}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={quickDrawn}
+                                  onChange={(e) => setQuickDrawn(Math.max(0, Number(e.target.value)))}
+                                  className="w-10 bg-transparent text-center font-bold text-xs text-white focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickDrawn((v) => v + 1)}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Derrotas */}
+                            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl text-center space-y-1">
+                              <span className="text-[9px] font-bold text-zinc-400 uppercase block">Derrotas (D)</span>
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickLost((v) => Math.max(0, v - 1))}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={quickLost}
+                                  onChange={(e) => setQuickLost(Math.max(0, Number(e.target.value)))}
+                                  className="w-10 bg-transparent text-center font-bold text-xs text-white focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickLost((v) => v + 1)}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Gols Pró */}
+                            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl text-center space-y-1">
+                              <span className="text-[9px] font-bold text-emerald-400 uppercase block">Gols Marcados (GP)</span>
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickGoalsFor((v) => Math.max(0, v - 1))}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={quickGoalsFor}
+                                  onChange={(e) => setQuickGoalsFor(Math.max(0, Number(e.target.value)))}
+                                  className="w-10 bg-transparent text-center font-bold text-xs text-emerald-400 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickGoalsFor((v) => v + 1)}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Gols Contra */}
+                            <div className="bg-slate-950 border border-slate-800 p-2 rounded-xl text-center space-y-1">
+                              <span className="text-[9px] font-bold text-rose-400 uppercase block">Gols Sofridos (GC)</span>
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickGoalsAgainst((v) => Math.max(0, v - 1))}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={quickGoalsAgainst}
+                                  onChange={(e) => setQuickGoalsAgainst(Math.max(0, Number(e.target.value)))}
+                                  className="w-10 bg-transparent text-center font-bold text-xs text-rose-400 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickGoalsAgainst((v) => v + 1)}
+                                  className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Save Button */}
+                        <div className="pt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleSaveQuickStanding}
+                            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md cursor-pointer flex items-center space-x-2"
+                          >
+                            <span>💾 Salvar e Recalcular Classificação</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* Championships display list */}
               <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -5158,12 +6011,30 @@ export const AdminPanel: React.FC = () => {
                                               </td>
                                               {/* Points */}
                                               <td className="py-1 text-center">
-                                                <input
-                                                  type="number"
-                                                  value={editSPoints}
-                                                  onChange={(e) => setEditSPoints(Math.max(0, Number(e.target.value)))}
-                                                  className="w-8 bg-[#0f172a] border border-slate-850 text-[10px] rounded text-center text-emerald-400 font-bold"
-                                                />
+                                                <div className="flex items-center justify-center space-x-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setEditSPoints((p) => Math.max(0, p - 1))}
+                                                    className="w-4 h-5 bg-slate-800 hover:bg-slate-700 text-zinc-300 font-bold text-[10px] rounded flex items-center justify-center cursor-pointer select-none"
+                                                    title="Subtrair 1 Ponto"
+                                                  >
+                                                    -
+                                                  </button>
+                                                  <input
+                                                    type="number"
+                                                    value={editSPoints}
+                                                    onChange={(e) => setEditSPoints(Math.max(0, Number(e.target.value)))}
+                                                    className="w-9 bg-[#0f172a] border border-slate-850 text-[10px] rounded text-center text-emerald-400 font-bold py-0.5"
+                                                  />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setEditSPoints((p) => p + 1)}
+                                                    className="w-4 h-5 bg-slate-800 hover:bg-slate-700 text-zinc-300 font-bold text-[10px] rounded flex items-center justify-center cursor-pointer select-none"
+                                                    title="Adicionar 1 Ponto"
+                                                  >
+                                                    +
+                                                  </button>
+                                                </div>
                                               </td>
                                               {/* Played */}
                                               <td className="py-1 text-center">

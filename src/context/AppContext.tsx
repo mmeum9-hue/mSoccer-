@@ -1397,11 +1397,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
-      // Sort standings (points DESC, then goal difference DESC, then goals for DESC)
+      // Sort standings (points DESC, then goal difference DESC, then goals for DESC, then wins DESC)
       resetStandings.sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
         if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-        return b.goalsFor - a.goalsFor;
+        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+        return b.won - a.won;
       });
 
       // Aggregate scorer and assist maps from match events
@@ -1831,11 +1832,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // Sort standings
+        // Sort standings (points DESC, then goal difference DESC, then goals for DESC, then wins DESC)
         resetStandings.sort((a, b) => {
           if (b.points !== a.points) return b.points - a.points;
           if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-          return b.goalsFor - a.goalsFor;
+          if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+          return b.won - a.won;
         });
 
         // Aggregate scorer and assist maps from match events

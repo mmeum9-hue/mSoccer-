@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { getPlayerPhoto, handlePlayerImageError } from '../utils/avatar';
 import { translations } from '../translations';
 import { Bell, Sun, Moon, Search, RotateCw, X, AlertCircle, Play, Pause, Zap, Menu, Calendar, User, Sliders, LogOut, ChevronRight, Globe } from 'lucide-react';
 import MSoccerLogo from './MSoccerLogo';
@@ -581,7 +582,8 @@ export const Header: React.FC = () => {
                         className="flex items-center space-x-3 p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
                       >
                         <img
-                          src={player.photoUrl}
+                          src={getPlayerPhoto(player.photoUrl)}
+                          onError={handlePlayerImageError}
                           alt={player.name}
                           className="w-8 h-8 rounded-full object-cover bg-zinc-200"
                           referrerPolicy="no-referrer"

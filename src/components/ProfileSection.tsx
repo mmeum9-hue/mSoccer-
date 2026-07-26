@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { getPlayerPhoto, handlePlayerImageError } from '../utils/avatar';
 import { User, LogIn, LogOut, Sun, Moon, Shield, Award, Trash2, Heart, Lock, KeyRound, Check, Upload, Image } from 'lucide-react';
 import { compressImage } from './imageCompressor';
 
@@ -776,7 +777,7 @@ export const ProfileSection: React.FC = () => {
                   onClick={() => navigateTo({ type: 'player', id: player.id })}
                   className="flex items-center space-x-2 p-2 border-b border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all"
                 >
-                  <img src={player.photoUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                  <img src={getPlayerPhoto(player.photoUrl)} onError={handlePlayerImageError} alt={player.name} className="w-6 h-6 rounded-full object-cover" />
                   <span className="text-xs font-bold truncate text-zinc-800 dark:text-zinc-200">
                     {player.name}
                   </span>

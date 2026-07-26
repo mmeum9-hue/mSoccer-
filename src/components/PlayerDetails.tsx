@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { getPlayerPhoto, handlePlayerImageError } from '../utils/avatar';
 import { 
   ArrowLeft, Star, Search, Trophy, Award, Calendar, 
   Activity, Globe, DollarSign, Clock, AlertCircle, 
@@ -218,7 +219,8 @@ export const PlayerDetails: React.FC<PlayerDetailsProps> = ({ playerId }) => {
           <div className="col-span-4 flex justify-center relative">
             <div className="relative">
               <img 
-                src={player.photoUrl} 
+                src={getPlayerPhoto(player.photoUrl)} 
+                onError={handlePlayerImageError}
                 alt={player.name} 
                 className="w-20 h-20 rounded-full object-cover border-2 border-white shadow-lg bg-zinc-200"
                 referrerPolicy="no-referrer"
@@ -696,7 +698,8 @@ export const PlayerDetails: React.FC<PlayerDetailsProps> = ({ playerId }) => {
                     >
                       <div className="flex items-center gap-2.5">
                         <img 
-                          src={p.photoUrl} 
+                          src={getPlayerPhoto(p.photoUrl)} 
+                          onError={handlePlayerImageError}
                           alt={p.name} 
                           className="w-8 h-8 rounded-full object-cover bg-zinc-100 border border-slate-200 dark:border-slate-800 shadow-xs" 
                           referrerPolicy="no-referrer"

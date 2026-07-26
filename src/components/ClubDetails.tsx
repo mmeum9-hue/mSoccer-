@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { getPlayerPhoto, handlePlayerImageError } from '../utils/avatar';
 import { 
   ArrowLeft, Star, Search, Trophy, Award, Calendar, 
   Activity, Clock, AlertCircle, ChevronRight, User, X, 
@@ -716,7 +717,7 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
 
                     {/* Center: Player Silhouette/Photo */}
                     <div className="w-12 h-12 rounded-full bg-slate-200 border-2 border-slate-300 overflow-hidden flex items-center justify-center relative">
-                      <img src={clubTransfers[0].playerPhoto} alt="" className="w-full h-full object-cover" />
+                      <img src={getPlayerPhoto(clubTransfers[0].playerPhoto)} onError={handlePlayerImageError} alt="" className="w-full h-full object-cover" />
                     </div>
 
                     {/* Dotted Arrow 2 */}
@@ -865,7 +866,7 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <img src={t.playerPhoto} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                          <img src={getPlayerPhoto(t.playerPhoto)} onError={handlePlayerImageError} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-200" />
                           <div className="text-left">
                             <p className="text-xs font-black text-slate-800 dark:text-white leading-tight">{t.playerName}</p>
                             <p className="text-[9px] text-zinc-400 font-bold uppercase">Atacante</p>
@@ -918,7 +919,8 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
                       >
                         <div className="flex items-center gap-2.5">
                           <img 
-                            src={p.photoUrl} 
+                            src={getPlayerPhoto(p.photoUrl)} 
+                            onError={handlePlayerImageError}
                             alt={p.name} 
                             className="w-8 h-8 rounded-full object-cover bg-zinc-100 border border-slate-200 dark:border-slate-800" 
                             referrerPolicy="no-referrer"

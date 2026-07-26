@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { getPlayerPhoto, handlePlayerImageError, DEFAULT_PLAYER_AVATAR } from '../utils/avatar';
 import { MatchStatus, MatchEvent, formatMatchMinute, StandingRow, formatTeamName } from '../types';
 import { 
   ArrowLeft, Star, MapPin, User, ChevronRight, ChevronLeft, Calendar, BarChart2, Shield, Flame, Activity, 
@@ -76,6 +77,108 @@ const getFormattedMatchDate = (dateStr: string, timeStr?: string) => {
   }
 };
 
+const checkIsMatchStarted = (match: any): boolean => {
+  if (!match) return false;
+  const statusStr = String(match.status || '').toLowerCase();
+  
+  if (
+    statusStr.includes('agendado') ||
+    statusStr.includes('não iniciado') ||
+    statusStr.includes('nao iniciado') ||
+    statusStr.includes('adiado') ||
+    match.status === MatchStatus.SCHEDULED ||
+    match.status === MatchStatus.POSTPONED
+  ) {
+    if ((match.minute && match.minute > 0) || (match.events && match.events.length > 0)) {
+      return true;
+    }
+    return false;
+  }
+
+  return true;
+};
+
+const getMatchLivePerformance = (match: any): { homePct: number; awayPct: number } => {
+  let homeScore = 50;
+  let awayScore = 50;
+
+  const homeGoals = match.score?.home ?? 0;
+  const awayGoals = match.score?.away ?? 0;
+  homeScore += homeGoals * 15;
+  awayScore += awayGoals * 15;
+
+  if (match.scoreExtraTime) {
+    const homeEtExtra = (match.scoreExtraTime.home ?? homeGoals) - homeGoals;
+    const awayEtExtra = (match.scoreExtraTime.away ?? awayGoals) - awayGoals;
+    homeScore += homeEtExtra * 12;
+    awayScore += awayEtExtra * 12;
+  }
+
+  if (match.scorePenalties) {
+    homeScore += (match.scorePenalties.home ?? 0) * 3;
+    awayScore += (match.scorePenalties.away ?? 0) * 3;
+  }
+
+  if (match.stats) {
+    if (match.stats.possession) {
+      const pHome = match.stats.possession.home || 0;
+      const pAway = match.stats.possession.away || 0;
+      if (pHome > 0 || pAway > 0) {
+        homeScore += (pHome - 50) * 0.4;
+        awayScore += (pAway - 50) * 0.4;
+      }
+    }
+
+    if (match.stats.shotsOnTarget) {
+      homeScore += (match.stats.shotsOnTarget.home || 0) * 3;
+      awayScore += (match.stats.shotsOnTarget.away || 0) * 3;
+    }
+
+    if (match.stats.shots) {
+      homeScore += (match.stats.shots.home || 0) * 1;
+      awayScore += (match.stats.shots.away || 0) * 1;
+    }
+
+    if (match.stats.corners) {
+      homeScore += (match.stats.corners.home || 0) * 1.5;
+      awayScore += (match.stats.corners.away || 0) * 1.5;
+    }
+
+    if (match.stats.dangerousAttacks) {
+      homeScore += (match.stats.dangerousAttacks.home || 0) * 0.2;
+      awayScore += (match.stats.dangerousAttacks.away || 0) * 0.2;
+    }
+
+    if (match.stats.saves) {
+      homeScore += (match.stats.saves.home || 0) * 1.5;
+      awayScore += (match.stats.saves.away || 0) * 1.5;
+    }
+  }
+
+  if (match.events && match.events.length > 0) {
+    match.events.forEach((evt: any) => {
+      if (evt.team === 'home') {
+        if (evt.type === 'Goal') homeScore += 5;
+        if (evt.type === 'RedCard') homeScore -= 8;
+        if (evt.type === 'YellowCard') homeScore -= 1;
+      } else if (evt.team === 'away') {
+        if (evt.type === 'Goal') awayScore += 5;
+        if (evt.type === 'RedCard') awayScore -= 8;
+        if (evt.type === 'YellowCard') awayScore -= 1;
+      }
+    });
+  }
+
+  homeScore = Math.max(1, homeScore);
+  awayScore = Math.max(1, awayScore);
+
+  const total = homeScore + awayScore;
+  let homePct = Math.round((homeScore / total) * 100);
+  let awayPct = 100 - homePct; // Sums strictly to 100%!
+
+  return { homePct, awayPct };
+};
+
 export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
   const { matches, championships, favorites, toggleFavorite, navigateBack, navigateTo, news, user, players } = useApp();
   const match = matches.find((m) => m.id === matchId);
@@ -127,12 +230,11 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
   const isFav = favorites.matches.includes(match.id);
   const isInitialMatch = match.id.startsWith('match_yesterday_') || match.id.startsWith('match_today_') || match.id.startsWith('match_tomorrow_');
 
-  // Let's create some beautiful, realistic mocked avatars for the goalscorers/VAR players to look extremely authentic!
   const getPlayerAvatar = (playerName?: string) => {
-    if (!playerName) return 'https://i.pravatar.cc/100?img=1';
-    const hash = playerName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const id = (hash % 70) + 1;
-    return `https://i.pravatar.cc/100?img=${id}`;
+    if (!playerName) return DEFAULT_PLAYER_AVATAR;
+    const found = players.find(p => p.name.toLowerCase() === playerName.toLowerCase() || p.id === playerName);
+    if (found && found.photoUrl) return getPlayerPhoto(found.photoUrl);
+    return DEFAULT_PLAYER_AVATAR;
   };
 
   // Get goal events or fallback to rich mocked events to match the Brazilian/Norwegian screenshot
@@ -456,6 +558,45 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
     const homeStandObj = getClubStanding(match.homeClubId, match.homeClubName, match.homeClubLogo);
     const awayStandObj = getClubStanding(match.awayClubId, match.awayClubName, match.awayClubLogo);
 
+    const isStartedTab = checkIsMatchStarted(match);
+    let homePctNum = 0;
+    let awayPctNum = 0;
+    let homePctStr = '';
+    let awayPctStr = '';
+
+    if (isStartedTab) {
+      const livePerf = getMatchLivePerformance(match);
+      homePctNum = livePerf.homePct;
+      awayPctNum = livePerf.awayPct;
+      homePctStr = `${homePctNum}%`;
+      awayPctStr = `${awayPctNum}%`;
+    }
+
+    let homePctColorClass = '';
+    let awayPctColorClass = '';
+    let homeCardColorClass = '';
+    let awayCardColorClass = '';
+
+    if (homePctNum > awayPctNum) {
+      homePctColorClass = 'text-blue-600 dark:text-blue-400 font-black bg-blue-500/15 dark:bg-blue-950/40 border border-blue-500/30';
+      homeCardColorClass = 'bg-blue-50/60 dark:bg-blue-950/20 border-2 border-blue-500/40';
+
+      awayPctColorClass = 'text-rose-600 dark:text-rose-400 font-black bg-rose-500/15 dark:bg-rose-950/40 border border-rose-500/30';
+      awayCardColorClass = 'bg-rose-50/60 dark:bg-rose-950/20 border-2 border-rose-500/40';
+    } else if (awayPctNum > homePctNum) {
+      awayPctColorClass = 'text-blue-600 dark:text-blue-400 font-black bg-blue-500/15 dark:bg-blue-950/40 border border-blue-500/30';
+      awayCardColorClass = 'bg-blue-50/60 dark:bg-blue-950/20 border-2 border-blue-500/40';
+
+      homePctColorClass = 'text-rose-600 dark:text-rose-400 font-black bg-rose-500/15 dark:bg-rose-950/40 border border-rose-500/30';
+      homeCardColorClass = 'bg-rose-50/60 dark:bg-rose-950/20 border-2 border-rose-500/40';
+    } else {
+      homePctColorClass = 'text-blue-600 dark:text-blue-400 font-black bg-blue-500/15 dark:bg-blue-950/40 border border-blue-500/30';
+      homeCardColorClass = 'bg-blue-50/60 dark:bg-blue-950/20 border-2 border-blue-500/40';
+
+      awayPctColorClass = 'text-blue-600 dark:text-blue-400 font-black bg-blue-500/15 dark:bg-blue-950/40 border border-blue-500/30';
+      awayCardColorClass = 'bg-blue-50/60 dark:bg-blue-950/20 border-2 border-blue-500/40';
+    }
+
     return (
       <div className="space-y-4 w-full box-border">
         {/* 1. INFORMAÇÕES DA PARTIDA PANEL */}
@@ -753,6 +894,59 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
           </div>
         </div>
 
+        {/* 3.5. PORCENTAGEM DE DESEMPENHO WIDGET */}
+        {isStartedTab && (
+          <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest flex items-center space-x-2">
+                <span>📈</span>
+                <span>Porcentagem de Desempenho (%)</span>
+              </h3>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                {homePctNum === awayPctNum
+                  ? 'Desempenho Igual (50% / 50%)'
+                  : homePctNum > awayPctNum
+                  ? `${formatTeamName(match.homeClubName)} superior (+${(homePctNum - awayPctNum)}%)`
+                  : `${formatTeamName(match.awayClubName)} superior (+${(awayPctNum - homePctNum)}%)`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              {/* Home Team */}
+              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center space-y-1.5 transition-all ${homeCardColorClass}`}>
+                <div className="flex items-center space-x-2">
+                  <img src={match.homeClubLogo} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                  <span className="text-xs font-black text-slate-800 dark:text-white truncate max-w-[110px] sm:max-w-none">
+                    {formatTeamName(match.homeClubName)}
+                  </span>
+                </div>
+                <div className={`text-xl sm:text-2xl font-black px-3 py-1 rounded-lg ${homePctColorClass}`}>
+                  {homePctStr}
+                </div>
+                <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400">
+                  Desempenho em Tempo Real
+                </span>
+              </div>
+
+              {/* Away Team */}
+              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center space-y-1.5 transition-all ${awayCardColorClass}`}>
+                <div className="flex items-center space-x-2">
+                  <img src={match.awayClubLogo} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                  <span className="text-xs font-black text-slate-800 dark:text-white truncate max-w-[110px] sm:max-w-none">
+                    {formatTeamName(match.awayClubName)}
+                  </span>
+                </div>
+                <div className={`text-xl sm:text-2xl font-black px-3 py-1 rounded-lg ${awayPctColorClass}`}>
+                  {awayPctStr}
+                </div>
+                <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400">
+                  Desempenho em Tempo Real
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 4. CLASSIFICAÇÃO COMPARISON TABLE */}
         <div className="w-full box-border bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 p-3.5 sm:p-5 space-y-4 rounded-none shadow-none">
           <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center space-x-2">
@@ -764,66 +958,73 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
             <table className="w-full text-[10px] text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
-                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">Pos</th>
-                  <th className="w-[37%] py-2 text-left px-1.5 border-r border-zinc-200 dark:border-zinc-800">Equipe</th>
-                  <th className="w-[10%] py-2 text-center font-black border-r border-zinc-200 dark:border-zinc-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
-                  <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">J</th>
-                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">V</th>
-                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">E</th>
-                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">D</th>
-                  <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GP</th>
-                  <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GC</th>
-                  <th className="w-[9%] py-2 text-center">SG</th>
+                  <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">Pos</th>
+                  <th className="w-[30%] py-2 text-left px-1.5 border-r border-zinc-200 dark:border-zinc-800">Equipe</th>
+                  <th className="w-[9%] py-2 text-center font-black border-r border-zinc-200 dark:border-zinc-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">J</th>
+                  <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">V</th>
+                  <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">E</th>
+                  <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">D</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GP</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GC</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">SG</th>
+                  <th className="w-[9%] py-2 text-center font-black text-slate-900 dark:text-white">%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 font-medium">
                 {/* Home team row */}
                 <tr className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center font-bold text-zinc-700 dark:text-zinc-300">
-                  <td className="p-0 w-[7%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 bg-blue-500">
+                  <td className="p-0 w-[6%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 bg-blue-500">
                     <div className="w-full h-10 flex items-center justify-center">
                       {homeStandObj.position}
                     </div>
                   </td>
-                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                  <td className="py-1 px-1.5 w-[30%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.homeClubId })}>
                       <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
                       <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.homeClubName)}</span>
                     </div>
                   </td>
-                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-blue-50/10 dark:bg-blue-950/10">{homeStandObj.row.points}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.played}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.won}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.drawn}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.lost}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsFor}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsAgainst}</td>
-                  <td className={`py-1 w-[9%] text-center font-bold text-[9.5px] ${homeStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : homeStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
+                  <td className="py-1 w-[9%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-blue-50/10 dark:bg-blue-950/10">{homeStandObj.row.points}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.played}</td>
+                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.won}</td>
+                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.drawn}</td>
+                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.lost}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsFor}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsAgainst}</td>
+                  <td className={`py-1 w-[7%] text-center font-bold text-[9.5px] border-r border-zinc-200 dark:border-zinc-800 ${homeStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : homeStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
                     {homeStandObj.row.goalDifference > 0 ? `+${homeStandObj.row.goalDifference}` : homeStandObj.row.goalDifference}
+                  </td>
+                  <td className={`py-1 w-[9%] text-center text-[10px] font-black rounded ${homePctColorClass}`}>
+                    {homePctStr}
                   </td>
                 </tr>
 
                 {/* Away team row */}
                 <tr className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center font-bold text-zinc-700 dark:text-zinc-300">
-                  <td className="p-0 w-[7%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 bg-rose-500">
+                  <td className="p-0 w-[6%] text-center font-black text-xs text-white border-r border-zinc-200 dark:border-zinc-800 bg-rose-500">
                     <div className="w-full h-10 flex items-center justify-center">
                       {awayStandObj.position}
                     </div>
                   </td>
-                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                  <td className="py-1 px-1.5 w-[30%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.awayClubId })}>
                       <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
                       <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.awayClubName)}</span>
                     </div>
                   </td>
-                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-rose-50/10 dark:bg-rose-950/10">{awayStandObj.row.points}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.played}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.won}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.drawn}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.lost}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsFor}</td>
-                  <td className="py-1 w-[8%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsAgainst}</td>
-                  <td className={`py-1 w-[9%] text-center font-bold text-[9.5px] ${awayStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : awayStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
+                  <td className="py-1 w-[9%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-rose-50/10 dark:bg-rose-950/10">{awayStandObj.row.points}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.played}</td>
+                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.won}</td>
+                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.drawn}</td>
+                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.lost}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsFor}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsAgainst}</td>
+                  <td className={`py-1 w-[7%] text-center font-bold text-[9.5px] border-r border-zinc-200 dark:border-zinc-800 ${awayStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : awayStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
                     {awayStandObj.row.goalDifference > 0 ? `+${awayStandObj.row.goalDifference}` : awayStandObj.row.goalDifference}
+                  </td>
+                  <td className={`py-1 w-[9%] text-center text-[10px] font-black rounded ${awayPctColorClass}`}>
+                    {awayPctStr}
                   </td>
                 </tr>
               </tbody>
@@ -897,6 +1098,9 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
       });
 
       const maxPlayed = Math.max(...sortedRows.map((r) => r.played));
+      const pcts = sortedRows.map(r => r.played > 0 ? (r.points / (r.played * 3)) * 100 : 0);
+      const maxPct = Math.max(...pcts);
+      const minPct = Math.min(...pcts);
 
       return (
         <div className="w-full space-y-3.5">
@@ -909,16 +1113,17 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
             <table className="w-full text-[10px] text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
-                  <th className="w-[8%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">Pos</th>
-                  <th className="w-[34%] sm:w-[37%] py-2.5 text-left px-2 border-r border-slate-200 dark:border-slate-800/80">Equipe</th>
-                  <th className="w-[13%] sm:w-[10%] py-2.5 text-center font-black border-r border-slate-200 dark:border-slate-800/80 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
-                  <th className="w-[10%] sm:w-[8%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">J</th>
-                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">V</th>
-                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">E</th>
-                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">D</th>
-                  <th className="hidden sm:table-cell sm:w-[8%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GP</th>
-                  <th className="hidden sm:table-cell sm:w-[8%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GC</th>
-                  <th className="w-[8%] sm:w-[9%] py-2.5 text-center">SG</th>
+                  <th className="w-[7%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">Pos</th>
+                  <th className="w-[30%] sm:w-[32%] py-2.5 text-left px-2 border-r border-slate-200 dark:border-slate-800/80">Equipe</th>
+                  <th className="w-[11%] sm:w-[9%] py-2.5 text-center font-black border-r border-slate-200 dark:border-slate-800/80 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">J</th>
+                  <th className="w-[8%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">V</th>
+                  <th className="w-[8%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">E</th>
+                  <th className="w-[8%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">D</th>
+                  <th className="hidden sm:table-cell sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GP</th>
+                  <th className="hidden sm:table-cell sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GC</th>
+                  <th className="w-[8%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">SG</th>
+                  <th className="w-[11%] sm:w-[9%] py-2.5 text-center font-black text-slate-900 dark:text-white">%</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150 dark:divide-slate-800/60 font-medium">
@@ -941,6 +1146,18 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
 
                   const recentForm = getRecentFormInChamp(row.clubId);
                   const diff = row.played - maxPlayed;
+
+                  const rowPct = row.played > 0 ? (row.points / (row.played * 3)) * 100 : 0;
+                  const rowPctStr = rowPct % 1 === 0 ? `${rowPct.toFixed(0)}%` : `${rowPct.toFixed(1)}%`;
+
+                  let rowPctClass = 'text-slate-600 dark:text-slate-400 font-bold';
+                  if (maxPct > minPct) {
+                    if (rowPct === maxPct) {
+                      rowPctClass = 'text-blue-600 dark:text-blue-400 font-black bg-blue-500/15 dark:bg-blue-950/40 rounded px-1 py-0.5';
+                    } else if (rowPct === minPct) {
+                      rowPctClass = 'text-rose-600 dark:text-rose-400 font-black bg-rose-500/15 dark:bg-rose-950/40 rounded px-1 py-0.5';
+                    }
+                  }
 
                   return (
                     <tr key={row.clubId} className={rowStyle}>
@@ -1030,7 +1247,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       <td className="py-1 text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.lost}</td>
                       <td className="hidden sm:table-cell py-1 text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.goalsFor}</td>
                       <td className="hidden sm:table-cell py-1 text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.goalsAgainst}</td>
-                      <td className={`py-1 text-center font-bold text-[9.5px] ${
+                      <td className={`py-1 text-center font-bold text-[9.5px] border-r border-slate-200 dark:border-slate-800/80 ${
                         row.goalDifference > 0
                           ? 'text-zinc-800 dark:text-zinc-200'
                           : row.goalDifference < 0
@@ -1038,6 +1255,9 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                           : 'text-zinc-500'
                       }`}>
                         {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
+                      </td>
+                      <td className={`py-1 text-center text-[10px] ${rowPctClass}`}>
+                        {rowPctStr}
                       </td>
                     </tr>
                   );
@@ -1524,6 +1744,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                           {g.player1 ? (
                             <img
                               src={avatar}
+                              onError={handlePlayerImageError}
                               alt={g.player1}
                               className="w-8 h-8 rounded-full object-cover bg-zinc-100 border border-slate-200 dark:border-slate-800"
                               referrerPolicy="no-referrer"
@@ -2062,6 +2283,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
           <div className="relative w-11 h-11 rounded-full p-0.5 bg-white shadow-md border border-slate-200/50">
             <img 
               src={avatar} 
+              onError={handlePlayerImageError}
               alt={p.name}
               className="w-full h-full rounded-full object-cover"
               referrerPolicy="no-referrer"
@@ -2583,18 +2805,41 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
     );
   };
 
-  const pHome = match.stats?.possession?.home ?? 0;
-  const pAway = match.stats?.possession?.away ?? 0;
+  const isMatchStarted = checkIsMatchStarted(match);
 
-  let homeColor = '#000000'; // black
-  let awayColor = '#000000'; // black
+  let homeHeaderPctNum = 0;
+  let awayHeaderPctNum = 0;
+  let homeHeaderPctStr = '';
+  let awayHeaderPctStr = '';
 
-  if (pHome > pAway) {
-    homeColor = '#3B82F6'; // blue
-    awayColor = '#000000'; // black
-  } else if (pAway > pHome) {
-    homeColor = '#000000'; // black
-    awayColor = '#3B82F6'; // blue
+  let homeRingColor = '#475569';
+  let awayRingColor = '#475569';
+  let homeRingTextColor = 'text-white/90 font-black';
+  let awayRingTextColor = 'text-white/90 font-black';
+
+  if (isMatchStarted) {
+    const livePerf = getMatchLivePerformance(match);
+    homeHeaderPctNum = livePerf.homePct;
+    awayHeaderPctNum = livePerf.awayPct;
+    homeHeaderPctStr = `${livePerf.homePct}%`;
+    awayHeaderPctStr = `${livePerf.awayPct}%`;
+
+    if (homeHeaderPctNum > awayHeaderPctNum) {
+      homeRingColor = '#3B82F6'; // Blue for higher
+      awayRingColor = '#EF4444'; // Red for lower
+      homeRingTextColor = 'text-blue-400 font-black';
+      awayRingTextColor = 'text-rose-400 font-black';
+    } else if (awayHeaderPctNum > homeHeaderPctNum) {
+      awayRingColor = '#3B82F6'; // Blue for higher
+      homeRingColor = '#EF4444'; // Red for lower
+      awayRingTextColor = 'text-blue-400 font-black';
+      homeRingTextColor = 'text-rose-400 font-black';
+    } else {
+      homeRingColor = '#3B82F6';
+      awayRingColor = '#3B82F6';
+      homeRingTextColor = 'text-blue-400 font-black';
+      awayRingTextColor = 'text-blue-400 font-black';
+    }
   }
 
   return (
@@ -2646,23 +2891,25 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       cx="36"
                       cy="36"
                       r="32"
-                      stroke="#cbd5e1"
+                      stroke="#334155"
                       strokeWidth="4.5"
                       fill="transparent"
                     />
-                    {/* Foreground Percentage Circle */}
-                    <circle
-                      cx="36"
-                      cy="36"
-                      r="32"
-                      stroke={homeColor}
-                      strokeWidth="4.5"
-                      fill="transparent"
-                      strokeDasharray="201"
-                      strokeDashoffset={201 * (1 - pHome / 100)}
-                      strokeLinecap="round"
-                      className="transition-all duration-500"
-                    />
+                    {/* Foreground Percentage Circle - Only when match has started */}
+                    {isMatchStarted && (
+                      <circle
+                        cx="36"
+                        cy="36"
+                        r="32"
+                        stroke={homeRingColor}
+                        strokeWidth="4.5"
+                        fill="transparent"
+                        strokeDasharray="201"
+                        strokeDashoffset={201 * (1 - homeHeaderPctNum / 100)}
+                        strokeLinecap="round"
+                        className="transition-all duration-500"
+                      />
+                    )}
                   </svg>
                   {/* Inner Crest with White Background */}
                   <div className="w-13 h-13 rounded-full bg-white p-1 flex items-center justify-center z-10 shadow-inner">
@@ -2676,9 +2923,11 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 </div>
               </div>
               <div className="leading-tight flex flex-col items-center">
-                <span className="text-[9.5px] text-white/80 font-black block uppercase tracking-wider">
-                  {pHome}%
-                </span>
+                {isMatchStarted && (
+                  <span className={`text-[10px] block uppercase tracking-wider ${homeRingTextColor}`}>
+                    {homeHeaderPctStr}
+                  </span>
+                )}
                 <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/home:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away
                     ? 'font-black text-white drop-shadow-sm' 
@@ -2691,17 +2940,25 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
 
             {/* Center: Large Score */}
             <div className="flex flex-col items-center justify-center w-[36%] text-center space-y-1">
-              <span className="text-3xl font-sans font-black tracking-tighter text-white">
-                {match.score.home} - {match.score.away}
-              </span>
-              {match.isExtraTime && (
-                <span className="text-[9.5px] text-amber-300 font-extrabold uppercase tracking-wider block bg-amber-500/20 px-2.5 py-0.5 rounded-md border border-amber-500/30">
-                  Prorr: {match.scoreExtraTime?.home ?? match.score.home} - {match.scoreExtraTime?.away ?? match.score.away}
-                </span>
-              )}
-              {match.scorePenalties && (
-                <span className="text-[9.5px] text-rose-300 font-extrabold uppercase tracking-wider block bg-rose-500/20 px-2.5 py-0.5 rounded-md border border-rose-500/30 mt-1">
-                  Pênaltis: {match.scorePenalties.home} - {match.scorePenalties.away}
+              {isMatchStarted ? (
+                <>
+                  <span className="text-3xl font-sans font-black tracking-tighter text-white">
+                    {match.score.home} - {match.score.away}
+                  </span>
+                  {match.isExtraTime && (
+                    <span className="text-[9.5px] text-amber-300 font-extrabold uppercase tracking-wider block bg-amber-500/20 px-2.5 py-0.5 rounded-md border border-amber-500/30">
+                      Prorr: {match.scoreExtraTime?.home ?? match.score.home} - {match.scoreExtraTime?.away ?? match.score.away}
+                    </span>
+                  )}
+                  {match.scorePenalties && (
+                    <span className="text-[9.5px] text-rose-300 font-extrabold uppercase tracking-wider block bg-rose-500/20 px-2.5 py-0.5 rounded-md border border-rose-500/30 mt-1">
+                      Pênaltis: {match.scorePenalties.home} - {match.scorePenalties.away}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-2xl font-sans font-black tracking-tighter text-white/80">
+                  VS
                 </span>
               )}
               <span className="text-[9px] text-white/90 font-extrabold uppercase tracking-widest block font-mono">
@@ -2746,23 +3003,25 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       cx="36"
                       cy="36"
                       r="32"
-                      stroke="#cbd5e1"
+                      stroke="#334155"
                       strokeWidth="4.5"
                       fill="transparent"
                     />
-                    {/* Foreground Percentage Circle */}
-                    <circle
-                      cx="36"
-                      cy="36"
-                      r="32"
-                      stroke={awayColor}
-                      strokeWidth="4.5"
-                      fill="transparent"
-                      strokeDasharray="201"
-                      strokeDashoffset={201 * (1 - pAway / 100)}
-                      strokeLinecap="round"
-                      className="transition-all duration-500"
-                    />
+                    {/* Foreground Percentage Circle - Only when match has started */}
+                    {isMatchStarted && (
+                      <circle
+                        cx="36"
+                        cy="36"
+                        r="32"
+                        stroke={awayRingColor}
+                        strokeWidth="4.5"
+                        fill="transparent"
+                        strokeDasharray="201"
+                        strokeDashoffset={201 * (1 - awayHeaderPctNum / 100)}
+                        strokeLinecap="round"
+                        className="transition-all duration-500"
+                      />
+                    )}
                   </svg>
                   {/* Inner Crest with White Background */}
                   <div className="w-13 h-13 rounded-full bg-white p-1 flex items-center justify-center z-10 shadow-inner">
@@ -2776,9 +3035,11 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 </div>
               </div>
               <div className="leading-tight flex flex-col items-center">
-                <span className="text-[9.5px] text-white/80 font-black block uppercase tracking-wider">
-                  {pAway}%
-                </span>
+                {isMatchStarted && (
+                  <span className={`text-[10px] block uppercase tracking-wider ${awayRingTextColor}`}>
+                    {awayHeaderPctStr}
+                  </span>
+                )}
                 <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/away:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home
                     ? 'font-black text-white drop-shadow-sm' 
