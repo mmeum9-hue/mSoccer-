@@ -182,12 +182,11 @@ export const AdminPanel: React.FC = () => {
       const champ = championships.find(c => c.id === selectedChampIdForEdit);
       const standing = champ?.standings.find(s => s.clubId === editingClubId);
       if (standing) {
-        const base = standing.baseStats || standing;
-        setEditWins(base.won ?? 0);
-        setEditDraws(base.drawn ?? 0);
-        setEditLosses(base.lost ?? 0);
-        setEditGoalsScored(base.goalsFor ?? 0);
-        setEditGoalsConceded(base.goalsAgainst ?? 0);
+        setEditWins(standing.won ?? 0);
+        setEditDraws(standing.drawn ?? 0);
+        setEditLosses(standing.lost ?? 0);
+        setEditGoalsScored(standing.goalsFor ?? 0);
+        setEditGoalsConceded(standing.goalsAgainst ?? 0);
       } else {
         setEditWins(0);
         setEditDraws(0);
@@ -1226,49 +1225,159 @@ export const AdminPanel: React.FC = () => {
     setEditGoalsConceded(club.stats?.goalsConceded ?? 0);
   };
 
-  const handleSaveClubStats = (clubId: string) => {
+  const handleSaveClubStats = async (clubId: string) => {
     const club = clubs.find((c) => c.id === clubId);
     if (!club) return;
+
+    const editW = Number(editWins);
+    const editD = Number(editDraws);
+    const editL = Number(editLosses);
+    const editGP = Number(editGoalsScored);
+    const editGC = Number(editGoalsConceded);
 
     if (selectedChampIdForEdit === 'global') {
       const updatedClub: Club = {
         ...club,
         stats: {
-          wins: Number(editWins),
-          draws: Number(editDraws),
-          losses: Number(editLosses),
-          goalsScored: Number(editGoalsScored),
-          goalsConceded: Number(editGoalsConceded),
+          wins: editW,
+          draws: editD,
+          losses: editL,
+          goalsScored: editGP,
+          goalsConceded: editGC,
         }
       };
-      updateClub(updatedClub);
+
+      // Also update baseStats and standings in all championships where this club participates
+      for (const champ of championships) {
+        const row = champ.standings.find(s => s.clubId === clubId);
+        if (row) {
+          const finishedMatches = matches.filter(
+            (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
+          );
+          let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0, fPts = 0;
+          finishedMatches.forEach((m) => {
+            if (m.homeClubId === clubId) {
+              fGP += m.score.home;
+              fGC += m.score.away;
+              if (m.score.home > m.score.away) { fWins += 1; fPts += 3; }
+              else if (m.score.home < m.score.away) { fLosses += 1; }
+              else { fDraws += 1; fPts += 1; }
+            } else if (m.awayClubId === clubId) {
+              fGP += m.score.away;
+              fGC += m.score.home;
+              if (m.score.away > m.score.home) { fWins += 1; fPts += 3; }
+              else if (m.score.away < m.score.home) { fLosses += 1; }
+              else { fDraws += 1; fPts += 1; }
+            }
+          });
+
+          const bWins = Math.max(0, editW - fWins);
+          const bDraws = Math.max(0, editD - fDraws);
+          const bLosses = Math.max(0, editL - fLosses);
+          const bGP = Math.max(0, editGP - fGP);
+          const bGC = Math.max(0, editGC - fGC);
+          const bPlayed = bWins + bDraws + bLosses;
+          const bPts = bWins * 3 + bDraws;
+
+          const totalPlayed = editW + editD + editL;
+          const totalPts = Math.max(0, editW * 3 + editD - (row.pointsDeduction || 0));
+
+          const updatedStandings = champ.standings.map((sRow) => {
+            if (sRow.clubId === clubId) {
+              return {
+                ...sRow,
+                played: totalPlayed,
+                won: editW,
+                drawn: editD,
+                lost: editL,
+                goalsFor: editGP,
+                goalsAgainst: editGC,
+                goalDifference: editGP - editGC,
+                points: totalPts,
+                baseStats: {
+                  played: bPlayed,
+                  won: bWins,
+                  drawn: bDraws,
+                  lost: bLosses,
+                  goalsFor: bGP,
+                  goalsAgainst: bGC,
+                  points: bPts
+                }
+              };
+            }
+            return sRow;
+          });
+
+          updatedStandings.sort((a, b) => {
+            if (b.points !== a.points) return b.points - a.points;
+            if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+            return b.goalsFor - a.goalsFor;
+          });
+
+          await updateChampionship({
+            ...champ,
+            standings: updatedStandings
+          });
+        }
+      }
+
+      await updateClub(updatedClub);
       addLog('Estatísticas do clube atualizadas', club.name, 'bg-emerald-500');
     } else {
       // Find the selected championship
       const champ = championships.find((c) => c.id === selectedChampIdForEdit);
       if (champ) {
+        const finishedMatches = matches.filter(
+          (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
+        );
+        let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0, fPts = 0;
+        finishedMatches.forEach((m) => {
+          if (m.homeClubId === clubId) {
+            fGP += m.score.home;
+            fGC += m.score.away;
+            if (m.score.home > m.score.away) { fWins += 1; fPts += 3; }
+            else if (m.score.home < m.score.away) { fLosses += 1; }
+            else { fDraws += 1; fPts += 1; }
+          } else if (m.awayClubId === clubId) {
+            fGP += m.score.away;
+            fGC += m.score.home;
+            if (m.score.away > m.score.home) { fWins += 1; fPts += 3; }
+            else if (m.score.away < m.score.home) { fLosses += 1; }
+            else { fDraws += 1; fPts += 1; }
+          }
+        });
+
+        const bWins = Math.max(0, editW - fWins);
+        const bDraws = Math.max(0, editD - fDraws);
+        const bLosses = Math.max(0, editL - fLosses);
+        const bGP = Math.max(0, editGP - fGP);
+        const bGC = Math.max(0, editGC - fGC);
+        const bPlayed = bWins + bDraws + bLosses;
+        const bPts = bWins * 3 + bDraws;
+
+        const totalPlayed = editW + editD + editL;
+
         const updatedStandings = champ.standings.map((row) => {
           if (row.clubId === clubId) {
-            const played = Number(editWins) + Number(editDraws) + Number(editLosses);
-            const points = Number(editWins) * 3 + Number(editDraws);
+            const points = Math.max(0, editW * 3 + editD - (row.pointsDeduction || 0));
             return {
               ...row,
-              played,
-              won: Number(editWins),
-              drawn: Number(editDraws),
-              lost: Number(editLosses),
-              goalsFor: Number(editGoalsScored),
-              goalsAgainst: Number(editGoalsConceded),
-              goalDifference: Number(editGoalsScored) - Number(editGoalsConceded),
+              played: totalPlayed,
+              won: editW,
+              drawn: editD,
+              lost: editL,
+              goalsFor: editGP,
+              goalsAgainst: editGC,
+              goalDifference: editGP - editGC,
               points,
               baseStats: {
-                played,
-                won: Number(editWins),
-                drawn: Number(editDraws),
-                lost: Number(editLosses),
-                goalsFor: Number(editGoalsScored),
-                goalsAgainst: Number(editGoalsConceded),
-                points
+                played: bPlayed,
+                won: bWins,
+                drawn: bDraws,
+                lost: bLosses,
+                goalsFor: bGP,
+                goalsAgainst: bGC,
+                points: bPts
               }
             };
           }
@@ -1282,10 +1391,24 @@ export const AdminPanel: React.FC = () => {
           return b.goalsFor - a.goalsFor;
         });
 
-        updateChampionship({
+        await updateChampionship({
           ...champ,
           standings: updatedStandings
         });
+
+        // Also update club global stats
+        const updatedClub: Club = {
+          ...club,
+          stats: {
+            wins: editW,
+            draws: editD,
+            losses: editL,
+            goalsScored: editGP,
+            goalsConceded: editGC,
+          }
+        };
+        await updateClub(updatedClub);
+
         addLog('Estatísticas do clube no campeonato atualizadas', `${club.name} -> ${champ.name}`, 'bg-emerald-500');
       }
     }
@@ -4395,23 +4518,6 @@ export const AdminPanel: React.FC = () => {
                     let losses = club.stats?.losses ?? 0;
                     let goalsScored = club.stats?.goalsScored ?? 0;
                     let goalsConceded = club.stats?.goalsConceded ?? 0;
-
-                    finishedClubMatches.forEach((m) => {
-                      const isHome = m.homeClubId === club.id;
-                      const myScore = isHome ? m.score.home : m.score.away;
-                      const opponentScore = isHome ? m.score.away : m.score.home;
-
-                      goalsScored += myScore;
-                      goalsConceded += opponentScore;
-
-                      if (myScore > opponentScore) {
-                        wins += 1;
-                      } else if (myScore < opponentScore) {
-                        losses += 1;
-                      } else {
-                        draws += 1;
-                      }
-                    });
 
                     const points = wins * 3 + draws;
 
