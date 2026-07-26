@@ -1186,6 +1186,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addClub = async (club: Club) => {
     try {
+      setClubs((prev) => {
+        const exists = prev.some((c) => c.id === club.id);
+        if (exists) return prev.map((c) => (c.id === club.id ? club : c));
+        return [...prev, club];
+      });
       await setDoc(doc(db, 'clubs', club.id), club);
       await addAuditLog('Clube Cadastrado', `Cadastrou o clube: ${club.name} (${club.country})`, 'bg-emerald-600');
     } catch (e) {
