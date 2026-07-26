@@ -2931,7 +2931,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/home:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away
                     ? 'font-black text-white drop-shadow-sm' 
-                    : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home ? 'font-normal text-white/70' : 'font-medium text-white')
+                    : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home ? 'font-medium text-slate-300' : 'font-medium text-white')
                 }`}>
                   {formatTeamName(match.homeClubName)}
                 </span>
@@ -3043,7 +3043,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                 <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/away:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home
                     ? 'font-black text-white drop-shadow-sm' 
-                    : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away ? 'font-normal text-white/70' : 'font-medium text-white')
+                    : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away ? 'font-medium text-slate-300' : 'font-medium text-white')
                 }`}>
                   {formatTeamName(match.awayClubName)}
                 </span>

@@ -298,7 +298,11 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 min-w-0">
               <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white" referrerPolicy="no-referrer" />
-              <span className={`text-[10px] whitespace-pre-line font-bold ${isFinished && match.score.home > match.score.away ? 'text-zinc-900 dark:text-white font-black' : 'text-zinc-500 dark:text-zinc-400'}`}>
+              <span className={`text-[10px] whitespace-pre-line ${
+                isFinished && match.score.home > match.score.away 
+                  ? 'text-zinc-950 dark:text-white font-black' 
+                  : (isFinished && match.score.away > match.score.home ? 'text-zinc-600 dark:text-zinc-400 font-medium' : 'text-zinc-800 dark:text-zinc-200 font-bold')
+              }`}>
                 {formatTeamName(match.homeClubName)}
               </span>
             </div>
@@ -310,7 +314,11 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 min-w-0">
               <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white" referrerPolicy="no-referrer" />
-              <span className={`text-[10px] whitespace-pre-line font-bold ${isFinished && match.score.away > match.score.home ? 'text-zinc-900 dark:text-white font-black' : 'text-zinc-500 dark:text-zinc-400'}`}>
+              <span className={`text-[10px] whitespace-pre-line ${
+                isFinished && match.score.away > match.score.home 
+                  ? 'text-zinc-950 dark:text-white font-black' 
+                  : (isFinished && match.score.home > match.score.away ? 'text-zinc-600 dark:text-zinc-400 font-medium' : 'text-zinc-800 dark:text-zinc-200 font-bold')
+              }`}>
                 {formatTeamName(match.awayClubName)}
               </span>
             </div>

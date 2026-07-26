@@ -4475,13 +4475,6 @@ export const AdminPanel: React.FC = () => {
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => deleteClub(club.id)}
-                              className="text-rose-500 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded-lg cursor-pointer transition-colors"
-                              title="Excluir Clube"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
                           </div>
                         </div>
 

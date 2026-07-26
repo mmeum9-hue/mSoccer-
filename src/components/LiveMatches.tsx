@@ -597,7 +597,7 @@ export const LiveMatches: React.FC = () => {
                                     <span className={`text-[12px] break-words whitespace-pre-line max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
                                       isHomeWinner 
                                         ? 'font-black text-black dark:text-white' 
-                                        : (isAwayWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
+                                        : (isAwayWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-medium text-zinc-800 dark:text-zinc-200')
                                     }`}>
                                       {formatTeamName(match.homeClubName)}
                                     </span>
@@ -632,9 +632,9 @@ export const LiveMatches: React.FC = () => {
                                     ) : isLive ? (
                                       <div className="flex flex-col items-center justify-center">
                                         <span className="text-[13px] font-mono tracking-tight leading-none">
-                                          <span className={isHomeWinner ? 'font-black text-rose-600' : (isAwayWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.home}</span>
+                                          <span className={isHomeWinner ? 'font-black text-rose-600' : (isAwayWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-black text-rose-600')}>{match.score.home}</span>
                                           <span className="text-zinc-400 font-normal px-0.5">-</span>
-                                          <span className={isAwayWinner ? 'font-black text-rose-600' : (isHomeWinner ? 'font-normal text-zinc-500' : 'font-black text-rose-600')}>{match.score.away}</span>
+                                          <span className={isAwayWinner ? 'font-black text-rose-600' : (isHomeWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-black text-rose-600')}>{match.score.away}</span>
                                         </span>
                                         <span className="text-[8px] text-rose-600 font-extrabold uppercase tracking-widest mt-1 flex items-center space-x-1 justify-center animate-pulse">
                                           <span className="h-1 w-1 bg-rose-600 rounded-full shrink-0"></span>
@@ -646,9 +646,9 @@ export const LiveMatches: React.FC = () => {
                                     ) : (
                                       <div className="flex flex-col items-center justify-center">
                                         <span className="text-[12.5px] font-mono tracking-tight leading-none">
-                                          <span className={isHomeWinner ? 'font-black text-black dark:text-white' : (isAwayWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.home}</span>
+                                          <span className={isHomeWinner ? 'font-black text-black dark:text-white' : (isAwayWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.home}</span>
                                           <span className="text-zinc-400 font-normal px-0.5">-</span>
-                                          <span className={isAwayWinner ? 'font-black text-black dark:text-white' : (isHomeWinner ? 'font-normal text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.away}</span>
+                                          <span className={isAwayWinner ? 'font-black text-black dark:text-white' : (isHomeWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-bold text-zinc-700 dark:text-zinc-300')}>{match.score.away}</span>
                                         </span>
                                         <span className="text-[7.5px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
                                           FIM
@@ -674,7 +674,7 @@ export const LiveMatches: React.FC = () => {
                                     <span className={`text-[12px] break-words whitespace-pre-line max-w-[130px] group-hover:text-[#3C8C21] transition-colors leading-snug ${
                                       isAwayWinner 
                                         ? 'font-black text-black dark:text-white' 
-                                        : (isHomeWinner ? 'font-normal text-zinc-400 dark:text-zinc-500' : 'font-medium text-zinc-800 dark:text-zinc-200')
+                                        : (isHomeWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-medium text-zinc-800 dark:text-zinc-200')
                                     }`}>
                                       {formatTeamName(match.awayClubName)}
                                     </span>
