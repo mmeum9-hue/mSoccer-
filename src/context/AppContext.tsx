@@ -320,6 +320,43 @@ const safeLocalStorage = {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const findMatchingClub = (clubsList: Club[], clubId: string, clubName?: string): Club | undefined => {
+  if (!clubId && !clubName) return undefined;
+  const cleanId = (clubId || '').trim().toLowerCase();
+  const cleanName = (clubName || '').trim().toLowerCase();
+
+  if (cleanId) {
+    const exactId = clubsList.find((c) => c.id.trim().toLowerCase() === cleanId);
+    if (exactId) return exactId;
+  }
+
+  if (cleanName) {
+    const exactName = clubsList.find((c) => c.name.trim().toLowerCase() === cleanName);
+    if (exactName) return exactName;
+  }
+
+  if (cleanId) {
+    const strippedId = cleanId.replace(/[^a-z0-9]/g, '');
+    if (strippedId) {
+      const idMatch = clubsList.find((c) => {
+        const cStripped = c.id.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cStripped === strippedId || (cStripped.length >= 3 && (cStripped.includes(strippedId) || strippedId.includes(cStripped)));
+      });
+      if (idMatch) return idMatch;
+    }
+  }
+
+  if (cleanName && cleanName.length >= 3) {
+    const partialName = clubsList.find((c) => {
+      const cName = c.name.trim().toLowerCase();
+      return cName.includes(cleanName) || cleanName.includes(cName);
+    });
+    if (partialName) return partialName;
+  }
+
+  return undefined;
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial states from local memory or defaults first to keep app working offline / during initial sync
   const [clubs, setClubs] = useState<Club[]>(() => {
@@ -1199,50 +1236,150 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const updateClub = async (club: Club) => {
     try {
+      // 1. Update clubs in state and Firestore
       setClubs((prev) => prev.map((c) => (c.id === club.id ? club : c)));
       await setDoc(doc(db, 'clubs', club.id), club);
 
-      // Propagate new name and logo to all existing matches
-      matches.forEach(async (m) => {
-        let updated = false;
+      // 2. Propagate new name and logo to all existing matches in state and Firestore
+      const updatedMatches = matches.map((m) => {
+        let matchUpdated = false;
         const newMatch = { ...m };
         if (m.homeClubId === club.id) {
           newMatch.homeClubName = club.name;
           newMatch.homeClubLogo = club.logoUrl;
-          updated = true;
+          matchUpdated = true;
         }
         if (m.awayClubId === club.id) {
           newMatch.awayClubName = club.name;
           newMatch.awayClubLogo = club.logoUrl;
-          updated = true;
+          matchUpdated = true;
         }
-        if (updated) {
-          await setDoc(doc(db, 'matches', m.id), newMatch);
+        if (matchUpdated) {
+          setDoc(doc(db, 'matches', m.id), newMatch);
         }
+        return newMatch;
       });
+      setMatches(updatedMatches);
 
-      // Propagate to championship standings and recalculate
-      const updatedClubsList = clubs.map(c => c.id === club.id ? club : c);
-      for (const champ of championships) {
-        const hasClubInStandings = champ.standings.some((row) => row.clubId === club.id);
-        if (hasClubInStandings) {
-          await recalculateStandingsForChampionship(champ.id, matches, updatedClubsList);
-        }
-      }
-
-      // Propagate to players
-      players.forEach(async (p) => {
+      // 3. Propagate to players in state and Firestore
+      const updatedPlayers = players.map((p) => {
         if (p.clubId === club.id) {
-          await setDoc(doc(db, 'players', p.id), { ...p, clubName: club.name });
+          const newP = { ...p, clubName: club.name };
+          setDoc(doc(db, 'players', p.id), newP);
+          return newP;
         }
+        return p;
+      });
+      setPlayers(updatedPlayers);
+
+      // 4. Propagate to news in state and Firestore
+      const updatedNews = news.map((n) => {
+        if (n.clubId === club.id) {
+          const newN = { ...n, clubName: club.name };
+          setDoc(doc(db, 'news', n.id), newN);
+          return newN;
+        }
+        return n;
+      });
+      setNews(updatedNews);
+
+      // 5. Propagate to championship standings in state and Firestore
+      const updatedChampionships = championships.map((champ) => {
+        let champChanged = false;
+        const newStandings = champ.standings.map((row) => {
+          const isThisClub =
+            row.clubId === club.id ||
+            row.clubId.trim().toLowerCase() === club.id.trim().toLowerCase() ||
+            row.clubName.trim().toLowerCase() === club.name.trim().toLowerCase() ||
+            findMatchingClub([club], row.clubId, row.clubName) !== undefined;
+
+          if (!isThisClub) return row;
+          champChanged = true;
+
+          const targetWins = club.stats?.wins ?? row.won;
+          const targetDraws = club.stats?.draws ?? row.drawn;
+          const targetLosses = club.stats?.losses ?? row.lost;
+          const targetGP = club.stats?.goalsScored ?? row.goalsFor;
+          const targetGC = club.stats?.goalsConceded ?? row.goalsAgainst;
+
+          const finishedMatches = updatedMatches.filter(
+            (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
+          );
+
+          let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
+          finishedMatches.forEach((m) => {
+            if (m.homeClubId === club.id || m.homeClubId === row.clubId) {
+              fGP += m.score.home;
+              fGC += m.score.away;
+              if (m.score.home > m.score.away) fWins += 1;
+              else if (m.score.home < m.score.away) fLosses += 1;
+              else fDraws += 1;
+            } else if (m.awayClubId === club.id || m.awayClubId === row.clubId) {
+              fGP += m.score.away;
+              fGC += m.score.home;
+              if (m.score.away > m.score.home) fWins += 1;
+              else if (m.score.away < m.score.home) fLosses += 1;
+              else fDraws += 1;
+            }
+          });
+
+          const bWins = Math.max(0, targetWins - fWins);
+          const bDraws = Math.max(0, targetDraws - fDraws);
+          const bLosses = Math.max(0, targetLosses - fLosses);
+          const bGP = Math.max(0, targetGP - fGP);
+          const bGC = Math.max(0, targetGC - fGC);
+          const bPlayed = bWins + bDraws + bLosses;
+          const bPts = bWins * 3 + bDraws;
+
+          const totalPlayed = targetWins + targetDraws + targetLosses;
+          const totalPts = Math.max(0, targetWins * 3 + targetDraws - (row.pointsDeduction || 0));
+
+          return {
+            ...row,
+            clubId: club.id,
+            clubName: club.name,
+            logoUrl: club.logoUrl,
+            played: totalPlayed,
+            won: targetWins,
+            drawn: targetDraws,
+            lost: targetLosses,
+            goalsFor: targetGP,
+            goalsAgainst: targetGC,
+            goalDifference: targetGP - targetGC,
+            points: totalPts,
+            baseStats: {
+              played: bPlayed,
+              won: bWins,
+              drawn: bDraws,
+              lost: bLosses,
+              goalsFor: bGP,
+              goalsAgainst: bGC,
+              points: bPts,
+              pointsDeduction: row.pointsDeduction || 0,
+              deductionReason: row.deductionReason || ''
+            }
+          };
+        });
+
+        if (!champChanged) return champ;
+
+        newStandings.sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+          if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+          return b.won - a.won;
+        });
+
+        const updatedChamp = {
+          ...champ,
+          standings: newStandings
+        };
+
+        setDoc(doc(db, 'championships', champ.id), updatedChamp);
+        return updatedChamp;
       });
 
-      // Propagate to news articles
-      news.forEach(async (n) => {
-        if (n.clubId === club.id) {
-          await setDoc(doc(db, 'news', n.id), { ...n, clubName: club.name });
-        }
-      });
+      setChampionships(updatedChampionships);
 
       await addAuditLog('Clube Atualizado', `Atualizou informações do clube: ${club.name}`, 'bg-blue-600');
     } catch (e) {
@@ -1337,7 +1474,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Reset all existing standing rows to their championship-specific base stats
       const resetStandings = champ.standings.map((row) => {
-        const club = clubsToUse.find((c) => c.id === row.clubId);
+        const club = findMatchingClub(clubsToUse, row.clubId, row.clubName);
 
         let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
         finishedMatches.forEach((m) => {
@@ -1399,6 +1536,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         return {
           ...row,
+          clubId: club ? club.id : row.clubId,
           clubName: club?.name || row.clubName,
           logoUrl: club?.logoUrl || row.logoUrl,
           played: basePlayed,
@@ -1829,7 +1967,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
         const resetStandings = champ.standings.map((row) => {
-          const club = clubsData.find((c) => c.id === row.clubId);
+          const club = findMatchingClub(clubsData, row.clubId, row.clubName);
 
           let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
           finishedMatches.forEach((m) => {
@@ -1891,6 +2029,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           return {
             ...row,
+            clubId: club ? club.id : row.clubId,
             clubName: club?.name || row.clubName,
             logoUrl: club?.logoUrl || row.logoUrl,
             played: basePlayed,

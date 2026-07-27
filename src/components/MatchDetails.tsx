@@ -99,84 +99,12 @@ const checkIsMatchStarted = (match: any): boolean => {
 };
 
 const getMatchLivePerformance = (match: any): { homePct: number; awayPct: number } => {
-  let homeScore = 50;
-  let awayScore = 50;
-
-  const homeGoals = match.score?.home ?? 0;
-  const awayGoals = match.score?.away ?? 0;
-  homeScore += homeGoals * 15;
-  awayScore += awayGoals * 15;
-
-  if (match.scoreExtraTime) {
-    const homeEtExtra = (match.scoreExtraTime.home ?? homeGoals) - homeGoals;
-    const awayEtExtra = (match.scoreExtraTime.away ?? awayGoals) - awayGoals;
-    homeScore += homeEtExtra * 12;
-    awayScore += awayEtExtra * 12;
+  if (match?.stats?.possession) {
+    const home = typeof match.stats.possession.home === 'number' ? match.stats.possession.home : 50;
+    const away = typeof match.stats.possession.away === 'number' ? match.stats.possession.away : (100 - home);
+    return { homePct: home, awayPct: away };
   }
-
-  if (match.scorePenalties) {
-    homeScore += (match.scorePenalties.home ?? 0) * 3;
-    awayScore += (match.scorePenalties.away ?? 0) * 3;
-  }
-
-  if (match.stats) {
-    if (match.stats.possession) {
-      const pHome = match.stats.possession.home || 0;
-      const pAway = match.stats.possession.away || 0;
-      if (pHome > 0 || pAway > 0) {
-        homeScore += (pHome - 50) * 0.4;
-        awayScore += (pAway - 50) * 0.4;
-      }
-    }
-
-    if (match.stats.shotsOnTarget) {
-      homeScore += (match.stats.shotsOnTarget.home || 0) * 3;
-      awayScore += (match.stats.shotsOnTarget.away || 0) * 3;
-    }
-
-    if (match.stats.shots) {
-      homeScore += (match.stats.shots.home || 0) * 1;
-      awayScore += (match.stats.shots.away || 0) * 1;
-    }
-
-    if (match.stats.corners) {
-      homeScore += (match.stats.corners.home || 0) * 1.5;
-      awayScore += (match.stats.corners.away || 0) * 1.5;
-    }
-
-    if (match.stats.dangerousAttacks) {
-      homeScore += (match.stats.dangerousAttacks.home || 0) * 0.2;
-      awayScore += (match.stats.dangerousAttacks.away || 0) * 0.2;
-    }
-
-    if (match.stats.saves) {
-      homeScore += (match.stats.saves.home || 0) * 1.5;
-      awayScore += (match.stats.saves.away || 0) * 1.5;
-    }
-  }
-
-  if (match.events && match.events.length > 0) {
-    match.events.forEach((evt: any) => {
-      if (evt.team === 'home') {
-        if (evt.type === 'Goal') homeScore += 5;
-        if (evt.type === 'RedCard') homeScore -= 8;
-        if (evt.type === 'YellowCard') homeScore -= 1;
-      } else if (evt.team === 'away') {
-        if (evt.type === 'Goal') awayScore += 5;
-        if (evt.type === 'RedCard') awayScore -= 8;
-        if (evt.type === 'YellowCard') awayScore -= 1;
-      }
-    });
-  }
-
-  homeScore = Math.max(1, homeScore);
-  awayScore = Math.max(1, awayScore);
-
-  const total = homeScore + awayScore;
-  let homePct = Math.round((homeScore / total) * 100);
-  let awayPct = 100 - homePct; // Sums strictly to 100%!
-
-  return { homePct, awayPct };
+  return { homePct: 50, awayPct: 50 };
 };
 
 export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
@@ -893,59 +821,6 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
             </div>
           </div>
         </div>
-
-        {/* 3.5. PORCENTAGEM DE DESEMPENHO WIDGET */}
-        {isStartedTab && (
-          <div className="w-full box-border bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest flex items-center space-x-2">
-                <span>📈</span>
-                <span>Porcentagem de Desempenho (%)</span>
-              </h3>
-              <span className="text-[10px] font-bold text-slate-400 uppercase">
-                {homePctNum === awayPctNum
-                  ? 'Desempenho Igual (50% / 50%)'
-                  : homePctNum > awayPctNum
-                  ? `${formatTeamName(match.homeClubName)} superior (+${(homePctNum - awayPctNum)}%)`
-                  : `${formatTeamName(match.awayClubName)} superior (+${(awayPctNum - homePctNum)}%)`}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              {/* Home Team */}
-              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center space-y-1.5 transition-all ${homeCardColorClass}`}>
-                <div className="flex items-center space-x-2">
-                  <img src={match.homeClubLogo} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-                  <span className="text-xs font-black text-slate-800 dark:text-white truncate max-w-[110px] sm:max-w-none">
-                    {formatTeamName(match.homeClubName)}
-                  </span>
-                </div>
-                <div className={`text-xl sm:text-2xl font-black px-3 py-1 rounded-lg ${homePctColorClass}`}>
-                  {homePctStr}
-                </div>
-                <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400">
-                  Desempenho em Tempo Real
-                </span>
-              </div>
-
-              {/* Away Team */}
-              <div className={`p-3 rounded-xl flex flex-col items-center justify-center text-center space-y-1.5 transition-all ${awayCardColorClass}`}>
-                <div className="flex items-center space-x-2">
-                  <img src={match.awayClubLogo} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-                  <span className="text-xs font-black text-slate-800 dark:text-white truncate max-w-[110px] sm:max-w-none">
-                    {formatTeamName(match.awayClubName)}
-                  </span>
-                </div>
-                <div className={`text-xl sm:text-2xl font-black px-3 py-1 rounded-lg ${awayPctColorClass}`}>
-                  {awayPctStr}
-                </div>
-                <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400">
-                  Desempenho em Tempo Real
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* 4. CLASSIFICAÇÃO COMPARISON TABLE */}
         <div className="w-full box-border bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-800 p-3.5 sm:p-5 space-y-4 rounded-none shadow-none">
