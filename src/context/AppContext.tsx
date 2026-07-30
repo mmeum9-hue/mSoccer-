@@ -320,6 +320,15 @@ const safeLocalStorage = {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const getCoreClubName = (str: string): string => {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(cd|fc|sc|sd|ad|ld|clube|desportivo|esporte|escola|associacao|liga|da|do|de)\b/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+};
+
 const findMatchingClub = (clubsList: Club[], clubId: string, clubName?: string): Club | undefined => {
   if (!clubId && !clubName) return undefined;
   const cleanId = (clubId || '').trim().toLowerCase();
@@ -355,6 +364,35 @@ const findMatchingClub = (clubsList: Club[], clubId: string, clubName?: string):
   }
 
   return undefined;
+};
+
+const isClubInStandingRow = (
+  standingRow: { clubId: string; clubName: string },
+  matchClubId: string,
+  matchClubName: string,
+  clubsList?: Club[]
+): boolean => {
+  if (standingRow.clubId && matchClubId && standingRow.clubId.trim().toLowerCase() === matchClubId.trim().toLowerCase()) {
+    return true;
+  }
+  if (standingRow.clubName && matchClubName && standingRow.clubName.trim().toLowerCase() === matchClubName.trim().toLowerCase()) {
+    return true;
+  }
+  if (clubsList && clubsList.length > 0) {
+    const standingClub = findMatchingClub(clubsList, standingRow.clubId, standingRow.clubName);
+    const matchClub = findMatchingClub(clubsList, matchClubId, matchClubName);
+    if (standingClub && matchClub && standingClub.id === matchClub.id) {
+      return true;
+    }
+  }
+  const core1 = getCoreClubName(standingRow.clubId) || getCoreClubName(standingRow.clubName);
+  const core2 = getCoreClubName(matchClubId) || getCoreClubName(matchClubName);
+  if (core1 && core2 && core1.length >= 3 && core2.length >= 3) {
+    if (core1 === core2 || core1.includes(core2) || core2.includes(core1)) {
+      return true;
+    }
+  }
+  return false;
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -1175,6 +1213,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       await setDoc(doc(db, 'matches', match.id), match);
       await addAuditLog('Partida Agendada', `Agendou partida: ${match.homeClubName} x ${match.awayClubName} (${match.championshipName})`, 'bg-emerald-600');
+      if (match.championshipId) {
+        recalculateStandingsForChampionship(match.championshipId);
+      }
     } catch (e) {
       console.error("Error adding match:", e);
     }
@@ -1199,6 +1240,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMatches((prev) => prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)));
       await setDoc(doc(db, 'matches', match.id), updatedMatch);
       await addAuditLog('Partida Sincronizada', `Atualizou partida: ${match.homeClubName} ${match.score.home} x ${match.score.away} ${match.awayClubName} (${match.status})`, 'bg-blue-600');
+      
+      if (updatedMatch.championshipId) {
+        recalculateStandingsForChampionship(updatedMatch.championshipId);
+      }
     } catch (e) {
       console.error("Error updating match:", e);
     }
@@ -1215,6 +1260,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Update local memory only after remote confirmation
       setMatches((prev) => prev.filter((match) => match.id !== id));
       await addAuditLog('Partida Removida', `Excluiu partida: ${label}`, 'bg-rose-600');
+
+      if (m && m.championshipId) {
+        recalculateStandingsForChampionship(m.championshipId);
+      }
     } catch (e) {
       console.error("Error deleting match:", e);
       addNotification('Erro de Operação', 'Não foi possível excluir a partida. Seus dados foram preservados.', 'sistema');
@@ -1469,7 +1518,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Filter finished matches for this championship
       const finishedMatches = matchesToUse.filter(
-        (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
+        (m) => m.championshipId === champ.id && (m.status === MatchStatus.FINISHED || m.status === ('FINISHED' as any) || m.status === ('Encerrado' as any))
       );
 
       // Reset all existing standing rows to their championship-specific base stats
@@ -1478,13 +1527,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
         finishedMatches.forEach((m) => {
-          if (m.homeClubId === row.clubId) {
+          const isHome = isClubInStandingRow(row, m.homeClubId, m.homeClubName, clubsToUse);
+          const isAway = isClubInStandingRow(row, m.awayClubId, m.awayClubName, clubsToUse);
+          if (isHome) {
             fGP += m.score.home;
             fGC += m.score.away;
             if (m.score.home > m.score.away) fWins += 1;
             else if (m.score.home < m.score.away) fLosses += 1;
             else fDraws += 1;
-          } else if (m.awayClubId === row.clubId) {
+          } else if (isAway) {
             fGP += m.score.away;
             fGC += m.score.home;
             if (m.score.away > m.score.home) fWins += 1;
@@ -1565,8 +1616,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Aggregate standings
       finishedMatches.forEach((match) => {
-        const homeIdx = resetStandings.findIndex((s) => s.clubId === match.homeClubId);
-        const awayIdx = resetStandings.findIndex((s) => s.clubId === match.awayClubId);
+        const homeIdx = resetStandings.findIndex((s) => isClubInStandingRow(s, match.homeClubId, match.homeClubName, clubsToUse));
+        const awayIdx = resetStandings.findIndex((s) => isClubInStandingRow(s, match.awayClubId, match.awayClubName, clubsToUse));
 
         if (homeIdx !== -1 && awayIdx !== -1) {
           const homeRow = resetStandings[homeIdx];
@@ -2228,49 +2279,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const prevStandingsMatchesRef = React.useRef<Match[]>([]);
 
   useEffect(() => {
-    // Only run this auto-update on the Admin client to avoid write conflicts
-    if (user?.role !== 'Admin') {
-      prevStandingsMatchesRef.current = matches;
-      return;
-    }
+    if (matches.length === 0) return;
 
-    if (prevStandingsMatchesRef.current.length === 0) {
-      if (matches.length > 0) {
-        prevStandingsMatchesRef.current = matches;
-      }
-      return;
-    }
+    const isFinishedMatch = (status: any) =>
+      status === MatchStatus.FINISHED || status === 'FINISHED' || status === 'Encerrado';
 
     const changedChamps = new Set<string>();
 
-    matches.forEach((m) => {
-      const prev = prevStandingsMatchesRef.current.find((p) => p.id === m.id);
-      if (!prev) {
-        // New match added
-        if (m.status === MatchStatus.FINISHED) {
-          changedChamps.add(m.championshipId);
+    if (prevStandingsMatchesRef.current.length === 0) {
+      // First load: check if any championship has finished matches
+      championships.forEach((champ) => {
+        const hasFinishedMatches = matches.some((m) => m.championshipId === champ.id && isFinishedMatch(m.status));
+        if (hasFinishedMatches) {
+          changedChamps.add(champ.id);
         }
-      } else {
-        // Existing match updated
-        const transitionedToFinished = prev.status !== MatchStatus.FINISHED && m.status === MatchStatus.FINISHED;
-        const finishedScoreChanged = prev.status === MatchStatus.FINISHED && m.status === MatchStatus.FINISHED && 
-          (prev.score.home !== m.score.home || prev.score.away !== m.score.away);
-        const finishedStatusChanged = prev.status === MatchStatus.FINISHED && m.status !== MatchStatus.FINISHED; // Reopened!
+      });
+    } else {
+      matches.forEach((m) => {
+        const prev = prevStandingsMatchesRef.current.find((p) => p.id === m.id);
+        if (!prev) {
+          if (isFinishedMatch(m.status)) {
+            changedChamps.add(m.championshipId);
+          }
+        } else {
+          const transitionedToFinished = !isFinishedMatch(prev.status) && isFinishedMatch(m.status);
+          const finishedScoreChanged = isFinishedMatch(prev.status) && isFinishedMatch(m.status) && 
+            (prev.score.home !== m.score.home || prev.score.away !== m.score.away);
+          const finishedStatusChanged = isFinishedMatch(prev.status) && !isFinishedMatch(m.status);
 
-        if (transitionedToFinished || finishedScoreChanged || finishedStatusChanged) {
-          changedChamps.add(m.championshipId);
+          if (transitionedToFinished || finishedScoreChanged || finishedStatusChanged) {
+            changedChamps.add(m.championshipId);
+          }
         }
-      }
-    });
+      });
 
-    // Check for deleted matches
-    prevStandingsMatchesRef.current.forEach((prev) => {
-      const current = matches.find((m) => m.id === prev.id);
-      if (!current && prev.status === MatchStatus.FINISHED) {
-        // Deleted a finished match
-        changedChamps.add(prev.championshipId);
-      }
-    });
+      prevStandingsMatchesRef.current.forEach((prev) => {
+        const current = matches.find((m) => m.id === prev.id);
+        if (!current && isFinishedMatch(prev.status)) {
+          changedChamps.add(prev.championshipId);
+        }
+      });
+    }
 
     prevStandingsMatchesRef.current = matches;
 
