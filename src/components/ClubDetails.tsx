@@ -103,7 +103,7 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
   const [renameShortName, setRenameShortName] = useState('');
 
   // Find club
-  const club = clubs.find((c) => c.id === clubId) || clubs.find((c) => c.name.toLowerCase().includes('black')) || clubs[0];
+  const club = clubs.find((c) => c.id === clubId) || clubs[0];
 
   const isFav = favorites.clubs.includes(club.id);
 
@@ -231,7 +231,7 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
       const opponentId = isHome ? m.awayClubId : m.homeClubId;
       const opponentName = isHome ? m.awayClubName : m.homeClubName;
       
-      const oppClub = clubs.find(c => c.id === opponentId) || clubs.find(c => c.name.toLowerCase() === opponentName.toLowerCase());
+      const oppClub = clubs.find(c => c.id === opponentId);
       const opponentLogo = oppClub?.logoUrl || (isHome ? m.awayClubLogo : m.homeClubLogo) || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
 
       const myScore = isHome ? m.score.home : m.score.away;
@@ -291,25 +291,25 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
   // Robust dynamic logo lookups for last and next matches
   const lastMatchHomeLogo = useMemo(() => {
     if (!lastMatch) return '';
-    const found = clubs.find(c => c.id === lastMatch.homeClubId) || clubs.find(c => c.name.toLowerCase() === lastMatch.homeClubName.toLowerCase());
+    const found = clubs.find(c => c.id === lastMatch.homeClubId);
     return found?.logoUrl || lastMatch.homeClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
   }, [lastMatch, clubs]);
 
   const lastMatchAwayLogo = useMemo(() => {
     if (!lastMatch) return '';
-    const found = clubs.find(c => c.id === lastMatch.awayClubId) || clubs.find(c => c.name.toLowerCase() === lastMatch.awayClubName.toLowerCase());
+    const found = clubs.find(c => c.id === lastMatch.awayClubId);
     return found?.logoUrl || lastMatch.awayClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
   }, [lastMatch, clubs]);
 
   const nextMatchHomeLogo = useMemo(() => {
     if (!nextMatch) return '';
-    const found = clubs.find(c => c.id === nextMatch.homeClubId) || clubs.find(c => c.name.toLowerCase() === nextMatch.homeClubName.toLowerCase());
+    const found = clubs.find(c => c.id === nextMatch.homeClubId);
     return found?.logoUrl || nextMatch.homeClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
   }, [nextMatch, clubs]);
 
   const nextMatchAwayLogo = useMemo(() => {
     if (!nextMatch) return '';
-    const found = clubs.find(c => c.id === nextMatch.awayClubId) || clubs.find(c => c.name.toLowerCase() === nextMatch.awayClubName.toLowerCase());
+    const found = clubs.find(c => c.id === nextMatch.awayClubId);
     return found?.logoUrl || nextMatch.awayClubLogo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&h=100&fit=crop&q=80';
   }, [nextMatch, clubs]);
 

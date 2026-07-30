@@ -320,47 +320,19 @@ const safeLocalStorage = {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const getCoreClubName = (str: string): string => {
-  return (str || '')
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\b(cd|fc|sc|sd|ad|ld|clube|desportivo|esporte|escola|associacao|liga|da|do|de)\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
-};
-
 const findMatchingClub = (clubsList: Club[], clubId: string, clubName?: string): Club | undefined => {
   if (!clubId && !clubName) return undefined;
   const cleanId = (clubId || '').trim().toLowerCase();
-  const cleanName = (clubName || '').trim().toLowerCase();
 
   if (cleanId) {
     const exactId = clubsList.find((c) => c.id.trim().toLowerCase() === cleanId);
     if (exactId) return exactId;
   }
 
+  const cleanName = (clubName || '').trim().toLowerCase();
   if (cleanName) {
     const exactName = clubsList.find((c) => c.name.trim().toLowerCase() === cleanName);
     if (exactName) return exactName;
-  }
-
-  if (cleanId) {
-    const strippedId = cleanId.replace(/[^a-z0-9]/g, '');
-    if (strippedId) {
-      const idMatch = clubsList.find((c) => {
-        const cStripped = c.id.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        return cStripped === strippedId || (cStripped.length >= 3 && (cStripped.includes(strippedId) || strippedId.includes(cStripped)));
-      });
-      if (idMatch) return idMatch;
-    }
-  }
-
-  if (cleanName && cleanName.length >= 3) {
-    const partialName = clubsList.find((c) => {
-      const cName = c.name.trim().toLowerCase();
-      return cName.includes(cleanName) || cleanName.includes(cName);
-    });
-    if (partialName) return partialName;
   }
 
   return undefined;
@@ -372,25 +344,11 @@ const isClubInStandingRow = (
   matchClubName: string,
   clubsList?: Club[]
 ): boolean => {
-  if (standingRow.clubId && matchClubId && standingRow.clubId.trim().toLowerCase() === matchClubId.trim().toLowerCase()) {
-    return true;
+  if (standingRow.clubId && matchClubId) {
+    return standingRow.clubId.trim().toLowerCase() === matchClubId.trim().toLowerCase();
   }
-  if (standingRow.clubName && matchClubName && standingRow.clubName.trim().toLowerCase() === matchClubName.trim().toLowerCase()) {
-    return true;
-  }
-  if (clubsList && clubsList.length > 0) {
-    const standingClub = findMatchingClub(clubsList, standingRow.clubId, standingRow.clubName);
-    const matchClub = findMatchingClub(clubsList, matchClubId, matchClubName);
-    if (standingClub && matchClub && standingClub.id === matchClub.id) {
-      return true;
-    }
-  }
-  const core1 = getCoreClubName(standingRow.clubId) || getCoreClubName(standingRow.clubName);
-  const core2 = getCoreClubName(matchClubId) || getCoreClubName(matchClubName);
-  if (core1 && core2 && core1.length >= 3 && core2.length >= 3) {
-    if (core1 === core2 || core1.includes(core2) || core2.includes(core1)) {
-      return true;
-    }
+  if (standingRow.clubName && matchClubName) {
+    return standingRow.clubName.trim().toLowerCase() === matchClubName.trim().toLowerCase();
   }
   return false;
 };
@@ -1369,11 +1327,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedChampionships = championships.map((champ) => {
         let champChanged = false;
         const newStandings = champ.standings.map((row) => {
-          const isThisClub =
-            row.clubId === club.id ||
-            row.clubId.trim().toLowerCase() === club.id.trim().toLowerCase() ||
-            row.clubName.trim().toLowerCase() === club.name.trim().toLowerCase() ||
-            findMatchingClub([club], row.clubId, row.clubName) !== undefined;
+          const isThisClub = row.clubId
+            ? row.clubId.trim().toLowerCase() === club.id.trim().toLowerCase()
+            : row.clubName.trim().toLowerCase() === club.name.trim().toLowerCase();
 
           if (!isThisClub) return row;
           champChanged = true;

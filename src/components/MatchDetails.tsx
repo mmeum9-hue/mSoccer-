@@ -834,16 +834,15 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
                   <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">Pos</th>
-                  <th className="w-[30%] py-2 text-left px-1.5 border-r border-zinc-200 dark:border-zinc-800">Equipe</th>
-                  <th className="w-[9%] py-2 text-center font-black border-r border-zinc-200 dark:border-zinc-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
-                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">J</th>
-                  <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">V</th>
-                  <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">E</th>
-                  <th className="w-[6%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">D</th>
+                  <th className="w-[34%] py-2 text-left px-1.5 border-r border-zinc-200 dark:border-zinc-800">Equipe</th>
+                  <th className="w-[10%] py-2 text-center font-black border-r border-zinc-200 dark:border-zinc-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+                  <th className="w-[8%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">J</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">V</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">E</th>
+                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">D</th>
                   <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GP</th>
                   <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">GC</th>
-                  <th className="w-[7%] py-2 text-center border-r border-zinc-200 dark:border-zinc-800">SG</th>
-                  <th className="w-[9%] py-2 text-center font-black text-slate-900 dark:text-white">%</th>
+                  <th className="w-[7%] py-2 text-center font-bold">SG</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 font-medium">
@@ -854,24 +853,21 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       {homeStandObj.position}
                     </div>
                   </td>
-                  <td className="py-1 px-1.5 w-[30%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                  <td className="py-1 px-1.5 w-[34%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.homeClubId })}>
                       <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
                       <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.homeClubName)}</span>
                     </div>
                   </td>
-                  <td className="py-1 w-[9%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-blue-50/10 dark:bg-blue-950/10">{homeStandObj.row.points}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.played}</td>
-                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.won}</td>
-                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.drawn}</td>
-                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.lost}</td>
+                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-blue-50/10 dark:bg-blue-950/10">{homeStandObj.row.points}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.played}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.won}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.drawn}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.lost}</td>
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsFor}</td>
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{homeStandObj.row.goalsAgainst}</td>
-                  <td className={`py-1 w-[7%] text-center font-bold text-[9.5px] border-r border-zinc-200 dark:border-zinc-800 ${homeStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : homeStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
+                  <td className={`py-1 w-[7%] text-center font-bold text-[9.5px] ${homeStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : homeStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
                     {homeStandObj.row.goalDifference > 0 ? `+${homeStandObj.row.goalDifference}` : homeStandObj.row.goalDifference}
-                  </td>
-                  <td className={`py-1 w-[9%] text-center text-[10px] font-black rounded ${homePctColorClass}`}>
-                    {homePctStr}
                   </td>
                 </tr>
 
@@ -882,24 +878,21 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       {awayStandObj.position}
                     </div>
                   </td>
-                  <td className="py-1 px-1.5 w-[30%] text-left border-r border-zinc-200 dark:border-zinc-800">
+                  <td className="py-1 px-1.5 w-[34%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.awayClubId })}>
                       <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
                       <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.awayClubName)}</span>
                     </div>
                   </td>
-                  <td className="py-1 w-[9%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-rose-50/10 dark:bg-rose-950/10">{awayStandObj.row.points}</td>
-                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.played}</td>
-                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.won}</td>
-                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.drawn}</td>
-                  <td className="py-1 w-[6%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.lost}</td>
+                  <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-rose-50/10 dark:bg-rose-950/10">{awayStandObj.row.points}</td>
+                  <td className="py-1 w-[8%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.played}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.won}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.drawn}</td>
+                  <td className="py-1 w-[7%] text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.lost}</td>
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsFor}</td>
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 text-[9.5px]">{awayStandObj.row.goalsAgainst}</td>
-                  <td className={`py-1 w-[7%] text-center font-bold text-[9.5px] border-r border-zinc-200 dark:border-zinc-800 ${awayStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : awayStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
+                  <td className={`py-1 w-[7%] text-center font-bold text-[9.5px] ${awayStandObj.row.goalDifference > 0 ? 'text-zinc-800 dark:text-zinc-200' : awayStandObj.row.goalDifference < 0 ? 'text-rose-500 font-black' : 'text-zinc-500'}`}>
                     {awayStandObj.row.goalDifference > 0 ? `+${awayStandObj.row.goalDifference}` : awayStandObj.row.goalDifference}
-                  </td>
-                  <td className={`py-1 w-[9%] text-center text-[10px] font-black rounded ${awayPctColorClass}`}>
-                    {awayPctStr}
                   </td>
                 </tr>
               </tbody>
@@ -989,16 +982,15 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800/80 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
                   <th className="w-[7%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">Pos</th>
-                  <th className="w-[30%] sm:w-[32%] py-2.5 text-left px-2 border-r border-slate-200 dark:border-slate-800/80">Equipe</th>
-                  <th className="w-[11%] sm:w-[9%] py-2.5 text-center font-black border-r border-slate-200 dark:border-slate-800/80 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
-                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">J</th>
-                  <th className="w-[8%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">V</th>
-                  <th className="w-[8%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">E</th>
-                  <th className="w-[8%] sm:w-[6%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">D</th>
+                  <th className="w-[33%] sm:w-[34%] py-2.5 text-left px-2 border-r border-slate-200 dark:border-slate-800/80">Equipe</th>
+                  <th className="w-[12%] sm:w-[10%] py-2.5 text-center font-black border-r border-slate-200 dark:border-slate-800/80 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+                  <th className="w-[10%] sm:w-[8%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">J</th>
+                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">V</th>
+                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">E</th>
+                  <th className="w-[9%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">D</th>
                   <th className="hidden sm:table-cell sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GP</th>
                   <th className="hidden sm:table-cell sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">GC</th>
-                  <th className="w-[8%] sm:w-[7%] py-2.5 text-center border-r border-slate-200 dark:border-slate-800/80">SG</th>
-                  <th className="w-[11%] sm:w-[9%] py-2.5 text-center font-black text-slate-900 dark:text-white">%</th>
+                  <th className="w-[11%] sm:w-[7%] py-2.5 text-center font-bold">SG</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150 dark:divide-slate-800/60 font-medium">
@@ -1021,18 +1013,6 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
 
                   const recentForm = getRecentFormInChamp(row.clubId);
                   const diff = row.played - maxPlayed;
-
-                  const rowPct = row.played > 0 ? (row.points / (row.played * 3)) * 100 : 0;
-                  const rowPctStr = rowPct % 1 === 0 ? `${rowPct.toFixed(0)}%` : `${rowPct.toFixed(1)}%`;
-
-                  let rowPctClass = 'text-slate-600 dark:text-slate-400 font-bold';
-                  if (maxPct > minPct) {
-                    if (rowPct === maxPct) {
-                      rowPctClass = 'text-blue-600 dark:text-blue-400 font-black bg-blue-500/15 dark:bg-blue-950/40 rounded px-1 py-0.5';
-                    } else if (rowPct === minPct) {
-                      rowPctClass = 'text-rose-600 dark:text-rose-400 font-black bg-rose-500/15 dark:bg-rose-950/40 rounded px-1 py-0.5';
-                    }
-                  }
 
                   return (
                     <tr key={row.clubId} className={rowStyle}>
@@ -1122,7 +1102,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       <td className="py-1 text-center font-mono text-zinc-600 dark:text-zinc-400 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.lost}</td>
                       <td className="hidden sm:table-cell py-1 text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.goalsFor}</td>
                       <td className="hidden sm:table-cell py-1 text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-slate-200 dark:border-slate-800/80 text-[9.5px]">{row.goalsAgainst}</td>
-                      <td className={`py-1 text-center font-bold text-[9.5px] border-r border-slate-200 dark:border-slate-800/80 ${
+                      <td className={`py-1 text-center font-bold text-[9.5px] ${
                         row.goalDifference > 0
                           ? 'text-zinc-800 dark:text-zinc-200'
                           : row.goalDifference < 0
@@ -1130,9 +1110,6 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                           : 'text-zinc-500'
                       }`}>
                         {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
-                      </td>
-                      <td className={`py-1 text-center text-[10px] ${rowPctClass}`}>
-                        {rowPctStr}
                       </td>
                     </tr>
                   );
