@@ -395,6 +395,39 @@ const isClubInStandingRow = (
   return false;
 };
 
+const findBestPlayerMatchHelper = (allPlayers: Player[], name: string): Player | null => {
+  if (!name) return null;
+  const normalized = name.trim().toLowerCase();
+  let matched = allPlayers.find(p => p.name.toLowerCase() === normalized || p.id === normalized.replace(/\s+/g, '_'));
+  if (matched) return matched;
+
+  matched = allPlayers.find(p => {
+    const dbNameLower = p.name.toLowerCase();
+    const words = dbNameLower.split(/\s+/);
+    return words.includes(normalized);
+  });
+  if (matched) return matched;
+
+  matched = allPlayers.find(p => {
+    const dbNameLower = p.name.toLowerCase();
+    const queryWords = normalized.split(/\s+/);
+    return queryWords.includes(dbNameLower);
+  });
+  if (matched) return matched;
+
+  const queryParts = normalized.split(/\s+/).filter(part => part.length > 1 && !part.endsWith('.'));
+  if (queryParts.length > 0) {
+    matched = allPlayers.find(p => {
+      const dbNameLower = p.name.toLowerCase();
+      return queryParts.every(part => dbNameLower.includes(part));
+    });
+    if (matched) return matched;
+  }
+
+  matched = allPlayers.find(p => p.name.toLowerCase().includes(normalized) || normalized.includes(p.name.toLowerCase()));
+  return matched || null;
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial states from local memory or defaults first to keep app working offline / during initial sync
   const [clubs, setClubs] = useState<Club[]>(() => {
@@ -1969,70 +2002,229 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recalculateAllPlayerStats = async () => {
     try {
-      // 1. Reset all players' stats and current season (2026) history in Firestore
-      const playersSnapshot = await getDocs(collection(db, 'players'));
-      const updatedPlayersList: Player[] = [];
-      for (const playerDoc of playersSnapshot.docs) {
-        const p = playerDoc.data() as Player;
-        const cleanedHistory = p.history ? p.history.filter(h => h.season !== '2026') : [];
-        const updatedPlayer: Player = {
+      // 1. Fetch fresh data directly from Firestore collections without relying on cached state
+      const [playersSnapshot, clubsSnapshot, matchesSnapshot, champsSnapshot] = await Promise.all([
+        getDocs(collection(db, 'players')),
+        getDocs(collection(db, 'clubs')),
+        getDocs(collection(db, 'matches')),
+        getDocs(collection(db, 'championships'))
+      ]);
+
+      const rawPlayers = playersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Player));
+      const rawClubs = clubsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Club));
+      const rawMatches = matchesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match));
+      const rawChampionships = champsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Championship));
+
+      const isFinishedMatch = (m: Match) =>
+        m.status === MatchStatus.FINISHED ||
+        (m.status as any) === 'FINISHED' ||
+        (m.status as any) === 'Encerrado';
+
+      const finishedMatches = rawMatches.filter(isFinishedMatch);
+
+      // 2. Recalculate Club Stats (wins, draws, losses, goalsScored, goalsConceded)
+      const updatedClubsList: Club[] = rawClubs.map((club) => {
+        let wins = 0, draws = 0, losses = 0, goalsScored = 0, goalsConceded = 0;
+
+        finishedMatches.forEach((m) => {
+          const isHome = isClubInStandingRow({ clubId: club.id, clubName: club.name }, m.homeClubId, m.homeClubName, rawClubs);
+          const isAway = isClubInStandingRow({ clubId: club.id, clubName: club.name }, m.awayClubId, m.awayClubName, rawClubs);
+
+          if (isHome) {
+            goalsScored += m.score?.home ?? 0;
+            goalsConceded += m.score?.away ?? 0;
+            if ((m.score?.home ?? 0) > (m.score?.away ?? 0)) wins += 1;
+            else if ((m.score?.home ?? 0) < (m.score?.away ?? 0)) losses += 1;
+            else draws += 1;
+          } else if (isAway) {
+            goalsScored += m.score?.away ?? 0;
+            goalsConceded += m.score?.home ?? 0;
+            if ((m.score?.away ?? 0) > (m.score?.home ?? 0)) wins += 1;
+            else if ((m.score?.away ?? 0) < (m.score?.home ?? 0)) losses += 1;
+            else draws += 1;
+          }
+        });
+
+        return {
+          ...club,
+          stats: {
+            wins,
+            draws,
+            losses,
+            goalsScored,
+            goalsConceded
+          }
+        };
+      });
+
+      // 3. Recalculate Player Stats completely from all finished matches
+      const playerAccumulators = new Map<string, {
+        matches: number;
+        goals: number;
+        assists: number;
+        yellowCards: number;
+        redCards: number;
+        minutesPlayed: number;
+      }>();
+
+      rawPlayers.forEach((p) => {
+        playerAccumulators.set(p.id, {
+          matches: 0,
+          goals: 0,
+          assists: 0,
+          yellowCards: 0,
+          redCards: 0,
+          minutesPlayed: 0
+        });
+      });
+
+      finishedMatches.forEach((match) => {
+        const rawNames = new Set<string>();
+        (match.lineups?.home?.starting || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
+        (match.lineups?.away?.starting || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
+        (match.lineups?.home?.bench || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
+        (match.lineups?.away?.bench || []).forEach(lp => { if (lp.name) rawNames.add(lp.name); });
+        (match.events || []).forEach(ev => {
+          if (ev.player1) rawNames.add(ev.player1);
+          if (ev.player2) rawNames.add(ev.player2);
+        });
+
+        const involvedPlayersMap = new Map<string, Player>();
+        rawNames.forEach(rawName => {
+          const p = findBestPlayerMatchHelper(rawPlayers, rawName);
+          if (p) {
+            involvedPlayersMap.set(p.id, p);
+          }
+        });
+
+        for (const [playerId] of involvedPlayersMap.entries()) {
+          const isHomeStarter = (match.lineups?.home?.starting || []).some(lp => lp.name && findBestPlayerMatchHelper(rawPlayers, lp.name)?.id === playerId);
+          const isAwayStarter = (match.lineups?.away?.starting || []).some(lp => lp.name && findBestPlayerMatchHelper(rawPlayers, lp.name)?.id === playerId);
+          const isStarter = isHomeStarter || isAwayStarter;
+
+          const subInEvent = (match.events || []).find(e =>
+            e.type === 'Substitution' && e.player2 && findBestPlayerMatchHelper(rawPlayers, e.player2)?.id === playerId
+          );
+
+          const hasEvents = (match.events || []).some(e =>
+            (e.player1 && findBestPlayerMatchHelper(rawPlayers, e.player1)?.id === playerId) ||
+            (e.player2 && findBestPlayerMatchHelper(rawPlayers, e.player2)?.id === playerId)
+          );
+
+          const participated = isStarter || !!subInEvent || hasEvents;
+          if (!participated) continue;
+
+          let enteredMinute = 0;
+          if (isStarter) {
+            enteredMinute = 0;
+          } else if (subInEvent) {
+            enteredMinute = subInEvent.minute ?? 45;
+          }
+
+          let leftMinute = match.minute > 0 ? match.minute : 90;
+
+          const subOffEvent = (match.events || []).find(e =>
+            e.type === 'Substitution' && e.player1 && findBestPlayerMatchHelper(rawPlayers, e.player1)?.id === playerId
+          );
+          if (subOffEvent) {
+            leftMinute = Math.min(leftMinute, subOffEvent.minute ?? 45);
+          }
+
+          const redCardEvent = (match.events || []).find(e =>
+            e.type === 'RedCard' && e.player1 && findBestPlayerMatchHelper(rawPlayers, e.player1)?.id === playerId
+          );
+          if (redCardEvent) {
+            leftMinute = Math.min(leftMinute, redCardEvent.minute ?? leftMinute);
+          }
+
+          const minutesPlayed = Math.max(0, leftMinute - enteredMinute);
+
+          const goals = (match.events || []).filter(e =>
+            e.type === 'Goal' && e.player1 && findBestPlayerMatchHelper(rawPlayers, e.player1)?.id === playerId
+          ).length;
+
+          const assists = (match.events || []).filter(e =>
+            e.type === 'Goal' && e.player2 && findBestPlayerMatchHelper(rawPlayers, e.player2)?.id === playerId
+          ).length;
+
+          const yellowCards = (match.events || []).filter(e =>
+            e.type === 'YellowCard' && e.player1 && findBestPlayerMatchHelper(rawPlayers, e.player1)?.id === playerId
+          ).length;
+
+          const redCards = (match.events || []).filter(e =>
+            e.type === 'RedCard' && e.player1 && findBestPlayerMatchHelper(rawPlayers, e.player1)?.id === playerId
+          ).length;
+
+          const acc = playerAccumulators.get(playerId) || {
+            matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0, minutesPlayed: 0
+          };
+
+          acc.matches += 1;
+          acc.goals += goals;
+          acc.assists += assists;
+          acc.yellowCards += yellowCards;
+          acc.redCards += redCards;
+          acc.minutesPlayed += minutesPlayed;
+
+          playerAccumulators.set(playerId, acc);
+        }
+      });
+
+      const updatedPlayersList: Player[] = rawPlayers.map((p) => {
+        const acc = playerAccumulators.get(p.id) || {
+          matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0, minutesPlayed: 0
+        };
+
+        const currentSeason = '2026';
+        const cleanedHistory = (p.history || []).filter(h => h.season !== currentSeason);
+
+        if (acc.matches > 0 || acc.goals > 0) {
+          cleanedHistory.push({
+            season: currentSeason,
+            club: p.clubName || 'Sem Clube',
+            matches: acc.matches,
+            goals: acc.goals
+          });
+        }
+
+        return {
           ...p,
           stats: {
-            matches: 0,
-            goals: 0,
-            assists: 0,
-            yellowCards: 0,
-            redCards: 0,
-            minutesPlayed: 0
+            matches: acc.matches,
+            goals: acc.goals,
+            assists: acc.assists,
+            yellowCards: acc.yellowCards,
+            redCards: acc.redCards,
+            minutesPlayed: acc.minutesPlayed
           },
           history: cleanedHistory
         };
-        updatedPlayersList.push(updatedPlayer);
-        await setDoc(playerDoc.ref, cleanUndefined(updatedPlayer));
-      }
+      });
 
-      // 2. Mark all finished matches as statsApplied = false in Firestore
-      const matchesSnapshot = await getDocs(collection(db, 'matches'));
-      const matchesData: Match[] = [];
-      for (const matchDoc of matchesSnapshot.docs) {
-        const m = matchDoc.data() as Match;
-        matchesData.push(m);
-        if (m.status === MatchStatus.FINISHED) {
-          await updateDoc(matchDoc.ref, { statsApplied: false });
-        }
-      }
-
-      // 3. Recalculate standings for all championships
-      const clubsSnapshot = await getDocs(collection(db, 'clubs'));
-      const clubsData = clubsSnapshot.docs.map(doc => doc.data() as Club);
-
-      const champsSnapshot = await getDocs(collection(db, 'championships'));
+      // 4. Recalculate Standings & Top Scorers / Top Assists for all Championships
       const updatedChampionshipsList: Championship[] = [];
 
-      for (const champDoc of champsSnapshot.docs) {
-        const champ = champDoc.data() as Championship;
-
-        // Filter finished matches for this championship
-        const finishedMatches = matchesData.filter(
-          (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
-        );
+      for (const champ of rawChampionships) {
+        const champMatches = finishedMatches.filter((m) => m.championshipId === champ.id);
 
         const resetStandings = champ.standings.map((row) => {
-          const club = findMatchingClub(clubsData, row.clubId, row.clubName);
+          const club = findMatchingClub(updatedClubsList, row.clubId, row.clubName);
 
           let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
-          finishedMatches.forEach((m) => {
-            if (m.homeClubId === row.clubId) {
-              fGP += m.score.home;
-              fGC += m.score.away;
-              if (m.score.home > m.score.away) fWins += 1;
-              else if (m.score.home < m.score.away) fLosses += 1;
+          champMatches.forEach((m) => {
+            const isHome = isClubInStandingRow(row, m.homeClubId, m.homeClubName, updatedClubsList);
+            const isAway = isClubInStandingRow(row, m.awayClubId, m.awayClubName, updatedClubsList);
+            if (isHome) {
+              fGP += m.score?.home ?? 0;
+              fGC += m.score?.away ?? 0;
+              if ((m.score?.home ?? 0) > (m.score?.away ?? 0)) fWins += 1;
+              else if ((m.score?.home ?? 0) < (m.score?.away ?? 0)) fLosses += 1;
               else fDraws += 1;
-            } else if (m.awayClubId === row.clubId) {
-              fGP += m.score.away;
-              fGC += m.score.home;
-              if (m.score.away > m.score.home) fWins += 1;
-              else if (m.score.away < m.score.home) fLosses += 1;
+            } else if (isAway) {
+              fGP += m.score?.away ?? 0;
+              fGC += m.score?.home ?? 0;
+              if ((m.score?.away ?? 0) > (m.score?.home ?? 0)) fWins += 1;
+              else if ((m.score?.away ?? 0) < (m.score?.home ?? 0)) fLosses += 1;
               else fDraws += 1;
             }
           });
@@ -2107,10 +2299,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
         });
 
-        // Aggregate standings
-        finishedMatches.forEach((match) => {
-          const homeIdx = resetStandings.findIndex((s) => s.clubId === match.homeClubId);
-          const awayIdx = resetStandings.findIndex((s) => s.clubId === match.awayClubId);
+        // Aggregate standings from finished matches
+        champMatches.forEach((match) => {
+          const homeIdx = resetStandings.findIndex((s) => isClubInStandingRow(s, match.homeClubId, match.homeClubName, updatedClubsList));
+          const awayIdx = resetStandings.findIndex((s) => isClubInStandingRow(s, match.awayClubId, match.awayClubName, updatedClubsList));
 
           if (homeIdx !== -1 && awayIdx !== -1) {
             const homeRow = resetStandings[homeIdx];
@@ -2119,16 +2311,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             homeRow.played += 1;
             awayRow.played += 1;
 
-            homeRow.goalsFor += match.score.home;
-            homeRow.goalsAgainst += match.score.away;
-            awayRow.goalsFor += match.score.away;
-            awayRow.goalsAgainst += match.score.home;
+            homeRow.goalsFor += match.score?.home ?? 0;
+            homeRow.goalsAgainst += match.score?.away ?? 0;
+            awayRow.goalsFor += match.score?.away ?? 0;
+            awayRow.goalsAgainst += match.score?.home ?? 0;
 
-            if (match.score.home > match.score.away) {
+            if ((match.score?.home ?? 0) > (match.score?.away ?? 0)) {
               homeRow.won += 1;
               homeRow.points += 3;
               awayRow.lost += 1;
-            } else if (match.score.home < match.score.away) {
+            } else if ((match.score?.home ?? 0) < (match.score?.away ?? 0)) {
               awayRow.won += 1;
               awayRow.points += 3;
               homeRow.lost += 1;
@@ -2141,7 +2333,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // Correct goalDifference and apply points deduction
         resetStandings.forEach((row) => {
           row.goalDifference = row.goalsFor - row.goalsAgainst;
           if (row.pointsDeduction && row.pointsDeduction > 0) {
@@ -2149,7 +2340,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // Sort standings (points DESC, then goal difference DESC, then goals for DESC, then wins DESC)
         resetStandings.sort((a, b) => {
           if (b.points !== a.points) return b.points - a.points;
           if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
@@ -2157,12 +2347,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return b.won - a.won;
         });
 
-        // Aggregate scorer and assist maps from match events
         const scorerMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; goals: number } } = {};
         const assistMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; assists: number } } = {};
 
-        finishedMatches.forEach((match) => {
-          match.events.forEach((ev) => {
+        champMatches.forEach((match) => {
+          (match.events || []).forEach((ev) => {
             if (ev.type === 'Goal') {
               if (ev.player1) {
                 const name = ev.player1.trim();
@@ -2194,33 +2383,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         });
 
-        const topScorers = Object.values(scorerMap)
-          .sort((a, b) => b.goals - a.goals)
-          .slice(0, 15);
+        const topScorers = Object.values(scorerMap).sort((a, b) => b.goals - a.goals).slice(0, 15);
+        const topAssists = Object.values(assistMap).sort((a, b) => b.assists - a.assists).slice(0, 15);
 
-        const topAssists = Object.values(assistMap)
-          .sort((a, b) => b.assists - a.assists)
-          .slice(0, 15);
-
-        const updatedChamp: Championship = {
+        updatedChampionshipsList.push({
           ...champ,
           standings: resetStandings,
           topScorers,
           topAssists
-        };
-
-        updatedChampionshipsList.push(updatedChamp);
-        await setDoc(champDoc.ref, updatedChamp);
+        });
       }
 
-      // Update local React state so UI updates immediately
+      // 5. Update Matches (mark statsApplied = true on finished matches)
+      const updatedMatchesList: Match[] = rawMatches.map((m) => {
+        if (isFinishedMatch(m)) {
+          return { ...m, statsApplied: true };
+        }
+        return m;
+      });
+
+      // 6. Write new values to Firestore (replacing old data)
+      for (const p of updatedPlayersList) {
+        await setDoc(doc(db, 'players', p.id), cleanUndefined(p));
+      }
+      for (const c of updatedClubsList) {
+        await setDoc(doc(db, 'clubs', c.id), cleanUndefined(c));
+      }
+      for (const ch of updatedChampionshipsList) {
+        await setDoc(doc(db, 'championships', ch.id), cleanUndefined(ch));
+      }
+      for (const m of updatedMatchesList) {
+        if (isFinishedMatch(m)) {
+          await setDoc(doc(db, 'matches', m.id), cleanUndefined(m));
+        }
+      }
+
+      // 7. Synchronize local React state
       setPlayers(updatedPlayersList);
+      setClubs(updatedClubsList);
       setChampionships(updatedChampionshipsList);
-      setClubs(clubsData);
+      setMatches(updatedMatchesList);
 
       await addAuditLog('Recálculo de Estatísticas Concluído', 'Recálculo completo de estatísticas e classificações finalizado com sucesso.', 'bg-emerald-600');
+      addNotification('Recálculo Concluído', 'Recalculo das estatísticas concluído com sucesso.', 'sistema');
+      alert("Recalculo das estatísticas concluído com sucesso.");
     } catch (err) {
-      console.error("Error recalculating player stats:", err);
+      console.error("Error recalculating stats:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      addNotification('Erro no Recálculo', `Ocorreu um erro ao recalcular: ${errorMessage}`, 'sistema');
+      alert(`Ocorreu um erro ao recalcular as estatísticas: ${errorMessage}`);
     }
   };
 
