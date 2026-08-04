@@ -35,6 +35,7 @@ import {
   RefreshCw,
   PlusCircle,
   ShieldAlert,
+  AlertTriangle,
   Plus,
   Trash2,
   Edit2,
@@ -379,6 +380,11 @@ export const AdminPanel: React.FC = () => {
   const [editSGroup, setEditSGroup] = useState('');
   const [editSDeduction, setEditSDeduction] = useState(0);
   const [editSDeductionReason, setEditSDeductionReason] = useState('');
+
+  // States for "Apagar Classificação" Modal Flow
+  const [isClearStandingsModalOpen, setIsClearStandingsModalOpen] = useState<boolean>(false);
+  const [clearStandingsChampId, setClearStandingsChampId] = useState<string>('');
+  const [clearStandingsStep, setClearStandingsStep] = useState<1 | 2>(1);
 
   // States for Dedicated Points Deduction Modal / Tool
   const [deductionChampId, setDeductionChampId] = useState<string>('');
@@ -1797,6 +1803,33 @@ export const AdminPanel: React.FC = () => {
 
     updateChampionship(updatedChamp);
     addLog('Clube removido da classificação', champ.name, 'bg-rose-500');
+  };
+
+  const handleOpenClearStandingsModal = (champId?: string) => {
+    const defaultChampId = champId || (championships.length > 0 ? championships[0].id : '');
+    setClearStandingsChampId(defaultChampId);
+    setClearStandingsStep(1);
+    setIsClearStandingsModalOpen(true);
+  };
+
+  const handleConfirmClearStandings = async () => {
+    if (!clearStandingsChampId) return;
+    const champ = championships.find((c) => c.id === clearStandingsChampId);
+    if (!champ) return;
+
+    const updatedChamp: Championship = {
+      ...champ,
+      standings: []
+    };
+
+    await updateChampionship(updatedChamp);
+    addLog('Classificação Apagada', `Classificação do campeonato ${champ.name} foi zerada.`, 'bg-rose-600');
+    addNotification(
+      'Classificação Apagada',
+      `A classificação do campeonato ${champ.name} foi apagada com sucesso. Clubes, jogos e resultados foram preservados e a tabela pode ser recriada a qualquer momento com 'Recalcular Estatísticas'.`,
+      'campeonato'
+    );
+    setIsClearStandingsModalOpen(false);
   };
 
   // Searching filters
@@ -5457,9 +5490,20 @@ export const AdminPanel: React.FC = () => {
                         Edição Manual da Classificação & Pontuação dos Clubes
                       </h3>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full uppercase self-start sm:self-auto">
-                      Ajuste Direto • Recálculo Automático Instântaneo
-                    </span>
+                    <div className="flex items-center space-x-2 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenClearStandingsModal(quickChampId)}
+                        className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white text-[10px] font-black uppercase rounded-lg border border-rose-500/20 transition-all cursor-pointer flex items-center space-x-1"
+                        title="Apagar a tabela de classificação da competição escolhida"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Apagar Classificação</span>
+                      </button>
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full uppercase">
+                        Ajuste Direto • Recálculo Automático Instântaneo
+                      </span>
+                    </div>
                   </div>
 
                   {/* Selectors for Championship and Club */}
@@ -5809,13 +5853,24 @@ export const AdminPanel: React.FC = () => {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => setIsConfirmingClearAllChamps(true)}
-                          className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer border border-rose-500/20"
-                        >
-                          🗑️ Excluir Todos
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenClearStandingsModal()}
+                            className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer border border-rose-500/20 flex items-center space-x-1"
+                            title="Apagar a tabela de classificação de uma competição"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Apagar Classificação</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsConfirmingClearAllChamps(true)}
+                            className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer border border-rose-500/20"
+                          >
+                            🗑️ Excluir Todos
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -6031,6 +6086,16 @@ export const AdminPanel: React.FC = () => {
                               {/* Add club to standings form */}
                               {!isEnded && (
                                 <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenClearStandingsModal(champ.id)}
+                                    className="px-3 py-1.5 bg-rose-500/15 hover:bg-rose-600 text-rose-400 hover:text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center space-x-1 border border-rose-500/30"
+                                    title="Apagar a tabela de classificação desta competição"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Apagar Classificação</span>
+                                  </button>
+
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -7244,6 +7309,188 @@ export const AdminPanel: React.FC = () => {
                 Aplicar Perda de Pontos
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Apagar Tabela de Classificação */}
+      {isClearStandingsModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setIsClearStandingsModalOpen(false)}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex items-center space-x-3 text-rose-500">
+              <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                <Trash2 className="w-6 h-6 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Apagar Tabela de Classificação</h3>
+                <p className="text-xs text-zinc-400 font-medium">
+                  {clearStandingsStep === 1 ? 'Passo 1 de 2: Seleção da Competição' : 'Passo 2 de 2: Confirmação de Exclusão'}
+                </p>
+              </div>
+            </div>
+
+            {clearStandingsStep === 1 ? (
+              /* STEP 1: Selection Window */
+              <div className="space-y-4 text-xs">
+                <p className="text-zinc-300 leading-relaxed font-medium">
+                  Selecione abaixo a competição/campeonato cuja tabela de classificação você deseja apagar. Os clubes, partidas, resultados e dados dos atletas serão mantidos.
+                </p>
+
+                <div>
+                  <label className="block text-zinc-300 font-bold mb-1.5 uppercase text-[10px] tracking-wider">
+                    Competição / Campeonato
+                  </label>
+                  <select
+                    value={clearStandingsChampId}
+                    onChange={(e) => setClearStandingsChampId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white font-bold focus:border-rose-500 outline-none cursor-pointer"
+                  >
+                    {championships.length === 0 ? (
+                      <option value="">Nenhum campeonato cadastrado</option>
+                    ) : (
+                      championships.map((champ) => (
+                        <option key={champ.id} value={champ.id}>
+                          {champ.name} ({champ.season}) - {champ.standings.length} clube(s) na classificação
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {(() => {
+                  const selChamp = championships.find((c) => c.id === clearStandingsChampId);
+                  if (!selChamp) return null;
+
+                  const champMatches = matches.filter((m) => m.championshipId === selChamp.id);
+
+                  return (
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <img src={selChamp.logoUrl} alt="" className="w-9 h-9 rounded-full object-cover bg-slate-900 p-0.5 border border-slate-800" />
+                        <div>
+                          <h4 className="font-black text-sm text-white">{selChamp.name}</h4>
+                          <span className="text-[10px] font-mono text-zinc-400 uppercase">
+                            {selChamp.type} • Temporada {selChamp.season}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                        <div className="bg-slate-900 border border-slate-800/80 rounded-lg p-2 text-center">
+                          <span className="block text-zinc-400 text-[10px] uppercase">Clubes na Tabela</span>
+                          <span className="font-black text-white text-sm">{selChamp.standings.length}</span>
+                        </div>
+                        <div className="bg-slate-900 border border-slate-800/80 rounded-lg p-2 text-center">
+                          <span className="block text-zinc-400 text-[10px] uppercase">Partidas Cadastradas</span>
+                          <span className="font-black text-white text-sm">{champMatches.length}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsClearStandingsModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-zinc-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!clearStandingsChampId || championships.length === 0}
+                    onClick={() => setClearStandingsStep(2)}
+                    className="px-5 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1 shadow-lg shadow-rose-600/20"
+                  >
+                    <span>Avançar →</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* STEP 2: Confirmation Window */
+              <div className="space-y-4 text-xs">
+                {(() => {
+                  const selChamp = championships.find((c) => c.id === clearStandingsChampId);
+                  const champName = selChamp ? selChamp.name : 'Campeonato Selecionado';
+
+                  return (
+                    <>
+                      <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 space-y-2">
+                        <div className="flex items-center space-x-2 text-rose-400">
+                          <AlertTriangle className="w-5 h-5 shrink-0" />
+                          <h4 className="font-black text-xs uppercase tracking-wider">Confirmar Exclusão da Classificação</h4>
+                        </div>
+                        <p className="text-[12px] text-zinc-200 leading-relaxed font-semibold">
+                          Você tem certeza de que deseja apagar a tabela de classificação do campeonato <strong className="text-rose-400 underline">{champName}</strong>?
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2.5">
+                        <span className="block text-[10px] font-black uppercase text-zinc-400 tracking-wider">O que acontecerá ao confirmar:</span>
+                        <div className="space-y-1.5 text-[11px] text-zinc-300">
+                          <div className="flex items-start space-x-2">
+                            <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                            <span><strong>Clubes e times</strong> cadastrados continuarão intactos no sistema.</span>
+                          </div>
+                          <div className="flex items-start space-x-2">
+                            <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                            <span><strong>Todas as partidas, datas e placares</strong> serão totalmente preservados.</span>
+                          </div>
+                          <div className="flex items-start space-x-2">
+                            <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                            <span><strong>Gols, assistências e cartões dos jogadores</strong> permanecerão gravados.</span>
+                          </div>
+                          <div className="flex items-start space-x-2">
+                            <span className="text-amber-400 font-bold shrink-0">🗑️</span>
+                            <span><strong>Apenas a tabela de classificação</strong> do campeonato {champName} será limpa.</span>
+                          </div>
+                          <div className="flex items-start space-x-2 pt-1 border-t border-slate-800/80">
+                            <span className="text-blue-400 font-bold shrink-0">🔄</span>
+                            <span>A classificação poderá ser recriada a qualquer momento usando a função <strong className="text-blue-400">"Recalcular Estatísticas"</strong>.</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setClearStandingsStep(1)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-zinc-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                        >
+                          ← Voltar
+                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsClearStandingsModalOpen(false)}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-zinc-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleConfirmClearStandings}
+                            className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-xl transition-colors cursor-pointer shadow-lg shadow-rose-600/30 flex items-center space-x-1.5"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Sim, Apagar Classificação</span>
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
       )}

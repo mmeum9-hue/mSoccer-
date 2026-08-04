@@ -1511,7 +1511,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       // Reset all existing standing rows to their championship-specific base stats
-      const resetStandings = champ.standings.map((row) => {
+      // Determine initial rows. If standings table is currently empty (e.g. after "Apagar Classificação"),
+      // reconstruct rows from clubs participating in this championship's matches or all available clubs.
+      let sourceRows = champ.standings;
+      if (sourceRows.length === 0) {
+        const champMatches = matchesToUse.filter((m) => m.championshipId === champ.id);
+        const clubIdsInChamp = new Set<string>();
+        champMatches.forEach((m) => {
+          if (m.homeClubId) clubIdsInChamp.add(m.homeClubId);
+          if (m.awayClubId) clubIdsInChamp.add(m.awayClubId);
+        });
+
+        let targetClubs: Club[] = [];
+        if (clubIdsInChamp.size > 0) {
+          targetClubs = clubsToUse.filter((c) => clubIdsInChamp.has(c.id));
+        } else {
+          targetClubs = clubsToUse;
+        }
+
+        sourceRows = targetClubs.map((club) => ({
+          clubId: club.id,
+          clubName: club.name,
+          logoUrl: club.logoUrl,
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          points: 0
+        }));
+      }
+
+      const resetStandings = sourceRows.map((row) => {
         const club = findMatchingClub(clubsToUse, row.clubId, row.clubName);
 
         let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
