@@ -403,9 +403,9 @@ export const ClubDetails: React.FC<ClubDetailsProps> = ({ clubId }) => {
             </span>
           </div>
 
-          {/* Center: Large Club Shield (80px) with overlapping country flag */}
+          {/* Center: Club Shield (50px) with overlapping country flag */}
           <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-white shadow-lg overflow-hidden flex items-center justify-center">
+            <div className="w-[50px] h-[50px] rounded-full bg-slate-900 border-2 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0">
               <img 
                 src={club.logoUrl} 
                 alt={club.name} 

@@ -68,6 +68,8 @@ export interface StandingRow {
   pointsDeduction?: number;
   deductionReason?: string;
   group?: string;
+  efficiency?: number;
+  recentForm?: string[];
   baseStats?: {
     played: number;
     won: number;

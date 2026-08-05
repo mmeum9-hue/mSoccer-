@@ -2764,7 +2764,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     )}
                   </svg>
                   {/* Inner Crest with White Background */}
-                  <div className="w-13 h-13 rounded-full bg-white p-1 flex items-center justify-center z-10 shadow-inner">
+                  <div className="w-[50px] h-[50px] rounded-full bg-white p-1 flex items-center justify-center z-10 shadow-inner">
                     <img
                       src={match.homeClubLogo}
                       alt={match.homeClubName}
@@ -2876,7 +2876,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     )}
                   </svg>
                   {/* Inner Crest with White Background */}
-                  <div className="w-13 h-13 rounded-full bg-white p-1 flex items-center justify-center z-10 shadow-inner">
+                  <div className="w-[50px] h-[50px] rounded-full bg-white p-1 flex items-center justify-center z-10 shadow-inner">
                     <img
                       src={match.awayClubLogo}
                       alt={match.awayClubName}

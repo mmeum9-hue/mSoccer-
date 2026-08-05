@@ -1197,15 +1197,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // CRUD actions
   const addMatch = async (match: Match) => {
     try {
+      let nextMatches: Match[] = [];
       setMatches((prev) => {
         const exists = prev.some((m) => m.id === match.id);
-        if (exists) return prev.map((m) => (m.id === match.id ? match : m));
-        return [...prev, match];
+        nextMatches = exists ? prev.map((m) => (m.id === match.id ? match : m)) : [...prev, match];
+        return nextMatches;
       });
       await setDoc(doc(db, 'matches', match.id), match);
       await addAuditLog('Partida Agendada', `Agendou partida: ${match.homeClubName} x ${match.awayClubName} (${match.championshipName})`, 'bg-emerald-600');
       if (match.championshipId) {
-        recalculateStandingsForChampionship(match.championshipId);
+        await recalculateStandingsForChampionship(match.championshipId, nextMatches.length > 0 ? nextMatches : undefined);
       }
     } catch (e) {
       console.error("Error adding match:", e);
@@ -1228,12 +1229,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      setMatches((prev) => prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)));
+      let nextMatches: Match[] = [];
+      setMatches((prev) => {
+        nextMatches = prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
+        if (!prev.some((m) => m.id === updatedMatch.id)) {
+          nextMatches.push(updatedMatch);
+        }
+        return nextMatches;
+      });
+
       await setDoc(doc(db, 'matches', match.id), updatedMatch);
       await addAuditLog('Partida Sincronizada', `Atualizou partida: ${match.homeClubName} ${match.score.home} x ${match.score.away} ${match.awayClubName} (${match.status})`, 'bg-blue-600');
       
       if (updatedMatch.championshipId) {
-        recalculateStandingsForChampionship(updatedMatch.championshipId);
+        await recalculateStandingsForChampionship(updatedMatch.championshipId, nextMatches.length > 0 ? nextMatches : undefined);
       }
     } catch (e) {
       console.error("Error updating match:", e);
@@ -1248,12 +1257,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Remote deletion first
       await deleteDoc(doc(db, 'matches', id));
       
-      // Update local memory only after remote confirmation
-      setMatches((prev) => prev.filter((match) => match.id !== id));
+      let nextMatches: Match[] = [];
+      setMatches((prev) => {
+        nextMatches = prev.filter((match) => match.id !== id);
+        return nextMatches;
+      });
       await addAuditLog('Partida Removida', `Excluiu partida: ${label}`, 'bg-rose-600');
 
       if (m && m.championshipId) {
-        recalculateStandingsForChampionship(m.championshipId);
+        await recalculateStandingsForChampionship(m.championshipId, nextMatches.length > 0 ? nextMatches : undefined);
       }
     } catch (e) {
       console.error("Error deleting match:", e);
@@ -1505,16 +1517,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const matchesToUse = currentMatches || matches;
       const clubsToUse = currentClubs || clubs;
 
+      const isFinishedMatch = (status: any) =>
+        status === MatchStatus.FINISHED || status === 'FINISHED' || status === 'Encerrado';
+
       // Filter finished matches for this championship
       const finishedMatches = matchesToUse.filter(
-        (m) => m.championshipId === champ.id && (m.status === MatchStatus.FINISHED || m.status === ('FINISHED' as any) || m.status === ('Encerrado' as any))
+        (m) => m.championshipId === champ.id && isFinishedMatch(m.status)
       );
 
-      // Reset all existing standing rows to their championship-specific base stats
-      // Determine initial rows. If standings table is currently empty (e.g. after "Apagar Classificação"),
+      // Determine initial rows. If standings table is currently empty,
       // reconstruct rows from clubs participating in this championship's matches or all available clubs.
       let sourceRows = champ.standings;
-      if (sourceRows.length === 0) {
+      if (!sourceRows || sourceRows.length === 0) {
         const champMatches = matchesToUse.filter((m) => m.championshipId === champ.id);
         const clubIdsInChamp = new Set<string>();
         champMatches.forEach((m) => {
@@ -1544,146 +1558,134 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
       }
 
-      const resetStandings = sourceRows.map((row) => {
+      // Initialize standings starting from baseStats (if set) or 0
+      const recalculated = sourceRows.map((row) => {
         const club = findMatchingClub(clubsToUse, row.clubId, row.clubName);
+        const base = row.baseStats || {
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          points: 0,
+          pointsDeduction: row.pointsDeduction || 0,
+          deductionReason: row.deductionReason || ''
+        };
 
-        let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
-        finishedMatches.forEach((m) => {
-          const isHome = isClubInStandingRow(row, m.homeClubId, m.homeClubName, clubsToUse);
-          const isAway = isClubInStandingRow(row, m.awayClubId, m.awayClubName, clubsToUse);
-          if (isHome) {
-            fGP += m.score.home;
-            fGC += m.score.away;
-            if (m.score.home > m.score.away) fWins += 1;
-            else if (m.score.home < m.score.away) fLosses += 1;
-            else fDraws += 1;
-          } else if (isAway) {
-            fGP += m.score.away;
-            fGC += m.score.home;
-            if (m.score.away > m.score.home) fWins += 1;
-            else if (m.score.away < m.score.home) fLosses += 1;
-            else fDraws += 1;
-          }
-        });
-
-        const targetWins = row.won ?? club?.stats?.wins ?? 0;
-        const targetDraws = row.drawn ?? club?.stats?.draws ?? 0;
-        const targetLosses = row.lost ?? club?.stats?.losses ?? 0;
-        const targetGP = row.goalsFor ?? club?.stats?.goalsScored ?? 0;
-        const targetGC = row.goalsAgainst ?? club?.stats?.goalsConceded ?? 0;
-
-        let baseWins = 0, baseDraws = 0, baseLosses = 0, baseGoalsFor = 0, baseGoalsAgainst = 0;
-
-        if (row.baseStats) {
-          if (
-            row.baseStats.won + fWins === targetWins &&
-            row.baseStats.drawn + fDraws === targetDraws &&
-            row.baseStats.lost + fLosses === targetLosses &&
-            row.baseStats.goalsFor + fGP === targetGP &&
-            row.baseStats.goalsAgainst + fGC === targetGC
-          ) {
-            baseWins = row.baseStats.won;
-            baseDraws = row.baseStats.drawn;
-            baseLosses = row.baseStats.lost;
-            baseGoalsFor = row.baseStats.goalsFor;
-            baseGoalsAgainst = row.baseStats.goalsAgainst;
-          } else {
-            baseWins = Math.max(0, targetWins - fWins);
-            baseDraws = Math.max(0, targetDraws - fDraws);
-            baseLosses = Math.max(0, targetLosses - fLosses);
-            baseGoalsFor = Math.max(0, targetGP - fGP);
-            baseGoalsAgainst = Math.max(0, targetGC - fGC);
-          }
-        } else {
-          baseWins = Math.max(0, targetWins - fWins);
-          baseDraws = Math.max(0, targetDraws - fDraws);
-          baseLosses = Math.max(0, targetLosses - fLosses);
-          baseGoalsFor = Math.max(0, targetGP - fGP);
-          baseGoalsAgainst = Math.max(0, targetGC - fGC);
-        }
-
-        const basePlayed = baseWins + baseDraws + baseLosses;
-        const basePoints = baseWins * 3 + baseDraws;
-        const pointsDeduction = row.pointsDeduction ?? row.baseStats?.pointsDeduction ?? 0;
-        const deductionReason = row.deductionReason ?? row.baseStats?.deductionReason ?? '';
+        const pointsDeduction = row.pointsDeduction ?? base.pointsDeduction ?? 0;
+        const deductionReason = row.deductionReason ?? base.deductionReason ?? '';
 
         return {
           ...row,
           clubId: club ? club.id : row.clubId,
           clubName: club?.name || row.clubName,
           logoUrl: club?.logoUrl || row.logoUrl,
-          played: basePlayed,
-          won: baseWins,
-          drawn: baseDraws,
-          lost: baseLosses,
-          goalsFor: baseGoalsFor,
-          goalsAgainst: baseGoalsAgainst,
-          goalDifference: baseGoalsFor - baseGoalsAgainst,
-          points: basePoints,
+          played: base.played || 0,
+          won: base.won || 0,
+          drawn: base.drawn || 0,
+          lost: base.lost || 0,
+          goalsFor: base.goalsFor || 0,
+          goalsAgainst: base.goalsAgainst || 0,
+          goalDifference: (base.goalsFor || 0) - (base.goalsAgainst || 0),
+          points: base.points ?? ((base.won || 0) * 3 + (base.drawn || 0)),
           pointsDeduction,
           deductionReason,
           baseStats: {
-            played: basePlayed,
-            won: baseWins,
-            drawn: baseDraws,
-            lost: baseLosses,
-            goalsFor: baseGoalsFor,
-            goalsAgainst: baseGoalsAgainst,
-            points: basePoints,
+            played: base.played || 0,
+            won: base.won || 0,
+            drawn: base.drawn || 0,
+            lost: base.lost || 0,
+            goalsFor: base.goalsFor || 0,
+            goalsAgainst: base.goalsAgainst || 0,
+            points: base.points ?? ((base.won || 0) * 3 + (base.drawn || 0)),
             pointsDeduction,
             deductionReason
           }
         };
       });
 
-      // Aggregate standings
+      // Accumulate finished matches (each finished match processed exactly once)
       finishedMatches.forEach((match) => {
-        const homeIdx = resetStandings.findIndex((s) => isClubInStandingRow(s, match.homeClubId, match.homeClubName, clubsToUse));
-        const awayIdx = resetStandings.findIndex((s) => isClubInStandingRow(s, match.awayClubId, match.awayClubName, clubsToUse));
+        const homeIdx = recalculated.findIndex((s) => isClubInStandingRow(s, match.homeClubId, match.homeClubName, clubsToUse));
+        const awayIdx = recalculated.findIndex((s) => isClubInStandingRow(s, match.awayClubId, match.awayClubName, clubsToUse));
 
-        if (homeIdx !== -1 && awayIdx !== -1) {
-          const homeRow = resetStandings[homeIdx];
-          const awayRow = resetStandings[awayIdx];
-
+        if (homeIdx !== -1) {
+          const homeRow = recalculated[homeIdx];
           homeRow.played += 1;
-          awayRow.played += 1;
-
           homeRow.goalsFor += match.score.home;
           homeRow.goalsAgainst += match.score.away;
-          awayRow.goalsFor += match.score.away;
-          awayRow.goalsAgainst += match.score.home;
-
           if (match.score.home > match.score.away) {
             homeRow.won += 1;
             homeRow.points += 3;
-            awayRow.lost += 1;
           } else if (match.score.home < match.score.away) {
-            awayRow.won += 1;
-            awayRow.points += 3;
             homeRow.lost += 1;
           } else {
             homeRow.drawn += 1;
             homeRow.points += 1;
+          }
+        }
+
+        if (awayIdx !== -1) {
+          const awayRow = recalculated[awayIdx];
+          awayRow.played += 1;
+          awayRow.goalsFor += match.score.away;
+          awayRow.goalsAgainst += match.score.home;
+          if (match.score.away > match.score.home) {
+            awayRow.won += 1;
+            awayRow.points += 3;
+          } else if (match.score.away < match.score.home) {
+            awayRow.lost += 1;
+          } else {
             awayRow.drawn += 1;
             awayRow.points += 1;
           }
         }
       });
 
-      // Correct goalDifference and apply points deduction
-      resetStandings.forEach((row) => {
+      // Calculate goalDifference, efficiency (aproveitamento), recentForm (últimos 5 jogos) and apply pointsDeduction
+      recalculated.forEach((row) => {
         row.goalDifference = row.goalsFor - row.goalsAgainst;
+
         if (row.pointsDeduction && row.pointsDeduction > 0) {
           row.points = Math.max(0, row.points - row.pointsDeduction);
         }
+
+        // Efficiency (aproveitamento %)
+        row.efficiency = row.played > 0 ? Math.round((row.points / (row.played * 3)) * 100) : 0;
+
+        // Recent form (últimos 5 jogos) for this club in this championship
+        const clubMatches = finishedMatches
+          .filter((m) => isClubInStandingRow(row, m.homeClubId, m.homeClubName, clubsToUse) || isClubInStandingRow(row, m.awayClubId, m.awayClubName, clubsToUse))
+          .sort((a, b) => {
+            const rA = Number(a.round) || 0;
+            const rB = Number(b.round) || 0;
+            if (rA !== rB) return rA - rB;
+            return (a.date || '').localeCompare(b.date || '');
+          });
+
+        const last5 = clubMatches.slice(-5);
+        const formSymbols = last5.map((m) => {
+          const isHome = isClubInStandingRow(row, m.homeClubId, m.homeClubName, clubsToUse);
+          const homeScore = m.score.home;
+          const awayScore = m.score.away;
+          if (homeScore === awayScore) return 'E';
+          if (isHome) return homeScore > awayScore ? 'V' : 'D';
+          return awayScore > homeScore ? 'V' : 'D';
+        });
+        while (formSymbols.length < 5) {
+          formSymbols.push('?' as any);
+        }
+        row.recentForm = formSymbols;
       });
 
-      // Sort standings (points DESC, then goal difference DESC, then goals for DESC, then wins DESC)
-      resetStandings.sort((a, b) => {
+      // Sort standings: Points DESC -> Wins DESC -> Goal Difference DESC -> Goals For DESC -> Club Name ASC
+      recalculated.sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
+        if (b.won !== a.won) return b.won - a.won;
         if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
         if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-        return b.won - a.won;
+        return a.clubName.localeCompare(b.clubName);
       });
 
       // Aggregate scorer and assist maps from match events
@@ -1691,7 +1693,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const assistMap: { [playerName: string]: { playerId: string; playerName: string; clubName: string; assists: number } } = {};
 
       finishedMatches.forEach((match) => {
-        match.events.forEach((ev) => {
+        (match.events || []).forEach((ev) => {
           if (ev.type === 'Goal') {
             // Scorer
             if (ev.player1) {
@@ -1736,7 +1738,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const updatedChamp: Championship = {
         ...champ,
-        standings: resetStandings,
+        standings: recalculated,
         topScorers,
         topAssists
       };

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getPlayerPhoto, handlePlayerImageError } from '../utils/avatar';
 import { ArrowLeft, Star, Trophy, Target, Award, ListOrdered, FileText, Calendar, MapPin } from 'lucide-react';
-import { Match, StandingRow, formatMatchMinute, formatTeamName } from '../types';
+import { Match, MatchStatus, StandingRow, formatMatchMinute, formatTeamName } from '../types';
 
 interface LeagueDetailsProps {
   leagueId: string;
@@ -14,20 +14,23 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
 
   const league = championships.find((c) => c.id === leagueId);
 
+  const isFinishedMatch = (status: any) =>
+    status === MatchStatus.FINISHED || status === 'FINISHED' || status === 'Encerrado';
+
   const getRecentForm = (clubId: string, championshipId: string) => {
     // Find all finished matches of this club in this championship
     const clubMatches = matches
       .filter(
         (m) =>
           m.championshipId === championshipId &&
-          m.status === 'Encerrado' &&
+          isFinishedMatch(m.status) &&
           (m.homeClubId === clubId || m.awayClubId === clubId)
       )
       .sort((a, b) => {
         const rA = Number(a.round) || 0;
         const rB = Number(b.round) || 0;
         if (rA !== rB) return rA - rB;
-        return a.date.localeCompare(b.date);
+        return (a.date || '').localeCompare(b.date || '');
       });
 
     // Get the last 5 matches
@@ -66,16 +69,17 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
         <table className="w-full text-[10px] text-left border-collapse table-fixed">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-150 dark:border-slate-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
-              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">Pos</th>
-              <th className="w-[34%] py-2 text-left px-1.5 border-r border-zinc-150 dark:border-slate-800">Clube</th>
-              <th className="w-[10%] py-2 text-center font-black border-r border-zinc-150 dark:border-slate-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
-              <th className="w-[8%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">J</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">V</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">E</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">D</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GP</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GC</th>
-              <th className="w-[7%] py-2 text-center font-bold">SG</th>
+              <th className="w-[5%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">Pos</th>
+              <th className="w-[31%] py-2 text-left px-1.5 border-r border-zinc-150 dark:border-slate-800">Clube</th>
+              <th className="w-[9%] py-2 text-center font-black border-r border-zinc-150 dark:border-slate-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">J</th>
+              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">V</th>
+              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">E</th>
+              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">D</th>
+              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GP</th>
+              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GC</th>
+              <th className="w-[6%] py-2 text-center font-bold border-r border-zinc-150 dark:border-slate-800">SG</th>
+              <th className="w-[12%] py-2 text-center font-extrabold text-emerald-600 dark:text-emerald-400">%</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-150 dark:divide-slate-800 font-medium">
@@ -86,8 +90,9 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                 ? 'bg-[#ef4444]'
                 : 'bg-[#94a3b8] dark:bg-zinc-600';
 
-              const recentForm = getRecentForm(row.clubId, leagueId);
+              const recentForm = row.recentForm && row.recentForm.length === 5 ? row.recentForm : getRecentForm(row.clubId, leagueId);
               const diff = row.played - maxPlayed;
+              const efficiencyPct = row.efficiency !== undefined ? row.efficiency : row.played > 0 ? Math.round((row.points / (row.played * 3)) * 100) : 0;
 
               return (
                 <tr
@@ -168,7 +173,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.goalsFor}</td>
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.goalsAgainst}</td>
                   <td
-                    className={`py-1 w-[7%] text-center font-bold text-[9.5px] ${
+                    className={`py-1 w-[6%] text-center font-bold text-[9.5px] border-r border-zinc-150 dark:border-slate-800 ${
                       row.goalDifference > 0
                         ? 'text-zinc-800 dark:text-zinc-200'
                         : row.goalDifference < 0
@@ -177,6 +182,9 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                     }`}
                   >
                     {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
+                  </td>
+                  <td className="py-1 w-[12%] text-center font-bold text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
+                    {efficiencyPct}%
                   </td>
                 </tr>
               );

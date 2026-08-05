@@ -4574,7 +4574,7 @@ export const AdminPanel: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
                             <label className="relative cursor-pointer group shrink-0" title="Clique para alterar o logo">
-                              <img src={club.logoUrl} alt="" className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 p-1 object-cover group-hover:opacity-75 transition-opacity" />
+                              <img src={club.logoUrl} alt="" className="w-[50px] h-[50px] rounded-full bg-slate-800 p-1 object-cover group-hover:opacity-75 transition-opacity" />
                               <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-white text-[7px] bg-black/55 rounded-full font-black">FOTO</span>
                               <input 
                                 type="file" 
@@ -5566,7 +5566,7 @@ export const AdminPanel: React.FC = () => {
                             <img
                               src={activeClub.logoUrl || ''}
                               alt=""
-                              className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 p-1 object-cover border border-slate-700 shrink-0"
+                              className="w-[50px] h-[50px] rounded-full bg-slate-800 p-1 object-cover border border-slate-700 shrink-0"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
                               }}
