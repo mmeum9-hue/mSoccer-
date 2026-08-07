@@ -255,7 +255,7 @@ interface AppContextType {
   clearNotifications: () => void;
   dbConfig: { initialized?: boolean; cleared?: boolean } | null;
   clearAllDatabase: () => Promise<void>;
-  recalculateAllPlayerStats: () => Promise<void>;
+  recalculateAllPlayerStats: (currentMatches?: Match[]) => Promise<void>;
   
   // Chat & Presence addition
   chatUnreadCounts: { [room: string]: number };
@@ -1244,6 +1244,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (updatedMatch.championshipId) {
         await recalculateStandingsForChampionship(updatedMatch.championshipId, nextMatches.length > 0 ? nextMatches : undefined);
       }
+
+      const isFinished = (status: any) =>
+        status === MatchStatus.FINISHED || status === 'FINISHED' || status === 'Encerrado';
+
+      if (isFinished(updatedMatch.status) || (existingMatch && isFinished(existingMatch.status))) {
+        await recalculateAllPlayerStats(nextMatches);
+      }
     } catch (e) {
       console.error("Error updating match:", e);
     }
@@ -1264,8 +1271,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       await addAuditLog('Partida Removida', `Excluiu partida: ${label}`, 'bg-rose-600');
 
+      const isFinished = (status: any) =>
+        status === MatchStatus.FINISHED || status === 'FINISHED' || status === 'Encerrado';
+
       if (m && m.championshipId) {
         await recalculateStandingsForChampionship(m.championshipId, nextMatches.length > 0 ? nextMatches : undefined);
+      }
+      if (m && isFinished(m.status)) {
+        await recalculateAllPlayerStats(nextMatches);
       }
     } catch (e) {
       console.error("Error deleting match:", e);
@@ -1991,7 +2004,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const recalculateAllPlayerStats = async () => {
+  const recalculateAllPlayerStats = async (currentMatches?: Match[]) => {
     try {
       // 1. Fetch fresh data directly from Firestore collections without relying on cached state
       const [playersSnapshot, clubsSnapshot, matchesSnapshot, champsSnapshot] = await Promise.all([
@@ -2003,7 +2016,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const rawPlayers = playersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Player));
       const rawClubs = clubsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Club));
-      const rawMatches = matchesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match));
+      const fetchedMatches = matchesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match));
+      const rawMatches = currentMatches && currentMatches.length > 0 ? currentMatches : fetchedMatches;
       const rawChampionships = champsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Championship));
 
       const isFinishedMatch = (m: Match) =>

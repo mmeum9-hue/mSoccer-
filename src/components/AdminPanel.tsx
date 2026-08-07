@@ -42,7 +42,9 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Sliders
+  Sliders,
+  CheckCircle2,
+  Save
 } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
@@ -261,25 +263,35 @@ export const AdminPanel: React.FC = () => {
     }
   }, [quickChampId, quickClubId, championships]);
 
-  // Match event live injector states - Only show matches that are NOT finished/encerradas
-  const nonFinishedMatches = React.useMemo(() => {
-    return matches.filter(m => m.status !== MatchStatus.FINISHED);
-  }, [matches]);
+  // Match controller state - Filter matches by mode ('all' | 'active' | 'finished')
+  const [matchFilterMode, setMatchFilterMode] = useState<'all' | 'active' | 'finished'>('all');
+
+  const controllerMatches = React.useMemo(() => {
+    const isFinished = (status: any) =>
+      status === MatchStatus.FINISHED || status === 'FINISHED' || status === 'Encerrado';
+
+    if (matchFilterMode === 'active') {
+      return matches.filter(m => !isFinished(m.status));
+    }
+    if (matchFilterMode === 'finished') {
+      return matches.filter(m => isFinished(m.status));
+    }
+    return matches;
+  }, [matches, matchFilterMode]);
 
   const [selectedControllerMatchId, setSelectedControllerMatchId] = useState<string>(() => {
-    const firstActive = matches.find(m => m.status !== MatchStatus.FINISHED);
-    return firstActive?.id || '';
+    return matches[0]?.id || '';
   });
 
   useEffect(() => {
-    if (nonFinishedMatches.length > 0) {
-      if (!selectedControllerMatchId || !nonFinishedMatches.some(m => m.id === selectedControllerMatchId)) {
-        setSelectedControllerMatchId(nonFinishedMatches[0].id);
+    if (matches.length > 0) {
+      if (!selectedControllerMatchId || !matches.some(m => m.id === selectedControllerMatchId)) {
+        setSelectedControllerMatchId(matches[0].id);
       }
     } else {
       setSelectedControllerMatchId('');
     }
-  }, [nonFinishedMatches, selectedControllerMatchId]);
+  }, [matches, selectedControllerMatchId]);
 
   const activeMatchToControl = matches.find((m) => m.id === selectedControllerMatchId);
   const champOfMatch = activeMatchToControl ? championships.find(c => c.id === activeMatchToControl.championshipId) : null;
@@ -2294,60 +2306,114 @@ export const AdminPanel: React.FC = () => {
               </div>
 
               <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-3 sm:p-5 space-y-4">
-                <h3 className="text-sm font-black text-white uppercase border-b border-slate-800 pb-2">
-                  🎮 Controlador Real-Time de Jogo Ativo
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-black text-white uppercase flex items-center space-x-2">
+                    <Sliders className="w-4 h-4 text-emerald-400" />
+                    <span>🎮 Controlador & Editor de Partidas</span>
+                  </h3>
+                  <span className="text-[10px] font-bold text-zinc-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                    Ativas, Agendadas e Encerradas
+                  </span>
+                </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase">Selecione o Jogo para Operar</label>
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMatchFilterMode('all')}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        matchFilterMode === 'all'
+                          ? 'bg-emerald-500 text-white shadow-md'
+                          : 'bg-slate-900 border border-slate-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Todas as Partidas ({matches.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMatchFilterMode('active')}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        matchFilterMode === 'active'
+                          ? 'bg-emerald-500 text-white shadow-md'
+                          : 'bg-slate-900 border border-slate-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      🟢 Em Andamento / Agendadas ({matches.filter(m => m.status !== MatchStatus.FINISHED).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMatchFilterMode('finished')}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        matchFilterMode === 'finished'
+                          ? 'bg-amber-500 text-slate-950 shadow-md'
+                          : 'bg-slate-900 border border-slate-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      🏁 Editar Partida Encerrada ({matches.filter(m => m.status === MatchStatus.FINISHED).length})
+                    </button>
+                  </div>
+
                   <select
                     value={selectedControllerMatchId}
                     onChange={(e) => setSelectedControllerMatchId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-4 py-2.5 text-white"
+                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-4 py-2.5 text-white font-medium focus:ring-2 focus:ring-emerald-500"
                   >
-                    {nonFinishedMatches.length > 0 ? (
-                      nonFinishedMatches.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          [{m.status}] {m.homeClubName} vs {m.awayClubName} ({m.championshipName})
-                        </option>
-                      ))
+                    {controllerMatches.length > 0 ? (
+                      controllerMatches.map((m) => {
+                        const isFinished = m.status === MatchStatus.FINISHED || (m.status as any) === 'FINISHED' || (m.status as any) === 'Encerrado';
+                        const statusLabel = isFinished ? '🏁 ENCERRADA' : m.status === MatchStatus.LIVE ? '🔴 AO VIVO' : m.status === MatchStatus.HT ? '⏸️ INTERVALO' : '📅 AGENDADO';
+                        return (
+                          <option key={m.id} value={m.id}>
+                            [{statusLabel}] {m.homeClubName} {m.score.home} x {m.score.away} {m.awayClubName} ({m.championshipName || 'Torneio'} - Rodada {m.round})
+                          </option>
+                        );
+                      })
                     ) : (
-                      <option value="">Nenhum jogo ativo disponível para operar</option>
+                      <option value="">Nenhuma partida encontrada nesta categoria</option>
                     )}
                   </select>
                 </div>
 
                 {activeMatchToControl ? (
                   <div className="border border-slate-800 p-2.5 sm:p-4 rounded-xl space-y-4 bg-slate-900/40">
-                    {isChampOfMatchEnded && (
+                    {activeMatchToControl.status === MatchStatus.FINISHED ? (
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-emerald-300 text-xs space-y-2 animate-fade-in shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <p className="font-extrabold text-sm text-emerald-400 flex items-center space-x-2">
+                            <span>🏁 Modo: Editar Partida Encerrada</span>
+                          </p>
+                          <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-black uppercase">
+                            Partida Finalizada
+                          </span>
+                        </div>
+                        <p className="text-zinc-300 text-[11px] leading-relaxed">
+                          Edite o placar, eventos (gols, assistências, cartões, substituições), estatísticas, escalações e rodada desta partida finalizada. Ao atualizar, o sistema desfaz o resultado anterior e recalcula automaticamente toda a classificação do campeonato (pontos V=3, E=1, D=0, vitórias, empates, derrotas, gols pró, gols sofridos, saldo de gols, aproveitamento % e o histórico dos últimos 5 jogos) e as estatísticas dos jogadores sem duplicar dados.
+                        </p>
+                      </div>
+                    ) : isChampOfMatchEnded ? (
                       <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-amber-400 text-xs space-y-1.5 animate-fade-in">
                         <p className="font-bold flex items-center space-x-1.5">
-                          <span>🔒 Partida de Campeonato Encerrado</span>
+                          <span>🔒 Campeonato Marcado como Encerrado</span>
                         </p>
-                        <p>Esta partida pertence ao campeonato <strong>{activeMatchToControl.championshipName}</strong>, que foi finalizado e encerrado. Todos os resultados, placares e estatísticas estão congelados e guardados para histórico de forma definitiva. Se desejar reajustar estes dados, por favor, mude o status do campeonato correspondente para "Ativo" na aba de Campeonatos.</p>
+                        <p>O campeonato correspondente está marcado como encerrado, mas você ainda pode ajustar esta partida e atualizar o placar e classificação.</p>
                       </div>
-                    )}
+                    ) : null}
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center space-x-1.5">
                         <span className="text-xs font-bold text-emerald-400">Jogo Selecionado: Rodada</span>
-                        {isChampOfMatchEnded ? (
-                          <span className="text-xs font-black text-white">{activeMatchToControl.round}</span>
-                        ) : (
-                          <input
-                            type="number"
-                            min="1"
-                            value={activeMatchToControl.round}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10) || 1;
-                              updateMatch({ ...activeMatchToControl, round: val });
-                            }}
-                            className="w-12 bg-slate-900 border border-slate-800 text-xs rounded px-1.5 py-0.5 text-center font-bold text-white"
-                          />
-                        )}
+                        <input
+                          type="number"
+                          min="1"
+                          value={activeMatchToControl.round}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10) || 1;
+                            updateMatch({ ...activeMatchToControl, round: val });
+                          }}
+                          className="w-12 bg-slate-900 border border-slate-800 text-xs rounded px-1.5 py-0.5 text-center font-bold text-white"
+                        />
                       </div>
-                      {!isChampOfMatchEnded && (
-                        <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-3">
                           <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider block">
                             📌 Controle de Status da Partida
                           </span>
@@ -2487,10 +2553,9 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Controladores Rápidos */}
+                      {/* Controladores Rápidos */}
                     {!isChampOfMatchEnded && (
                       <div className="bg-slate-950/60 p-2.5 sm:p-4 rounded-xl border border-slate-800/60 space-y-3">
                         <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider block">
@@ -2637,7 +2702,6 @@ export const AdminPanel: React.FC = () => {
                           <input
                             type="number"
                             min="0"
-                            disabled={isChampOfMatchEnded}
                             value={activeMatchToControl.score.home}
                             onChange={(e) => handleScoreInput('home', e.target.value)}
                             className="w-20 text-center font-mono text-3xl font-black bg-slate-950 border border-slate-800 text-white rounded-lg py-1 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -2651,13 +2715,37 @@ export const AdminPanel: React.FC = () => {
                           <input
                             type="number"
                             min="0"
-                            disabled={isChampOfMatchEnded}
                             value={activeMatchToControl.score.away}
                             onChange={(e) => handleScoreInput('away', e.target.value)}
                             className="w-20 text-center font-mono text-3xl font-black bg-slate-950 border border-slate-800 text-white rounded-lg py-1 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                           />
                         </div>
                       </div>
+                    </div>
+
+                    {/* Dedicated Save & Recalculate Action Bar */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-950/80 p-3.5 rounded-xl border border-emerald-500/30">
+                      <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                        <span>
+                          {activeMatchToControl.status === MatchStatus.FINISHED
+                            ? 'Clique abaixo para salvar as alterações e recalcular a classificação do campeonato e artilharia.'
+                            : 'A partida está ativa e sincronizando os dados.'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await updateMatch(activeMatchToControl);
+                          await recalculateAllPlayerStats();
+                          addNotification?.('Partida Salva e Tabela Recalculada', `Os dados da partida ${activeMatchToControl.homeClubName} ${activeMatchToControl.score.home} x ${activeMatchToControl.score.away} ${activeMatchToControl.awayClubName} foram salvos com sucesso.`, 'jogo');
+                          alert(`Partida salva com sucesso! A classificação do campeonato, saldo de gols, aproveitamento, últimos 5 jogos e artilharia foram recalculados.`);
+                        }}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer transition-all flex items-center justify-center space-x-2 shadow-lg shrink-0"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Salvar e Recalcular Classificação</span>
+                      </button>
                     </div>
 
                     {/* Extra Time and Penalty shootouts (Copa/Eliminatória options) */}
@@ -2673,7 +2761,6 @@ export const AdminPanel: React.FC = () => {
                               <input
                                 type="checkbox"
                                 checked={!!activeMatchToControl.isExtraTime}
-                                disabled={isChampOfMatchEnded}
                                 onChange={(e) => {
                                   const updated = { ...activeMatchToControl };
                                   updated.isExtraTime = e.target.checked;
@@ -2692,7 +2779,6 @@ export const AdminPanel: React.FC = () => {
                               <input
                                 type="checkbox"
                                 checked={!!activeMatchToControl.scorePenalties}
-                                disabled={isChampOfMatchEnded}
                                 onChange={(e) => {
                                   const updated = { ...activeMatchToControl };
                                   if (e.target.checked) {
@@ -2719,7 +2805,6 @@ export const AdminPanel: React.FC = () => {
                                 <input
                                   type="number"
                                   min="0"
-                                  disabled={isChampOfMatchEnded}
                                   value={activeMatchToControl.scoreExtraTime?.home ?? activeMatchToControl.score.home}
                                   onChange={(e) => {
                                     const updated = { ...activeMatchToControl };
@@ -2736,7 +2821,6 @@ export const AdminPanel: React.FC = () => {
                                 <input
                                   type="number"
                                   min="0"
-                                  disabled={isChampOfMatchEnded}
                                   value={activeMatchToControl.scoreExtraTime?.away ?? activeMatchToControl.score.away}
                                   onChange={(e) => {
                                     const updated = { ...activeMatchToControl };
@@ -2762,7 +2846,6 @@ export const AdminPanel: React.FC = () => {
                                 <input
                                   type="number"
                                   min="0"
-                                  disabled={isChampOfMatchEnded}
                                   value={activeMatchToControl.scorePenalties.home}
                                   onChange={(e) => {
                                     const updated = { ...activeMatchToControl };
@@ -2779,7 +2862,6 @@ export const AdminPanel: React.FC = () => {
                                 <input
                                   type="number"
                                   min="0"
-                                  disabled={isChampOfMatchEnded}
                                   value={activeMatchToControl.scorePenalties.away}
                                   onChange={(e) => {
                                     const updated = { ...activeMatchToControl };
@@ -2820,7 +2902,6 @@ export const AdminPanel: React.FC = () => {
                           <div className="flex items-center justify-between space-x-2">
                             <button
                               type="button"
-                              disabled={isChampOfMatchEnded}
                               onClick={() => {
                                 const newCount = Math.max(0, statsCornersHome - 1);
                                 setStatsCornersHome(newCount);
@@ -2833,14 +2914,13 @@ export const AdminPanel: React.FC = () => {
                                 };
                                 updateMatch(updatedMatch);
                               }}
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded font-bold text-xs cursor-pointer transition-colors"
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer transition-colors"
                             >
                               -1
                             </button>
                             <span className="text-sm font-black font-mono text-amber-400">{statsCornersHome}</span>
                             <button
                               type="button"
-                              disabled={isChampOfMatchEnded}
                               onClick={() => {
                                 const newCount = statsCornersHome + 1;
                                 setStatsCornersHome(newCount);
@@ -2854,7 +2934,7 @@ export const AdminPanel: React.FC = () => {
                                 updateMatch(updatedMatch);
                                 addLog('Escanteio Adicionado', `Escanteio para ${activeMatchToControl.homeClubShortName}`, 'bg-amber-500');
                               }}
-                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded font-black text-xs cursor-pointer shadow-xs transition-colors"
+                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded font-black text-xs cursor-pointer shadow-xs transition-colors"
                             >
                               +1 Escanteio
                             </button>
@@ -2869,7 +2949,6 @@ export const AdminPanel: React.FC = () => {
                           <div className="flex items-center justify-between space-x-2">
                             <button
                               type="button"
-                              disabled={isChampOfMatchEnded}
                               onClick={() => {
                                 const newCount = Math.max(0, statsCornersAway - 1);
                                 setStatsCornersAway(newCount);
@@ -2882,14 +2961,13 @@ export const AdminPanel: React.FC = () => {
                                 };
                                 updateMatch(updatedMatch);
                               }}
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded font-bold text-xs cursor-pointer transition-colors"
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer transition-colors"
                             >
                               -1
                             </button>
                             <span className="text-sm font-black font-mono text-amber-400">{statsCornersAway}</span>
                             <button
                               type="button"
-                              disabled={isChampOfMatchEnded}
                               onClick={() => {
                                 const newCount = statsCornersAway + 1;
                                 setStatsCornersAway(newCount);
@@ -2903,7 +2981,7 @@ export const AdminPanel: React.FC = () => {
                                 updateMatch(updatedMatch);
                                 addLog('Escanteio Adicionado', `Escanteio para ${activeMatchToControl.awayClubShortName}`, 'bg-amber-500');
                               }}
-                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded font-black text-xs cursor-pointer shadow-xs transition-colors"
+                              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded font-black text-xs cursor-pointer shadow-xs transition-colors"
                             >
                               +1 Escanteio
                             </button>
@@ -3127,12 +3205,63 @@ export const AdminPanel: React.FC = () => {
 
                           <button
                             type="submit"
-                            disabled={isChampOfMatchEnded}
-                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white rounded-lg text-xs font-bold transition-all cursor-pointer uppercase tracking-wider"
                           >
-                            Transmitir Lance ao Vivo
+                            ⚡ Adicionar / Transmitir Evento
                           </button>
                         </form>
+
+                        {/* Event List and Removal Tool for Editing Match */}
+                        {activeMatchToControl.events && activeMatchToControl.events.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
+                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-wider block">
+                              📋 Eventos Registrados nesta Partida ({activeMatchToControl.events.length})
+                            </span>
+                            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                              {activeMatchToControl.events.map((ev, idx) => (
+                                <div
+                                  key={ev.id || idx}
+                                  className="flex items-center justify-between bg-slate-950 p-2 rounded-lg border border-slate-800 text-xs"
+                                >
+                                  <div className="flex items-center space-x-2 truncate">
+                                    <span className="text-[10px] font-mono font-bold text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded">
+                                      {ev.minute}'
+                                    </span>
+                                    <span className="font-bold text-white">
+                                      {ev.type === 'Goal' ? '⚽ Gol' : ev.type === 'YellowCard' ? '🟨 Amarelo' : ev.type === 'RedCard' ? '🟥 Vermelho' : ev.type === 'Substitution' ? '🔄 Sub' : ev.type === 'Corner' ? '🚩 Escanteio' : ev.type}
+                                    </span>
+                                    <span className="text-zinc-300 truncate font-medium">
+                                      {ev.player1} {ev.player2 ? `(Assist: ${ev.player2})` : ''}
+                                    </span>
+                                    <span className="text-[10px] text-zinc-500">
+                                      ({ev.team === 'home' ? activeMatchToControl.homeClubShortName || 'Mandante' : activeMatchToControl.awayClubShortName || 'Visitante'})
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm(`Deseja remover o evento "${ev.type} - ${ev.player1}"?`)) {
+                                        const newEvents = activeMatchToControl.events.filter((_, i) => i !== idx);
+                                        let newScore = { ...activeMatchToControl.score };
+                                        if (ev.type === 'Goal') {
+                                          if (ev.team === 'home') newScore.home = Math.max(0, newScore.home - 1);
+                                          if (ev.team === 'away') newScore.away = Math.max(0, newScore.away - 1);
+                                        }
+                                        const updated = { ...activeMatchToControl, events: newEvents, score: newScore };
+                                        updateMatch(updated);
+                                        addLog('Evento Removido', `Removeu ${ev.type} da partida`, 'bg-rose-500');
+                                      }
+                                    }}
+                                    className="p-1 hover:bg-rose-500/20 text-rose-400 rounded transition-colors cursor-pointer shrink-0 ml-2"
+                                    title="Remover Evento"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -3778,8 +3907,7 @@ export const AdminPanel: React.FC = () => {
 
                           <button
                             type="submit"
-                            disabled={isChampOfMatchEnded}
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
+                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
                           >
                             💾 Salvar Estatísticas da Partida
                           </button>
@@ -4079,8 +4207,7 @@ export const AdminPanel: React.FC = () => {
 
                           <button
                             type="submit"
-                            disabled={isChampOfMatchEnded}
-                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
+                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-lg text-xs font-black transition-colors cursor-pointer uppercase tracking-wider"
                           >
                             💾 Salvar Esquemas e Escalações da Partida
                           </button>

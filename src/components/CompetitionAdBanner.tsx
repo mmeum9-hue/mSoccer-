@@ -56,8 +56,10 @@ export const CompetitionAdBanner: React.FC<CompetitionAdBannerProps> = ({
     };
   });
 
-  // If ad failed to load or user closed it, do not render ANY container space
-  if (hasError || isClosed) {
+  // Fallback banner image if video fails to load
+  const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80';
+
+  if (isClosed) {
     return null;
   }
 
@@ -113,23 +115,31 @@ export const CompetitionAdBanner: React.FC<CompetitionAdBannerProps> = ({
         className="block w-full relative group cursor-pointer"
       >
         <div className="w-full h-28 sm:h-36 bg-black relative overflow-hidden flex items-center justify-center">
-          <video
-            ref={videoRef}
-            src={adConfig.videoUrl}
-            autoPlay
-            loop
-            muted={isMuted}
-            playsInline
-            onLoadedData={() => setIsVideoLoaded(true)}
-            onError={() => setHasError(true)}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${
-              isVideoLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-0'
-            }`}
-          />
+          {!hasError ? (
+            <video
+              ref={videoRef}
+              src={adConfig.videoUrl}
+              autoPlay
+              loop
+              muted={isMuted}
+              playsInline
+              onLoadedData={() => setIsVideoLoaded(true)}
+              onError={() => setHasError(true)}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                isVideoLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-0'
+              }`}
+            />
+          ) : (
+            <img
+              src={FALLBACK_IMAGE}
+              alt="Anúncio Patrocinado"
+              className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+            />
+          )}
 
           {!isVideoLoaded && !hasError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
-              <span className="text-[9px] text-zinc-500 font-medium animate-pulse">
+            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/90">
+              <span className="text-[9px] text-zinc-400 font-medium animate-pulse">
                 Carregando anúncio...
               </span>
             </div>
