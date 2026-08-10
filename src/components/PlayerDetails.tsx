@@ -540,13 +540,13 @@ export const PlayerDetails: React.FC<PlayerDetailsProps> = ({ playerId }) => {
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          <span className={`font-black text-[11px] whitespace-pre-line ${isHome ? 'text-emerald-500 font-black' : 'text-slate-800 dark:text-slate-200'}`}>
+                          <span className={`font-black text-[11px] truncate whitespace-nowrap ${isHome ? 'text-emerald-500 font-black' : 'text-slate-800 dark:text-slate-200'}`}>
                             {formatTeamName(m.homeClubName)}
                           </span>
                           <span className="font-mono bg-zinc-950 dark:bg-slate-800 text-white font-black px-1.5 py-0.5 rounded text-[10px]">
                             {m.score.home} - {m.score.away}
                           </span>
-                          <span className={`font-black text-[11px] whitespace-pre-line ${!isHome ? 'text-emerald-500 font-black' : 'text-slate-800 dark:text-slate-200'}`}>
+                          <span className={`font-black text-[11px] truncate whitespace-nowrap ${!isHome ? 'text-emerald-500 font-black' : 'text-slate-800 dark:text-slate-200'}`}>
                             {formatTeamName(m.awayClubName)}
                           </span>
                         </div>

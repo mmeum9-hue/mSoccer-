@@ -99,7 +99,7 @@ export const ChampionshipSection: React.FC = () => {
                           >
                             <span className="font-mono text-[10px] text-zinc-400 font-black">#{idx + 1}</span>
                             <img src={team.logoUrl} alt="" className="w-4 h-4 rounded-full group-hover/leader:scale-110 transition-transform" />
-                            <span className="text-[12px] font-medium whitespace-pre-line text-zinc-700 dark:text-zinc-300 group-hover/leader:text-blue-600 dark:group-hover/leader:text-blue-400 transition-colors">{formatTeamName(team.clubName)}</span>
+                            <span className="text-[12px] font-medium truncate whitespace-nowrap text-zinc-700 dark:text-zinc-300 group-hover/leader:text-blue-600 dark:group-hover/leader:text-blue-400 transition-colors">{formatTeamName(team.clubName)}</span>
                           </div>
                           <div className="flex items-center space-x-1.5">
                             <span className="font-mono font-bold text-zinc-900 dark:text-white">{team.points} pts</span>

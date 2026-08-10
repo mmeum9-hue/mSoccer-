@@ -856,7 +856,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                   <td className="py-1 px-1.5 w-[34%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.homeClubId })}>
                       <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
-                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.homeClubName)}</span>
+                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:underline text-[10px] transition-colors truncate whitespace-nowrap block leading-tight">{formatTeamName(match.homeClubName)}</span>
                     </div>
                   </td>
                   <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-blue-50/10 dark:bg-blue-950/10">{homeStandObj.row.points}</td>
@@ -881,7 +881,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                   <td className="py-1 px-1.5 w-[34%] text-left border-r border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center space-x-1 cursor-pointer group" onClick={() => navigateTo({ type: 'club', id: match.awayClubId })}>
                       <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
-                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:underline text-[10px] transition-colors whitespace-pre-line leading-tight">{formatTeamName(match.awayClubName)}</span>
+                      <span className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:underline text-[10px] transition-colors truncate whitespace-nowrap block leading-tight">{formatTeamName(match.awayClubName)}</span>
                     </div>
                   </td>
                   <td className="py-1 w-[10%] text-center font-black text-zinc-900 dark:text-white text-[12px] border-r border-zinc-200 dark:border-zinc-800 bg-rose-50/10 dark:bg-rose-950/10">{awayStandObj.row.points}</td>
@@ -1023,51 +1023,55 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                       </td>
 
                       <td className="py-1 px-2 text-left border-r border-slate-200 dark:border-slate-800/80">
-                        <div className="flex flex-col justify-center min-w-0">
-                          <div
+                        <div className="flex items-center space-x-1.5 min-w-0">
+                          <img
+                            src={row.logoUrl}
+                            alt=""
                             onClick={() => navigateTo({ type: 'club', id: row.clubId })}
-                            className="flex items-center space-x-1.5 cursor-pointer group"
-                          >
-                            <img
-                              src={row.logoUrl}
-                              alt=""
-                              className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105"
-                              referrerPolicy="no-referrer"
-                            />
-                            <span className={`font-extrabold group-hover:underline text-[10.5px] transition-colors truncate leading-tight ${
-                              isHomeMatchTeam ? 'text-blue-600 dark:text-blue-400 group-hover:text-blue-700' :
-                              isAwayMatchTeam ? 'text-rose-600 dark:text-rose-400 group-hover:text-rose-700' :
-                              'text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400'
-                            }`}>
-                              {row.clubName}
-                            </span>
-                            {isHomeMatchTeam && (
-                              <span className="text-[7.5px] bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-black px-1 rounded uppercase tracking-wider scale-90">Casa</span>
-                            )}
-                            {isAwayMatchTeam && (
-                              <span className="text-[7.5px] bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-black px-1 rounded uppercase tracking-wider scale-90">Fora</span>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center space-x-0.5 mt-1.5">
-                            {recentForm.map((symbol, sIdx) => {
-                              const symBg = symbol === 'V'
-                                ? 'bg-[#22c55e]'
-                                : symbol === 'E'
-                                ? 'bg-[#fbbf24]'
-                                : symbol === 'D'
-                                ? 'bg-[#ef4444]'
-                                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500';
-                              return (
-                                <span
-                                  key={sIdx}
-                                  className={`w-3.5 h-3.5 rounded-[2px] flex items-center justify-center text-[8px] font-black text-white shadow-3xs ${symBg}`}
-                                  title={symbol === 'V' ? 'Vitória' : symbol === 'E' ? 'Empate' : symbol === 'D' ? 'Derrota' : 'Sem Jogo'}
-                                >
-                                  {symbol}
-                                </span>
-                              );
-                            })}
+                            className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform hover:scale-105 shrink-0 cursor-pointer"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="flex flex-col justify-center min-w-0">
+                            <div
+                              onClick={() => navigateTo({ type: 'club', id: row.clubId })}
+                              className="flex items-center space-x-1 cursor-pointer group"
+                            >
+                              <span className={`font-extrabold group-hover:underline text-[10.5px] transition-colors truncate leading-tight ${
+                                isHomeMatchTeam ? 'text-blue-600 dark:text-blue-400 group-hover:text-blue-700' :
+                                isAwayMatchTeam ? 'text-rose-600 dark:text-rose-400 group-hover:text-rose-700' :
+                                'text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400'
+                              }`}>
+                                {row.clubName}
+                              </span>
+                              {isHomeMatchTeam && (
+                                <span className="text-[7.5px] bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-black px-1 rounded uppercase tracking-wider scale-90 shrink-0">Casa</span>
+                              )}
+                              {isAwayMatchTeam && (
+                                <span className="text-[7.5px] bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-black px-1 rounded uppercase tracking-wider scale-90 shrink-0">Fora</span>
+                              )}
+                            </div>
+                            
+                            {/* Recent Form small icons row aligned under team name text */}
+                            <div className="flex items-center space-x-0.5 mt-0.5">
+                              {recentForm.map((symbol, sIdx) => {
+                                const symBg = symbol === 'V'
+                                  ? 'bg-[#22c55e]'
+                                  : symbol === 'E'
+                                  ? 'bg-[#fbbf24]'
+                                  : symbol === 'D'
+                                  ? 'bg-[#ef4444]'
+                                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500';
+                                return (
+                                  <span
+                                    key={sIdx}
+                                    className={`w-3.5 h-3.5 rounded-[2px] flex items-center justify-center text-[8px] font-black text-white shadow-3xs ${symBg}`}
+                                    title={symbol === 'V' ? 'Vitória' : symbol === 'E' ? 'Empate' : symbol === 'D' ? 'Derrota' : 'Sem Jogo'}
+                                  >
+                                    {symbol}
+                                  </span>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -2780,7 +2784,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     {homeHeaderPctStr}
                   </span>
                 )}
-                <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/home:underline ${
+                <span className={`text-[12px] tracking-wide block text-center truncate whitespace-nowrap max-w-[110px] group-hover/home:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away
                     ? 'font-black text-white drop-shadow-sm' 
                     : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home ? 'font-medium text-slate-300' : 'font-medium text-white')
@@ -2892,7 +2896,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                     {awayHeaderPctStr}
                   </span>
                 )}
-                <span className={`text-[12px] tracking-wide block text-center whitespace-pre-line max-w-[110px] group-hover/away:underline ${
+                <span className={`text-[12px] tracking-wide block text-center truncate whitespace-nowrap max-w-[110px] group-hover/away:underline ${
                   (match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.away > match.score.home
                     ? 'font-black text-white drop-shadow-sm' 
                     : ((match.status === MatchStatus.FINISHED || match.status === MatchStatus.LIVE || match.status === MatchStatus.HT) && match.score.home > match.score.away ? 'font-medium text-slate-300' : 'font-medium text-white')

@@ -70,16 +70,15 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-900 border-b border-zinc-150 dark:border-slate-800 text-zinc-500 dark:text-zinc-400 font-extrabold uppercase tracking-tight text-center text-[9px]">
               <th className="w-[5%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">Pos</th>
-              <th className="w-[31%] py-2 text-left px-1.5 border-r border-zinc-150 dark:border-slate-800">Clube</th>
-              <th className="w-[9%] py-2 text-center font-black border-r border-zinc-150 dark:border-slate-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
-              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">J</th>
-              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">V</th>
-              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">E</th>
-              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">D</th>
-              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GP</th>
-              <th className="w-[6%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GC</th>
-              <th className="w-[6%] py-2 text-center font-bold border-r border-zinc-150 dark:border-slate-800">SG</th>
-              <th className="w-[12%] py-2 text-center font-extrabold text-emerald-600 dark:text-emerald-400">%</th>
+              <th className="w-[37%] py-2 text-left px-1.5 border-r border-zinc-150 dark:border-slate-800">Clube</th>
+              <th className="w-[10%] py-2 text-center font-black border-r border-zinc-150 dark:border-slate-800 bg-slate-100/40 dark:bg-slate-900/40 text-zinc-900 dark:text-white">P</th>
+              <th className="w-[8%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">J</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">V</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">E</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">D</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GP</th>
+              <th className="w-[7%] py-2 text-center border-r border-zinc-150 dark:border-slate-800">GC</th>
+              <th className="w-[5%] py-2 text-center font-bold">SG</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-150 dark:divide-slate-800 font-medium">
@@ -92,56 +91,58 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
 
               const recentForm = row.recentForm && row.recentForm.length === 5 ? row.recentForm : getRecentForm(row.clubId, leagueId);
               const diff = row.played - maxPlayed;
-              const efficiencyPct = row.efficiency !== undefined ? row.efficiency : row.played > 0 ? Math.round((row.points / (row.played * 3)) * 100) : 0;
 
               return (
                 <tr
                   key={row.clubId}
                   className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/10 transition-colors text-center text-zinc-700 dark:text-zinc-300"
                 >
-                  <td className={`p-0 w-[6%] text-center font-black text-xs text-white border-r border-zinc-150 dark:border-slate-800 ${bgClass}`}>
+                  <td className={`p-0 w-[5%] text-center font-black text-xs text-white border-r border-zinc-150 dark:border-slate-800 ${bgClass}`}>
                     <div className="w-full h-10 flex items-center justify-center">
                       {idx + 1}
                     </div>
                   </td>
 
-                  <td className="py-1 px-1.5 w-[34%] text-left border-r border-zinc-150 dark:border-slate-800">
-                    <div className="flex flex-col justify-center min-w-0">
-                      <div
+                  <td className="py-1 px-1.5 w-[37%] text-left border-r border-zinc-150 dark:border-slate-800">
+                    <div className="flex items-center space-x-1.5 min-w-0">
+                      <img
+                        src={row.logoUrl}
+                        alt=""
                         onClick={() => navigateTo({ type: 'club', id: row.clubId })}
-                        className="flex items-center space-x-1 cursor-pointer group"
-                      >
-                        <img
-                          src={row.logoUrl}
-                          alt=""
-                          className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform group-hover:scale-105"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="font-medium text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[12px] leading-snug transition-colors whitespace-pre-line">
-                          {formatTeamName(row.clubName)}
-                        </span>
-                      </div>
-                      
-                      {/* Recent Form small icons row */}
-                      <div className="flex items-center space-x-0.5 mt-1">
-                        {recentForm.map((symbol, sIdx) => {
-                          const symBg = symbol === 'V'
-                            ? 'bg-[#22c55e]'
-                            : symbol === 'E'
-                            ? 'bg-[#fbbf24]'
-                            : symbol === 'D'
-                            ? 'bg-[#ef4444]'
-                            : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500';
-                          return (
-                            <span
-                              key={sIdx}
-                              className={`w-3.5 h-3.5 rounded-[2px] flex items-center justify-center text-[8px] font-black text-white shadow-3xs ${symBg}`}
-                              title={symbol === 'V' ? 'Vitória' : symbol === 'E' ? 'Empate' : symbol === 'D' ? 'Derrota' : 'Sem Jogo'}
-                            >
-                              {symbol}
-                            </span>
-                          );
-                        })}
+                        className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform hover:scale-105 shrink-0 cursor-pointer"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="flex flex-col justify-center min-w-0">
+                        <div
+                          onClick={() => navigateTo({ type: 'club', id: row.clubId })}
+                          className="cursor-pointer group truncate"
+                        >
+                          <span className="font-medium text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[12px] leading-snug transition-colors truncate whitespace-nowrap block">
+                            {formatTeamName(row.clubName)}
+                          </span>
+                        </div>
+                        
+                        {/* Recent Form small icons row aligned under team name text */}
+                        <div className="flex items-center space-x-0.5 mt-0.5">
+                          {recentForm.map((symbol, sIdx) => {
+                            const symBg = symbol === 'V'
+                              ? 'bg-[#22c55e]'
+                              : symbol === 'E'
+                              ? 'bg-[#fbbf24]'
+                              : symbol === 'D'
+                              ? 'bg-[#ef4444]'
+                              : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500';
+                            return (
+                              <span
+                                key={sIdx}
+                                className={`w-3.5 h-3.5 rounded-[2px] flex items-center justify-center text-[8px] font-black text-white shadow-3xs ${symBg}`}
+                                title={symbol === 'V' ? 'Vitória' : symbol === 'E' ? 'Empate' : symbol === 'D' ? 'Derrota' : 'Sem Jogo'}
+                              >
+                                {symbol}
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -173,7 +174,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.goalsFor}</td>
                   <td className="py-1 w-[7%] text-center font-mono text-zinc-500 dark:text-zinc-500 border-r border-zinc-150 dark:border-slate-800 text-[9.5px]">{row.goalsAgainst}</td>
                   <td
-                    className={`py-1 w-[6%] text-center font-bold text-[9.5px] border-r border-zinc-150 dark:border-slate-800 ${
+                    className={`py-1 w-[5%] text-center font-bold text-[9.5px] ${
                       row.goalDifference > 0
                         ? 'text-zinc-800 dark:text-zinc-200'
                         : row.goalDifference < 0
@@ -182,9 +183,6 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                     }`}
                   >
                     {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
-                  </td>
-                  <td className="py-1 w-[12%] text-center font-bold text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
-                    {efficiencyPct}%
                   </td>
                 </tr>
               );
@@ -287,7 +285,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 min-w-0">
               <img src={match.homeClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white" referrerPolicy="no-referrer" />
-              <span className={`text-[10px] whitespace-pre-line ${
+              <span className={`text-[10px] truncate whitespace-nowrap block ${
                 isFinished && match.score.home > match.score.away 
                   ? 'text-zinc-950 dark:text-white font-black' 
                   : (isFinished && match.score.away > match.score.home ? 'text-zinc-600 dark:text-zinc-400 font-medium' : 'text-zinc-800 dark:text-zinc-200 font-bold')
@@ -303,7 +301,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 min-w-0">
               <img src={match.awayClubLogo} alt="" className="w-4 h-4 rounded-full object-cover bg-white" referrerPolicy="no-referrer" />
-              <span className={`text-[10px] whitespace-pre-line ${
+              <span className={`text-[10px] truncate whitespace-nowrap block ${
                 isFinished && match.score.away > match.score.home 
                   ? 'text-zinc-950 dark:text-white font-black' 
                   : (isFinished && match.score.home > match.score.away ? 'text-zinc-600 dark:text-zinc-400 font-medium' : 'text-zinc-800 dark:text-zinc-200 font-bold')
@@ -675,7 +673,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                               className="w-7 h-7 rounded-full object-cover bg-white p-0.5 shadow-sm shrink-0"
                               referrerPolicy="no-referrer"
                             />
-                            <span className="font-bold text-xs text-zinc-800 dark:text-white whitespace-pre-line">
+                            <span className="font-bold text-xs text-zinc-800 dark:text-white truncate whitespace-nowrap block">
                               {formatTeamName(match.homeClubName)}
                             </span>
                           </div>
@@ -713,7 +711,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
 
                           {/* Away Club */}
                           <div className="flex items-center space-x-2.5 w-[42%] justify-end text-right min-w-0">
-                            <span className="font-bold text-xs text-zinc-800 dark:text-white whitespace-pre-line">
+                            <span className="font-bold text-xs text-zinc-800 dark:text-white truncate whitespace-nowrap block">
                               {formatTeamName(match.awayClubName)}
                             </span>
                             <img
