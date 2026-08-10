@@ -1028,7 +1028,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                             src={row.logoUrl}
                             alt=""
                             onClick={() => navigateTo({ type: 'club', id: row.clubId })}
-                            className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform hover:scale-105 shrink-0 cursor-pointer"
+                            className="w-[29px] h-[29px] rounded-full object-contain bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform hover:scale-105 shrink-0 cursor-pointer"
                             referrerPolicy="no-referrer"
                           />
                           <div className="flex flex-col justify-center min-w-0">
@@ -1036,7 +1036,7 @@ export const MatchDetails: React.FC<MatchDetailsProps> = ({ matchId }) => {
                               onClick={() => navigateTo({ type: 'club', id: row.clubId })}
                               className="flex items-center space-x-1 cursor-pointer group"
                             >
-                              <span className={`font-extrabold group-hover:underline text-[10.5px] transition-colors truncate leading-tight ${
+                              <span className={`font-extrabold group-hover:underline text-[10px] transition-colors truncate leading-tight ${
                                 isHomeMatchTeam ? 'text-blue-600 dark:text-blue-400 group-hover:text-blue-700' :
                                 isAwayMatchTeam ? 'text-rose-600 dark:text-rose-400 group-hover:text-rose-700' :
                                 'text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400'

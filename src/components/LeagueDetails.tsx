@@ -109,7 +109,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                         src={row.logoUrl}
                         alt=""
                         onClick={() => navigateTo({ type: 'club', id: row.clubId })}
-                        className="w-4 h-4 rounded-full object-cover bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform hover:scale-105 shrink-0 cursor-pointer"
+                        className="w-[29px] h-[29px] rounded-full object-contain bg-white shadow-3xs border border-zinc-200 dark:border-zinc-700 transition-transform hover:scale-105 shrink-0 cursor-pointer"
                         referrerPolicy="no-referrer"
                       />
                       <div className="flex flex-col justify-center min-w-0">
@@ -117,7 +117,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                           onClick={() => navigateTo({ type: 'club', id: row.clubId })}
                           className="cursor-pointer group truncate"
                         >
-                          <span className="font-medium text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[12px] leading-snug transition-colors truncate whitespace-nowrap block">
+                          <span className="font-medium text-zinc-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 group-hover:underline text-[10px] leading-snug transition-colors truncate whitespace-nowrap block">
                             {formatTeamName(row.clubName)}
                           </span>
                         </div>

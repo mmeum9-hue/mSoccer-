@@ -594,7 +594,7 @@ export const LiveMatches: React.FC = () => {
                                     }}
                                     className="flex-1 min-w-0 flex items-center justify-end space-x-2 text-right cursor-pointer group pr-2"
                                   >
-                                    <span className={`text-[12px] truncate whitespace-nowrap max-w-[130px] block group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                    <span className={`text-[10px] truncate whitespace-nowrap max-w-[130px] block group-hover:text-[#3C8C21] transition-colors leading-snug ${
                                       isHomeWinner 
                                         ? 'font-black text-black dark:text-white' 
                                         : (isAwayWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-medium text-zinc-800 dark:text-zinc-200')
@@ -604,7 +604,7 @@ export const LiveMatches: React.FC = () => {
                                     <img
                                       src={match.homeClubLogo}
                                       alt={match.homeClubName}
-                                      className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                                      className="w-[29px] h-[29px] rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
                                       referrerPolicy="no-referrer"
                                     />
                                   </div>
@@ -668,10 +668,10 @@ export const LiveMatches: React.FC = () => {
                                     <img
                                       src={match.awayClubLogo}
                                       alt={match.awayClubName}
-                                      className="w-5.5 h-5.5 rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
+                                      className="w-[29px] h-[29px] rounded-full object-contain bg-zinc-50 shrink-0 border border-zinc-100/40"
                                       referrerPolicy="no-referrer"
                                     />
-                                    <span className={`text-[12px] truncate whitespace-nowrap max-w-[130px] block group-hover:text-[#3C8C21] transition-colors leading-snug ${
+                                    <span className={`text-[10px] truncate whitespace-nowrap max-w-[130px] block group-hover:text-[#3C8C21] transition-colors leading-snug ${
                                       isAwayWinner 
                                         ? 'font-black text-black dark:text-white' 
                                         : (isHomeWinner ? 'font-medium text-zinc-600 dark:text-zinc-400' : 'font-medium text-zinc-800 dark:text-zinc-200')
