@@ -1348,7 +1348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       setNews(updatedNews);
 
-      // 5. Propagate to championship standings in state and Firestore
+      // 5. Propagate to championship standings in state and Firestore (safely updating name and logo without altering statistics)
       const updatedChampionships = championships.map((champ) => {
         let champChanged = false;
         const newStandings = champ.standings.map((row) => {
@@ -1359,79 +1359,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!isThisClub) return row;
           champChanged = true;
 
-          const targetWins = club.stats?.wins ?? row.won;
-          const targetDraws = club.stats?.draws ?? row.drawn;
-          const targetLosses = club.stats?.losses ?? row.lost;
-          const targetGP = club.stats?.goalsScored ?? row.goalsFor;
-          const targetGC = club.stats?.goalsConceded ?? row.goalsAgainst;
-
-          const finishedMatches = updatedMatches.filter(
-            (m) => m.championshipId === champ.id && m.status === MatchStatus.FINISHED
-          );
-
-          let fWins = 0, fDraws = 0, fLosses = 0, fGP = 0, fGC = 0;
-          finishedMatches.forEach((m) => {
-            if (m.homeClubId === club.id || m.homeClubId === row.clubId) {
-              fGP += m.score.home;
-              fGC += m.score.away;
-              if (m.score.home > m.score.away) fWins += 1;
-              else if (m.score.home < m.score.away) fLosses += 1;
-              else fDraws += 1;
-            } else if (m.awayClubId === club.id || m.awayClubId === row.clubId) {
-              fGP += m.score.away;
-              fGC += m.score.home;
-              if (m.score.away > m.score.home) fWins += 1;
-              else if (m.score.away < m.score.home) fLosses += 1;
-              else fDraws += 1;
-            }
-          });
-
-          const bWins = Math.max(0, targetWins - fWins);
-          const bDraws = Math.max(0, targetDraws - fDraws);
-          const bLosses = Math.max(0, targetLosses - fLosses);
-          const bGP = Math.max(0, targetGP - fGP);
-          const bGC = Math.max(0, targetGC - fGC);
-          const bPlayed = bWins + bDraws + bLosses;
-          const bPts = bWins * 3 + bDraws;
-
-          const totalPlayed = targetWins + targetDraws + targetLosses;
-          const totalPts = Math.max(0, targetWins * 3 + targetDraws - (row.pointsDeduction || 0));
-
           return {
             ...row,
             clubId: club.id,
             clubName: club.name,
-            logoUrl: club.logoUrl,
-            played: totalPlayed,
-            won: targetWins,
-            drawn: targetDraws,
-            lost: targetLosses,
-            goalsFor: targetGP,
-            goalsAgainst: targetGC,
-            goalDifference: targetGP - targetGC,
-            points: totalPts,
-            baseStats: {
-              played: bPlayed,
-              won: bWins,
-              drawn: bDraws,
-              lost: bLosses,
-              goalsFor: bGP,
-              goalsAgainst: bGC,
-              points: bPts,
-              pointsDeduction: row.pointsDeduction || 0,
-              deductionReason: row.deductionReason || ''
-            }
+            logoUrl: club.logoUrl
           };
         });
 
         if (!champChanged) return champ;
-
-        newStandings.sort((a, b) => {
-          if (b.points !== a.points) return b.points - a.points;
-          if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-          if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-          return b.won - a.won;
-        });
 
         const updatedChamp = {
           ...champ,
