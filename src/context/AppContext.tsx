@@ -1518,8 +1518,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const updateChampionship = async (championship: Championship) => {
     try {
-      setChampionships((prev) => prev.map((c) => (c.id === championship.id ? championship : c)));
-      await setDoc(doc(db, 'championships', championship.id), championship);
+      setChampionships((prev) => {
+        const updated = prev.map((c) => (c.id === championship.id ? championship : c));
+        safeLocalStorage.setItem('msoccer_championships', JSON.stringify(updated));
+        return updated;
+      });
+      await setDoc(doc(db, 'championships', championship.id), championship, { merge: true });
       await addAuditLog('Campeonato Atualizado', `Atualizou o campeonato: ${championship.name}`, 'bg-blue-600');
     } catch (e) {
       console.error("Error updating championship:", e);
@@ -1574,17 +1578,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
       }
 
-      // Initialize standings starting from baseStats (if set) or 0
+      // Initialize standings starting from baseStats (if set) or existing row values to permanently preserve manual edits
       const recalculated = sourceRows.map((row) => {
         const club = findMatchingClub(clubsToUse, row.clubId, row.clubName);
         const base = row.baseStats || {
-          played: 0,
-          won: 0,
-          drawn: 0,
-          lost: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          points: 0,
+          played: row.played || 0,
+          won: row.won || 0,
+          drawn: row.drawn || 0,
+          lost: row.lost || 0,
+          goalsFor: row.goalsFor || 0,
+          goalsAgainst: row.goalsAgainst || 0,
+          points: row.points || 0,
           pointsDeduction: row.pointsDeduction || 0,
           deductionReason: row.deductionReason || ''
         };

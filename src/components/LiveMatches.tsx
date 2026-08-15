@@ -86,7 +86,7 @@ export const LiveMatches: React.FC = () => {
     }
     scrollTimeoutRef.current = setTimeout(() => {
       isAutoScrollingRef.current = false;
-    }, behavior === 'smooth' ? 350 : 50);
+    }, behavior === 'smooth' ? 300 : 60);
   }, []);
 
   useEffect(() => {

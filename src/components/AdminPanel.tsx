@@ -1655,7 +1655,7 @@ export const AdminPanel: React.FC = () => {
     setEditingStandingClubId(null);
   };
 
-  const handleSaveQuickStanding = () => {
+  const handleSaveQuickStanding = async () => {
     const champ = championships.find((c) => c.id === quickChampId);
     if (!champ || !quickClubId) return;
 
@@ -1771,7 +1771,20 @@ export const AdminPanel: React.FC = () => {
       standings: updatedStandings
     };
 
-    updateChampionship(updatedChamp);
+    await updateChampionship(updatedChamp);
+
+    // Also update club general statistics to keep them in permanent sync
+    const updatedClub: Club = {
+      ...club,
+      stats: {
+        wins: targetWon,
+        draws: targetDrawn,
+        losses: targetLost,
+        goalsScored: targetGoalsFor,
+        goalsConceded: targetGoalsAgainst
+      }
+    };
+    await updateClub(updatedClub);
 
     const newIndex = updatedStandings.findIndex((s) => s.clubId === quickClubId);
     const newPos = newIndex !== -1 ? newIndex + 1 : 1;
