@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getPlayerPhoto, handlePlayerImageError, DEFAULT_PLAYER_AVATAR } from '../utils/avatar';
-import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer } from '../types';
+import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer, CONTINENTS_REGIONS_MAP } from '../types';
 import { LineChart, DonutChart } from './AdminCharts';
 import { compressImage } from './imageCompressor';
 import MSoccerLogo from './MSoccerLogo';
 import {
   LayoutDashboard,
   Users,
+  User,
   Shield,
   Activity,
   Award,
@@ -332,6 +333,8 @@ export const AdminPanel: React.FC = () => {
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerAge, setNewPlayerAge] = useState(22);
   const [newPlayerNationality, setNewPlayerNationality] = useState('Brasil');
+  const [newPlayerContinent, setNewPlayerContinent] = useState('América do Sul');
+  const [newPlayerRegion, setNewPlayerRegion] = useState('América Latina');
   const [newPlayerNumber, setNewPlayerNumber] = useState(10);
   const [newPlayerClub, setNewPlayerClub] = useState(clubs[0]?.id || '');
   const [newPlayerPosition, setNewPlayerPosition] = useState<'Goleiro' | 'Defensor' | 'Meio-campista' | 'Atacante'>('Atacante');
@@ -341,6 +344,9 @@ export const AdminPanel: React.FC = () => {
 
   // Editing player stats/history states
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [editPlayerContinent, setEditPlayerContinent] = useState('África');
+  const [editPlayerRegion, setEditPlayerRegion] = useState('África Oriental');
+  const [editPlayerNationality, setEditPlayerNationality] = useState('');
   const [editPlayerMatches, setEditPlayerMatches] = useState<number>(0);
   const [editPlayerGoals, setEditPlayerGoals] = useState<number>(0);
   const [editPlayerAssists, setEditPlayerAssists] = useState<number>(0);
@@ -1110,6 +1116,8 @@ export const AdminPanel: React.FC = () => {
       photoUrl: newPlayerPhoto || DEFAULT_PLAYER_AVATAR,
       age: Number(newPlayerAge),
       nationality: newPlayerNationality,
+      continent: newPlayerContinent,
+      region: newPlayerRegion,
       clubId: newPlayerClub,
       clubName: club?.name || 'Sem Clube',
       number: Number(newPlayerNumber),
@@ -1180,6 +1188,11 @@ export const AdminPanel: React.FC = () => {
 
   const handleStartEditingPlayerStats = (player: Player) => {
     setEditingPlayerId(player.id);
+    const defaultContinent = player.continent || 'África';
+    const defaultRegion = player.region || (CONTINENTS_REGIONS_MAP[defaultContinent] ? CONTINENTS_REGIONS_MAP[defaultContinent][0] : 'África Oriental');
+    setEditPlayerContinent(defaultContinent);
+    setEditPlayerRegion(defaultRegion);
+    setEditPlayerNationality(player.nationality || '');
     setEditPlayerMatches(player.stats?.matches ?? 0);
     setEditPlayerGoals(player.stats?.goals ?? 0);
     setEditPlayerAssists(player.stats?.assists ?? 0);
@@ -1199,6 +1212,9 @@ export const AdminPanel: React.FC = () => {
 
     const updatedPlayer: Player = {
       ...player,
+      continent: editPlayerContinent,
+      region: editPlayerRegion,
+      nationality: editPlayerNationality || player.nationality,
       stats: {
         matches: Number(editPlayerMatches),
         goals: Number(editPlayerGoals),
@@ -5172,6 +5188,43 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Continente e Região */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-emerald-400 uppercase flex items-center gap-1">
+                        <span>Continente</span>
+                      </label>
+                      <select
+                        value={newPlayerContinent}
+                        onChange={(e) => {
+                          const cont = e.target.value;
+                          setNewPlayerContinent(cont);
+                          const regions = CONTINENTS_REGIONS_MAP[cont] || [];
+                          setNewPlayerRegion(regions[0] || '');
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white cursor-pointer font-medium focus:ring-1 focus:ring-emerald-500"
+                      >
+                        {Object.keys(CONTINENTS_REGIONS_MAP).map((cont) => (
+                          <option key={cont} value={cont}>{cont}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-emerald-400 uppercase flex items-center gap-1">
+                        <span>Região (Carregada automaticamente)</span>
+                      </label>
+                      <select
+                        value={newPlayerRegion}
+                        onChange={(e) => setNewPlayerRegion(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-xs rounded-xl px-3 py-2 text-white cursor-pointer font-medium focus:ring-1 focus:ring-emerald-500"
+                      >
+                        {(CONTINENTS_REGIONS_MAP[newPlayerContinent] || []).map((reg) => (
+                          <option key={reg} value={reg}>{reg}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="space-y-1 max-w-xs">
                     <label className="text-[10px] font-bold text-zinc-400 uppercase block">Foto do Jogador</label>
                     <div className="flex items-center space-x-2 pt-0.5">
@@ -5302,6 +5355,54 @@ export const AdminPanel: React.FC = () => {
                           {editingPlayerId === player.id && (
                             <tr className="bg-slate-900/60 border-l-4 border-emerald-500">
                               <td colSpan={8} className="p-4 space-y-4">
+                                {/* Personal Info & Origin */}
+                                <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-800 space-y-3">
+                                  <h4 className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-800 pb-2">
+                                    <User className="w-3.5 h-3.5" />
+                                    <span>Informação Pessoal & Origem</span>
+                                  </h4>
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] text-zinc-400 font-bold block uppercase">Nacionalidade</label>
+                                      <input 
+                                        type="text" 
+                                        value={editPlayerNationality}
+                                        onChange={(e) => setEditPlayerNationality(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] text-zinc-400 font-bold block uppercase">Continente</label>
+                                      <select
+                                        value={editPlayerContinent}
+                                        onChange={(e) => {
+                                          const cont = e.target.value;
+                                          setEditPlayerContinent(cont);
+                                          const regions = CONTINENTS_REGIONS_MAP[cont] || [];
+                                          setEditPlayerRegion(regions[0] || '');
+                                        }}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white cursor-pointer"
+                                      >
+                                        {Object.keys(CONTINENTS_REGIONS_MAP).map((cont) => (
+                                          <option key={cont} value={cont}>{cont}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] text-zinc-400 font-bold block uppercase">Região</label>
+                                      <select
+                                        value={editPlayerRegion}
+                                        onChange={(e) => setEditPlayerRegion(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white cursor-pointer"
+                                      >
+                                        {(CONTINENTS_REGIONS_MAP[editPlayerContinent] || []).map((reg) => (
+                                          <option key={reg} value={reg}>{reg}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   {/* Season Stats Form */}
                                   <div className="space-y-3 bg-[#0F172A] p-4 rounded-xl border border-slate-800">

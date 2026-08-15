@@ -18,6 +18,8 @@ const CANTOLO_PLAYER: Player = {
   photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&q=80',
   age: 23,
   nationality: 'Moçambique',
+  continent: 'África',
+  region: 'África Oriental',
   clubId: 'black_bulls',
   clubName: 'Black Bulls Maputo',
   number: 11,
@@ -458,13 +460,13 @@ export const PlayerDetails: React.FC<PlayerDetailsProps> = ({ playerId }) => {
                   <div className="flex justify-between items-center py-0.5 border-b border-slate-50 dark:border-slate-800/40">
                     <span className="text-zinc-400 font-bold">Continente</span>
                     <span className="font-extrabold text-slate-800 dark:text-zinc-200">
-                      {getContinentAndRegion(player.nationality).continent}
+                      {player.continent || getContinentAndRegion(player.nationality).continent}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-0.5">
                     <span className="text-zinc-400 font-bold">Região</span>
                     <span className="font-extrabold text-slate-800 dark:text-zinc-200">
-                      {getContinentAndRegion(player.nationality).region}
+                      {player.region || getContinentAndRegion(player.nationality).region}
                     </span>
                   </div>
                 </div>

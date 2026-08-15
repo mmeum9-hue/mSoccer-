@@ -31,6 +31,8 @@ export interface Player {
   photoUrl: string;
   age: number;
   nationality: string;
+  continent?: string;
+  region?: string;
   clubId: string;
   clubName: string;
   number: number;
@@ -52,6 +54,47 @@ export interface Player {
     goals: number;
   }[];
 }
+
+export const CONTINENTS_REGIONS_MAP: Record<string, string[]> = {
+  'África': [
+    'África Oriental',
+    'África Ocidental',
+    'África Central',
+    'África Austral',
+    'Norte de África'
+  ],
+  'Europa': [
+    'Europa Ocidental',
+    'Europa Oriental',
+    'Europa do Sul',
+    'Europa do Norte',
+    'Europa Central'
+  ],
+  'América do Sul': [
+    'América Latina',
+    'Cone Sul',
+    'Região Andina',
+    'Guianas'
+  ],
+  'América do Norte': [
+    'América do Norte',
+    'América Central',
+    'Caraíbas'
+  ],
+  'Ásia': [
+    'Ásia Oriental',
+    'Sudeste Asiático',
+    'Sul da Ásia',
+    'Ásia Central',
+    'Médio Oriente'
+  ],
+  'Oceania': [
+    'Australásia',
+    'Melanésia',
+    'Micronésia',
+    'Polinésia'
+  ]
+};
 
 export interface StandingRow {
   clubId: string;
