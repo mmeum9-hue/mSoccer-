@@ -386,51 +386,84 @@ const findBestPlayerMatchHelper = (allPlayers: Player[], name: string): Player |
   return matched || null;
 };
 
+const sanitizeClubStats = (stats: any) => ({
+  wins: typeof stats?.wins === 'number' && !isNaN(stats.wins) ? Math.max(0, stats.wins) : 0,
+  draws: typeof stats?.draws === 'number' && !isNaN(stats.draws) ? Math.max(0, stats.draws) : 0,
+  losses: typeof stats?.losses === 'number' && !isNaN(stats.losses) ? Math.max(0, stats.losses) : 0,
+  goalsScored: typeof stats?.goalsScored === 'number' && !isNaN(stats.goalsScored) ? Math.max(0, stats.goalsScored) : 0,
+  goalsConceded: typeof stats?.goalsConceded === 'number' && !isNaN(stats.goalsConceded) ? Math.max(0, stats.goalsConceded) : 0,
+});
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial states from local memory or defaults first to keep app working offline / during initial sync
   const [clubs, setClubs] = useState<Club[]>(() => {
     try {
       const saved = safeLocalStorage.getItem('msoccer_clubs');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((c: any) => ({
+            ...c,
+            stats: sanitizeClubStats(c.stats)
+          }));
+        }
+      }
     } catch (e) {
-      return [];
+      // fallback
     }
+    return INITIAL_CLUBS;
   });
 
   const [players, setPlayers] = useState<Player[]>(() => {
     try {
       const saved = safeLocalStorage.getItem('msoccer_players');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
-      return [];
+      // fallback
     }
+    return INITIAL_PLAYERS;
   });
 
   const [championships, setChampionships] = useState<Championship[]>(() => {
     try {
       const saved = safeLocalStorage.getItem('msoccer_championships');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
-      return [];
+      // fallback
     }
+    return INITIAL_CHAMPIONSHIPS;
   });
 
   const [matches, setMatches] = useState<Match[]>(() => {
     try {
       const saved = safeLocalStorage.getItem('msoccer_matches');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
-      return [];
+      // fallback
     }
+    return INITIAL_MATCHES;
   });
 
   const [news, setNews] = useState<NewsArticle[]>(() => {
     try {
       const saved = safeLocalStorage.getItem('msoccer_news');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
-      return [];
+      // fallback
     }
+    return INITIAL_NEWS;
   });
 
   const [favorites, setFavorites] = useState<AppFavorites>(() => {
@@ -584,9 +617,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Firestore Real-Time Synchronizations
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'clubs'), (snapshot) => {
+      if (snapshot.empty) return;
       const items: Club[] = [];
-      snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as Club));
-      setClubs(items);
+      snapshot.forEach(docSnapshot => {
+        const data = docSnapshot.data() as Club;
+        items.push({
+          ...data,
+          id: data.id || docSnapshot.id,
+          stats: sanitizeClubStats(data.stats),
+          titles: Array.isArray(data.titles) ? data.titles : []
+        });
+      });
+      if (items.length > 0) {
+        setClubs(items);
+      }
     }, (error) => console.error("Firestore clubs error:", error));
     return () => unsubscribe();
   }, []);
@@ -1288,39 +1332,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addClub = async (club: Club) => {
     try {
+      const clubWithStats: Club = {
+        ...club,
+        stats: sanitizeClubStats(club.stats),
+        titles: Array.isArray(club.titles) ? club.titles : []
+      };
       setClubs((prev) => {
-        const exists = prev.some((c) => c.id === club.id);
-        if (exists) return prev.map((c) => (c.id === club.id ? club : c));
-        return [...prev, club];
+        const exists = prev.some((c) => c.id === clubWithStats.id);
+        if (exists) return prev.map((c) => (c.id === clubWithStats.id ? clubWithStats : c));
+        return [...prev, clubWithStats];
       });
-      await setDoc(doc(db, 'clubs', club.id), club);
-      await addAuditLog('Clube Cadastrado', `Cadastrou o clube: ${club.name} (${club.country})`, 'bg-emerald-600');
+      await setDoc(doc(db, 'clubs', clubWithStats.id), clubWithStats, { merge: true });
+      await addAuditLog('Clube Cadastrado', `Cadastrou o clube: ${clubWithStats.name} (${clubWithStats.country})`, 'bg-emerald-600');
     } catch (e) {
       console.error("Error adding club:", e);
     }
   };
   const updateClub = async (club: Club) => {
     try {
-      // 1. Update clubs in state and Firestore
-      setClubs((prev) => prev.map((c) => (c.id === club.id ? club : c)));
-      await setDoc(doc(db, 'clubs', club.id), club);
+      let clubToSave: Club = { ...club };
+      setClubs((prev) => {
+        const existing = prev.find((c) => c.id === club.id);
+        const safeStats = {
+          wins: typeof club.stats?.wins === 'number' ? club.stats.wins : (existing?.stats?.wins ?? 0),
+          draws: typeof club.stats?.draws === 'number' ? club.stats.draws : (existing?.stats?.draws ?? 0),
+          losses: typeof club.stats?.losses === 'number' ? club.stats.losses : (existing?.stats?.losses ?? 0),
+          goalsScored: typeof club.stats?.goalsScored === 'number' ? club.stats.goalsScored : (existing?.stats?.goalsScored ?? 0),
+          goalsConceded: typeof club.stats?.goalsConceded === 'number' ? club.stats.goalsConceded : (existing?.stats?.goalsConceded ?? 0),
+        };
+        clubToSave = {
+          ...existing,
+          ...club,
+          stats: safeStats,
+          titles: club.titles ?? existing?.titles ?? []
+        };
+        return prev.map((c) => (c.id === club.id ? clubToSave : c));
+      });
+
+      // 1. Update clubs in state and Firestore with merge: true
+      await setDoc(doc(db, 'clubs', clubToSave.id), clubToSave, { merge: true });
 
       // 2. Propagate new name and logo to all existing matches in state and Firestore
       const updatedMatches = matches.map((m) => {
         let matchUpdated = false;
         const newMatch = { ...m };
         if (m.homeClubId === club.id) {
-          newMatch.homeClubName = club.name;
-          newMatch.homeClubLogo = club.logoUrl;
+          newMatch.homeClubName = clubToSave.name;
+          newMatch.homeClubLogo = clubToSave.logoUrl;
           matchUpdated = true;
         }
         if (m.awayClubId === club.id) {
-          newMatch.awayClubName = club.name;
-          newMatch.awayClubLogo = club.logoUrl;
+          newMatch.awayClubName = clubToSave.name;
+          newMatch.awayClubLogo = clubToSave.logoUrl;
           matchUpdated = true;
         }
         if (matchUpdated) {
-          setDoc(doc(db, 'matches', m.id), newMatch);
+          setDoc(doc(db, 'matches', m.id), newMatch, { merge: true });
         }
         return newMatch;
       });
@@ -1329,8 +1396,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 3. Propagate to players in state and Firestore
       const updatedPlayers = players.map((p) => {
         if (p.clubId === club.id) {
-          const newP = { ...p, clubName: club.name };
-          setDoc(doc(db, 'players', p.id), newP);
+          const newP = { ...p, clubName: clubToSave.name };
+          setDoc(doc(db, 'players', p.id), newP, { merge: true });
           return newP;
         }
         return p;
@@ -1340,8 +1407,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 4. Propagate to news in state and Firestore
       const updatedNews = news.map((n) => {
         if (n.clubId === club.id) {
-          const newN = { ...n, clubName: club.name };
-          setDoc(doc(db, 'news', n.id), newN);
+          const newN = { ...n, clubName: clubToSave.name };
+          setDoc(doc(db, 'news', n.id), newN, { merge: true });
           return newN;
         }
         return n;
@@ -1354,16 +1421,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newStandings = champ.standings.map((row) => {
           const isThisClub = row.clubId
             ? row.clubId.trim().toLowerCase() === club.id.trim().toLowerCase()
-            : row.clubName.trim().toLowerCase() === club.name.trim().toLowerCase();
+            : row.clubName.trim().toLowerCase() === clubToSave.name.trim().toLowerCase();
 
           if (!isThisClub) return row;
           champChanged = true;
 
           return {
             ...row,
-            clubId: club.id,
-            clubName: club.name,
-            logoUrl: club.logoUrl
+            clubId: clubToSave.id,
+            clubName: clubToSave.name,
+            logoUrl: clubToSave.logoUrl
           };
         });
 
@@ -1374,13 +1441,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           standings: newStandings
         };
 
-        setDoc(doc(db, 'championships', champ.id), updatedChamp);
+        setDoc(doc(db, 'championships', champ.id), updatedChamp, { merge: true });
         return updatedChamp;
       });
 
       setChampionships(updatedChampionships);
 
-      await addAuditLog('Clube Atualizado', `Atualizou informações do clube: ${club.name}`, 'bg-blue-600');
+      await addAuditLog('Clube Atualizado', `Atualizou informações do clube: ${clubToSave.name}`, 'bg-blue-600');
     } catch (e) {
       console.error("Error updating club:", e);
     }
