@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 import { MatchStatus, Match, formatMatchMinute, formatTeamName } from '../types';
@@ -32,6 +32,63 @@ export const LiveMatches: React.FC = () => {
     window.dispatchEvent(new CustomEvent('show-only-favorites-changed', { detail: val }));
   };
 
+  // Tab state for match filtering
+  const [selectedTab, setSelectedTab] = useState<string>('today');
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('left');
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+
+  // Tab bar drag & centering refs
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef<boolean>(false);
+  const dragStartXRef = useRef<number>(0);
+  const dragStartScrollLeftRef = useRef<number>(0);
+  const hasMovedRef = useRef<boolean>(false);
+  const isAutoScrollingRef = useRef<boolean>(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Dynamic relative date helper
+  const getRelativeDateStr = (offsetDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const formatTabDate = (d: Date): string => {
+    const day = d.getDate();
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const month = months[d.getMonth()];
+    return `${day} ${month}`;
+  };
+
+  // Centering function: smoothly centers the active tab in the visible window
+  const centerTabById = useCallback((tabId: string, behavior: ScrollBehavior = 'smooth') => {
+    const container = tabBarRef.current;
+    if (!container) return;
+    const tabEl = document.getElementById(`tab-${tabId}`);
+    if (!tabEl) return;
+
+    const containerWidth = container.clientWidth;
+    const tabCenter = tabEl.offsetLeft + (tabEl.offsetWidth / 2);
+    const targetScrollLeft = tabCenter - (containerWidth / 2);
+
+    isAutoScrollingRef.current = true;
+    container.scrollTo({
+      left: Math.max(0, targetScrollLeft),
+      behavior
+    });
+
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    scrollTimeoutRef.current = setTimeout(() => {
+      isAutoScrollingRef.current = false;
+    }, behavior === 'smooth' ? 350 : 50);
+  }, []);
+
   useEffect(() => {
     const handleSetFav = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -50,38 +107,46 @@ export const LiveMatches: React.FC = () => {
       const todayStr = getRelativeDateStr(0);
       const tomorrowStr = getRelativeDateStr(1);
       
+      let targetTab = targetDate;
       if (targetDate === todayStr) {
-        setSelectedTab('today');
+        targetTab = 'today';
       } else if (targetDate === yesterdayStr) {
-        setSelectedTab('yesterday');
+        targetTab = 'yesterday';
       } else if (targetDate === tomorrowStr) {
-        setSelectedTab('tomorrow');
-      } else {
-        setSelectedTab(targetDate);
+        targetTab = 'tomorrow';
       }
+      setSelectedTab(targetTab);
       
       setTimeout(() => {
-        const tabId = targetDate === todayStr ? 'tab-today' : targetDate === yesterdayStr ? 'tab-yesterday' : targetDate === tomorrowStr ? 'tab-tomorrow' : `tab-${targetDate}`;
-        const tabEl = document.getElementById(tabId);
-        if (tabEl) {
-          tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-      }, 150);
+        centerTabById(targetTab, 'smooth');
+      }, 100);
     };
     
     window.addEventListener('set-match-date', handleSetDate);
     return () => window.removeEventListener('set-match-date', handleSetDate);
-  }, []);
+  }, [centerTabById]);
 
   useEffect(() => {
-    // Initial scroll to today's tab so the user lands on the active day
-    setTimeout(() => {
-      const tabEl = document.getElementById('tab-today');
-      if (tabEl) {
-        tabEl.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' });
-      }
-    }, 400);
+    // Initial scroll to today's tab so the white bubble lands right in the center
+    const timer = setTimeout(() => {
+      centerTabById(selectedTab, 'auto');
+    }, 150);
+    return () => clearTimeout(timer);
   }, []);
+
+  // Handle window resizing to keep the active bubble centered
+  useEffect(() => {
+    const handleResize = () => {
+      centerTabById(selectedTab, 'auto');
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [selectedTab, centerTabById]);
+
+  // Center active tab whenever selectedTab changes
+  useEffect(() => {
+    centerTabById(selectedTab, 'smooth');
+  }, [selectedTab, centerTabById]);
   
   // Predictor modal state
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -97,29 +162,6 @@ export const LiveMatches: React.FC = () => {
     if (name.toLowerCase().includes('mundial')) return '🇺🇳 MUNDIAL';
     if (name.toLowerCase().includes('moçambola')) return '🇲🇿 MOÇAMBOLA';
     return `🏆 ${name.toUpperCase()}`;
-  };
-
-  // Tab state for match filtering
-  const [selectedTab, setSelectedTab] = useState<string>('today');
-  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('left');
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-
-  // Dynamic relative date helper
-  const getRelativeDateStr = (offsetDays: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + offsetDays);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  };
-
-  const formatTabDate = (d: Date): string => {
-    const day = d.getDate();
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const month = months[d.getMonth()];
-    return `${day} ${month}`;
   };
 
   const allDisplayMatches = matches.map(m => ({
@@ -274,6 +316,89 @@ export const LiveMatches: React.FC = () => {
   // Sort matchTabs chronologically based on sortTime
   matchTabs.sort((a, b) => a.sortTime - b.sortTime);
 
+  // Automatically find closest tab to screen center and center it
+  const snapClosestTabToCenter = useCallback(() => {
+    const container = tabBarRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const containerCenterX = containerRect.left + (containerRect.width / 2);
+
+    let closestTab = matchTabs[0];
+    let minDistance = Infinity;
+
+    matchTabs.forEach((tab) => {
+      const el = document.getElementById(`tab-${tab.id}`);
+      if (el) {
+        const elRect = el.getBoundingClientRect();
+        const elCenterX = elRect.left + (elRect.width / 2);
+        const distance = Math.abs(elCenterX - containerCenterX);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestTab = tab;
+        }
+      }
+    });
+
+    if (closestTab) {
+      if (closestTab.id !== selectedTab) {
+        const currentIndex = matchTabs.findIndex((t) => t.id === selectedTab);
+        const targetIndex = matchTabs.findIndex((t) => t.id === closestTab.id);
+        if (targetIndex !== -1 && currentIndex !== -1 && targetIndex !== currentIndex) {
+          setSlideDirection(targetIndex > currentIndex ? 'left' : 'right');
+        }
+        setSelectedTab(closestTab.id);
+      }
+      centerTabById(closestTab.id, 'smooth');
+    }
+  }, [matchTabs, selectedTab, centerTabById]);
+
+  // Pointer drag event handlers for mouse/touch scrolling with snapping
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const container = tabBarRef.current;
+    if (!container) return;
+    isDraggingRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragStartScrollLeftRef.current = container.scrollLeft;
+    hasMovedRef.current = false;
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const container = tabBarRef.current;
+    if (!container) return;
+    const deltaX = e.clientX - dragStartXRef.current;
+    if (Math.abs(deltaX) > 4) {
+      hasMovedRef.current = true;
+    }
+    container.scrollLeft = dragStartScrollLeftRef.current - deltaX;
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    if (hasMovedRef.current) {
+      snapClosestTabToCenter();
+    }
+  };
+
+  const handleContainerScroll = () => {
+    if (isAutoScrollingRef.current || isDraggingRef.current) return;
+
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (!isDraggingRef.current && !isAutoScrollingRef.current) {
+        snapClosestTabToCenter();
+      }
+    }, 150);
+  };
+
   const changeTab = (tabId: string) => {
     const currentIndex = matchTabs.findIndex((t) => t.id === selectedTab);
     const targetIndex = matchTabs.findIndex((t) => t.id === tabId);
@@ -281,15 +406,8 @@ export const LiveMatches: React.FC = () => {
       setSlideDirection(targetIndex > currentIndex ? 'left' : 'right');
     }
     setSelectedTab(tabId);
+    centerTabById(tabId, 'smooth');
   };
-
-  // Scroll active tab to center of tab bar
-  useEffect(() => {
-    const tabEl = document.getElementById(`tab-${selectedTab}`);
-    if (tabEl) {
-      tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
-  }, [selectedTab]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
@@ -408,10 +526,21 @@ export const LiveMatches: React.FC = () => {
   return (
     <div className="bg-white min-h-screen pb-24 flex flex-col select-none">
       {/* 1. DATE TAB NAVIGATION (BeSoccer Style, dynamic background, horizontal scrolling) */}
-      <div className={`${activeColor.bg} w-full border-b ${activeColor.border} sticky top-13 z-30`}>
-        <div className="w-full flex items-center space-x-4 px-2.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] h-10">
+      <div className={`${activeColor.bg} w-full border-b ${activeColor.border} sticky top-13 z-30 select-none shadow-sm`}>
+        <div
+          ref={tabBarRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onScroll={handleContainerScroll}
+          className="w-full flex items-center space-x-2 sm:space-x-3 px-[44vw] sm:px-[46vw] overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] h-10.5 cursor-grab active:cursor-grabbing touch-pan-x"
+          style={{
+            scrollSnapType: 'x proximity',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
           {matchTabs.map((tab) => {
-            const isToday = tab.id === 'today';
             const isActive = selectedTab === tab.id;
             const count = tab.getCount();
             
@@ -425,17 +554,20 @@ export const LiveMatches: React.FC = () => {
               <button
                 id={`tab-${tab.id}`}
                 key={tab.id}
-                onClick={() => changeTab(tab.id)}
-                className={`h-full flex items-center justify-center text-[11px] uppercase whitespace-nowrap transition-all relative cursor-pointer select-none shrink-0 ${
-                  isToday && isActive
-                    ? 'bg-white text-zinc-950 px-3 py-1 rounded-full text-[11px] font-black shadow-md border-0 self-center h-7 my-auto'
-                    : isActive
-                      ? 'border-b-3 border-white text-white font-black px-1.5'
-                      : `border-b-3 border-transparent ${activeColor.tabText} font-bold px-1.5`
+                onClick={() => {
+                  if (!hasMovedRef.current) {
+                    changeTab(tab.id);
+                  }
+                }}
+                className={`flex items-center justify-center text-[11px] uppercase whitespace-nowrap transition-all duration-200 relative cursor-pointer select-none shrink-0 ${
+                  isActive
+                    ? 'bg-white text-zinc-950 px-3.5 py-1 rounded-full font-black shadow-md border-0 h-7.5 my-auto scale-105 transform'
+                    : `text-white/80 hover:text-white font-bold px-2.5 py-1 rounded-full h-7.5 my-auto hover:bg-white/10`
                 }`}
+                style={{ scrollSnapAlign: 'center' }}
               >
                 {tab.isLive && count > 0 && (
-                  <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping absolute top-2 right-0.5" />
+                  <span className={`w-1.5 h-1.5 rounded-full animate-ping mr-1.5 ${isActive ? 'bg-rose-600' : 'bg-white'}`} />
                 )}
                 <span>{displayLabel}</span>
               </button>
