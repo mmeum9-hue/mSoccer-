@@ -6,6 +6,15 @@ export enum MatchStatus {
   POSTPONED = 'Adiado',
 }
 
+export interface MaintenanceConfig {
+  enabled: boolean;
+  message?: string;
+  subtitle?: string;
+  estimatedEnd?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface Club {
   id: string;
   name: string;

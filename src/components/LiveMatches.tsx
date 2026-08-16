@@ -64,16 +64,21 @@ export const LiveMatches: React.FC = () => {
     return `${day} ${month}`;
   };
 
-  // Centering function: smoothly centers the active tab in the visible window
+  // Centering function: smoothly centers the active tab in the visible window with pixel-level precision
   const centerTabById = useCallback((tabId: string, behavior: ScrollBehavior = 'smooth') => {
     const container = tabBarRef.current;
     if (!container) return;
     const tabEl = document.getElementById(`tab-${tabId}`);
     if (!tabEl) return;
 
-    const containerWidth = container.clientWidth;
-    const tabCenter = tabEl.offsetLeft + (tabEl.offsetWidth / 2);
-    const targetScrollLeft = tabCenter - (containerWidth / 2);
+    const containerRect = container.getBoundingClientRect();
+    const tabRect = tabEl.getBoundingClientRect();
+    
+    // Pixel-precise offset to align tab center with container center
+    const currentTabCenter = tabRect.left + (tabRect.width / 2);
+    const containerCenter = containerRect.left + (containerRect.width / 2);
+    const delta = currentTabCenter - containerCenter;
+    const targetScrollLeft = container.scrollLeft + delta;
 
     isAutoScrollingRef.current = true;
     container.scrollTo({
@@ -86,7 +91,7 @@ export const LiveMatches: React.FC = () => {
     }
     scrollTimeoutRef.current = setTimeout(() => {
       isAutoScrollingRef.current = false;
-    }, behavior === 'smooth' ? 300 : 60);
+    }, behavior === 'smooth' ? 350 : 60);
   }, []);
 
   useEffect(() => {
@@ -534,7 +539,7 @@ export const LiveMatches: React.FC = () => {
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           onScroll={handleContainerScroll}
-          className="w-full flex items-center space-x-2 sm:space-x-3 px-[44vw] sm:px-[46vw] overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] h-10.5 cursor-grab active:cursor-grabbing touch-pan-x"
+          className="w-full flex items-center space-x-2 sm:space-x-3 px-[calc(50vw-45px)] sm:px-[calc(50%-45px)] overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] h-10.5 cursor-grab active:cursor-grabbing touch-pan-x"
           style={{
             scrollSnapType: 'x proximity',
             WebkitOverflowScrolling: 'touch'

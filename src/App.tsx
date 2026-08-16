@@ -13,11 +13,13 @@ import { PlayerDetails } from './components/PlayerDetails';
 import { LeagueDetails } from './components/LeagueDetails';
 import { ChatSection } from './components/ChatSection';
 import { NotificationsSection } from './components/NotificationsSection';
+import { MaintenanceScreen } from './components/MaintenanceScreen';
+import { MaintenanceBanner } from './components/MaintenanceBanner';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, Trophy, BookOpen, Bell, X } from 'lucide-react';
 
 function AppContent() {
-  const { currentView, theme, toast, setToast, navigateTo } = useApp();
+  const { currentView, theme, toast, setToast, navigateTo, maintenanceConfig, user } = useApp();
 
   // Auto-dismiss the floating toast after 4 seconds
   React.useEffect(() => {
@@ -53,6 +55,51 @@ function AppContent() {
     }
     setToast(null);
   };
+
+  // If global maintenance mode is enabled and current user is not an Admin, show the maintenance screen
+  const isMaintenanceBlocked = maintenanceConfig.enabled && user?.role !== 'Admin';
+
+  if (isMaintenanceBlocked) {
+    return (
+      <div className="min-h-screen bg-[#070b14] text-zinc-200">
+        <MaintenanceScreen />
+
+        {/* Floating Toast Alert */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: -40, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              onClick={handleToastClick}
+              className="fixed top-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-4 flex items-start space-x-3 cursor-pointer select-none"
+            >
+              <div className="bg-slate-800 p-2 rounded-xl border border-slate-700/60 shrink-0">
+                {getToastIcon(toast.type)}
+              </div>
+              <div className="flex-1 min-w-0 pr-4">
+                <h4 className="text-[11px] font-black text-white truncate uppercase tracking-wider">
+                  {toast.title}
+                </h4>
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed line-clamp-2">
+                  {toast.body}
+                </p>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setToast(null);
+                }}
+                className="p-1 hover:bg-slate-800 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
 
   // Render the currently selected state view
   const renderCurrentView = () => {
@@ -92,6 +139,9 @@ function AppContent() {
 
   return (
     <div className={`min-h-screen flex flex-col ${isAdminView ? 'bg-[#0b0f19]' : 'bg-slate-50'} text-slate-900`}>
+      {/* Admin Maintenance Notice Banner */}
+      {user?.role === 'Admin' && maintenanceConfig.enabled && <MaintenanceBanner />}
+
       {/* Universal Top Header */}
       {!isAdminView && <Header />}
 

@@ -13,6 +13,7 @@ import {
   UserPresence,
   SystemBackup,
   AuditLog,
+  MaintenanceConfig,
 } from '../types';
 import {
   INITIAL_CLUBS,
@@ -292,6 +293,10 @@ interface AppContextType {
   restoreBackup: (backupId: string) => Promise<void>;
   deleteBackup: (backupId: string) => Promise<void>;
   addAuditLog: (title: string, desc: string, badgeColor?: string) => Promise<void>;
+
+  // Global Maintenance Mode
+  maintenanceConfig: MaintenanceConfig;
+  toggleMaintenanceMode: (enabled: boolean, message?: string, subtitle?: string, estimatedEnd?: string) => Promise<void>;
 }
 
 const safeLocalStorage = {
@@ -545,6 +550,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [dbConfig, setDbConfig] = useState<{ initialized?: boolean; cleared?: boolean } | null>(null);
   const [backups, setBackups] = useState<SystemBackup[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+
+  // Maintenance Config State
+  const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>(() => {
+    try {
+      const saved = safeLocalStorage.getItem('msoccer_maintenance');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // fallback
+    }
+    return {
+      enabled: false,
+      message: 'Aplicativo temporariamente indisponível para manutenção',
+      subtitle: 'Estamos realizando melhorias técnicas no sistema. O acesso será restabelecido automaticamente em instantes.',
+      estimatedEnd: '',
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'Sistema'
+    };
+  });
+
+  // Real-time synchronization of maintenance mode with Firestore
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'system', 'maintenance'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as MaintenanceConfig;
+        setMaintenanceConfig(data);
+        safeLocalStorage.setItem('msoccer_maintenance', JSON.stringify(data));
+      } else {
+        const defaultConfig: MaintenanceConfig = {
+          enabled: false,
+          message: 'Aplicativo temporariamente indisponível para manutenção',
+          subtitle: 'Estamos realizando melhorias técnicas no sistema. O acesso será restabelecido automaticamente em instantes.',
+          estimatedEnd: '',
+          updatedAt: new Date().toISOString(),
+          updatedBy: 'Sistema'
+        };
+        setMaintenanceConfig(defaultConfig);
+        safeLocalStorage.setItem('msoccer_maintenance', JSON.stringify(defaultConfig));
+      }
+    }, (error) => {
+      console.warn("Firestore maintenance notice:", error.message);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Chat & Presence States
   const [chatUnreadCounts, setChatUnreadCounts] = useState<{ [room: string]: number }>({});
@@ -2011,6 +2059,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const toggleMaintenanceMode = async (
+    enabled: boolean,
+    message?: string,
+    subtitle?: string,
+    estimatedEnd?: string
+  ) => {
+    try {
+      const newConfig: MaintenanceConfig = {
+        enabled,
+        message: message || maintenanceConfig.message || 'Aplicativo temporariamente indisponível para manutenção',
+        subtitle: subtitle || maintenanceConfig.subtitle || 'Estamos realizando melhorias técnicas no sistema. O acesso será restabelecido automaticamente em instantes.',
+        estimatedEnd: estimatedEnd !== undefined ? estimatedEnd : (maintenanceConfig.estimatedEnd || ''),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || user?.name || 'Administrador'
+      };
+
+      setMaintenanceConfig(newConfig);
+      safeLocalStorage.setItem('msoccer_maintenance', JSON.stringify(newConfig));
+
+      await setDoc(doc(db, 'system', 'maintenance'), newConfig, { merge: true });
+
+      const logTitle = enabled ? 'Manutenção Ativada' : 'Manutenção Desativada';
+      const logDesc = enabled
+        ? `Modo de manutenção global ATIVADO por ${user?.email || 'Administrador'}. O app está bloqueado para utilizadores comuns.`
+        : `Modo de manutenção global DESATIVADO por ${user?.email || 'Administrador'}. O acesso foi restabelecido para todos em tempo real.`;
+      
+      await addAuditLog(logTitle, logDesc, enabled ? 'bg-amber-600' : 'bg-emerald-600');
+
+      addNotification(
+        logTitle,
+        enabled
+          ? 'O aplicativo agora está bloqueado para usuários comuns em tempo real.'
+          : 'O acesso ao aplicativo foi restaurado para todos os utilizadores.',
+        'sistema'
+      );
+    } catch (e) {
+      console.error("Error toggling maintenance mode:", e);
+      addNotification('Erro de Manutenção', 'Não foi possível atualizar o estado de manutenção no servidor.', 'sistema');
+    }
+  };
+
   const recalculateAllPlayerStats = async (currentMatches?: Match[]) => {
     try {
       // 1. Fetch fresh data directly from Firestore collections without relying on cached state
@@ -3022,6 +3111,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         restoreBackup,
         deleteBackup,
         addAuditLog,
+
+        // Global Maintenance Mode
+        maintenanceConfig,
+        toggleMaintenanceMode,
       }}
     >
       {children}

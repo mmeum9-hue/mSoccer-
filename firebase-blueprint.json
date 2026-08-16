@@ -122,9 +122,45 @@
         }
       },
       "required": ["uid", "name", "status"]
+    },
+    "SystemMaintenance": {
+      "title": "SystemMaintenance",
+      "description": "Global maintenance mode configuration and status",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether global maintenance mode is currently active"
+        },
+        "message": {
+          "type": "string",
+          "description": "Custom maintenance notice title or main message"
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Detailed explanation or information for users"
+        },
+        "estimatedEnd": {
+          "type": "string",
+          "description": "Estimated time when maintenance will conclude"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last status change"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Email or name of the administrator who toggled the state"
+        }
+      },
+      "required": ["enabled"]
     }
   },
   "firestore": {
+    "/system/maintenance": {
+      "schema": "SystemMaintenance",
+      "description": "Global application maintenance configuration state"
+    },
     "/chats/{chatId}": {
       "schema": "Chat",
       "description": "Store all conversations/chats"

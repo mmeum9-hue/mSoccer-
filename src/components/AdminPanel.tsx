@@ -82,7 +82,9 @@ export const AdminPanel: React.FC = () => {
     auditLogs,
     createBackup,
     restoreBackup,
-    deleteBackup
+    deleteBackup,
+    maintenanceConfig,
+    toggleMaintenanceMode
   } = useApp();
 
   // Selected administrative tab
@@ -93,6 +95,37 @@ export const AdminPanel: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [adminError, setAdminError] = useState('');
+
+  // Global Maintenance Mode States
+  const [mTitleInput, setMTitleInput] = useState(maintenanceConfig?.message || 'Aplicativo temporariamente indisponível para manutenção');
+  const [mSubtitleInput, setMSubtitleInput] = useState(maintenanceConfig?.subtitle || 'Estamos realizando melhorias técnicas no sistema. O acesso será restabelecido automaticamente em instantes.');
+  const [mEstimatedEndInput, setMEstimatedEndInput] = useState(maintenanceConfig?.estimatedEnd || '');
+  const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
+  const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (maintenanceConfig) {
+      setMTitleInput(maintenanceConfig.message || 'Aplicativo temporariamente indisponível para manutenção');
+      setMSubtitleInput(maintenanceConfig.subtitle || 'Estamos realizando melhorias técnicas no sistema. O acesso será restabelecido automaticamente em instantes.');
+      setMEstimatedEndInput(maintenanceConfig.estimatedEnd || '');
+    }
+  }, [maintenanceConfig?.enabled, maintenanceConfig?.message, maintenanceConfig?.subtitle, maintenanceConfig?.estimatedEnd]);
+
+  const handleSaveAndToggleMaintenance = async (targetEnabled?: boolean) => {
+    setIsSavingMaintenance(true);
+    try {
+      const willBeEnabled = targetEnabled !== undefined ? targetEnabled : !maintenanceConfig.enabled;
+      await toggleMaintenanceMode(
+        willBeEnabled,
+        mTitleInput.trim() || 'Aplicativo temporariamente indisponível para manutenção',
+        mSubtitleInput.trim() || 'Estamos realizando melhorias técnicas no sistema. O acesso será restabelecido automaticamente em instantes.',
+        mEstimatedEndInput.trim()
+      );
+      setIsMaintenanceModalOpen(false);
+    } finally {
+      setIsSavingMaintenance(false);
+    }
+  };
 
   // States for Database Wipe Confirmation
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
@@ -2034,8 +2067,31 @@ export const AdminPanel: React.FC = () => {
             />
           </div>
 
-          {/* User Right Stats */}
-          <div className="flex items-center space-x-4">
+          {/* User Right Stats & Maintenance Status */}
+          <div className="flex items-center space-x-3 sm:space-x-4">
+            {/* Global Maintenance Quick Status Switch */}
+            <button
+              type="button"
+              onClick={() => setIsMaintenanceModalOpen(true)}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-2 transition-all cursor-pointer border ${
+                maintenanceConfig?.enabled
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-lg shadow-amber-500/10'
+                  : 'bg-slate-900 text-emerald-400 border-slate-800 hover:border-emerald-500/40 hover:bg-slate-850'
+              }`}
+              title={maintenanceConfig?.enabled ? 'Modo de Manutenção está ATIVO globalmente. Clique para gerenciar.' : 'Aplicativo está Online para todos os usuários. Clique para gerenciar manutenção.'}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${maintenanceConfig?.enabled ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`} />
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${maintenanceConfig?.enabled ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+              </span>
+              <span className="hidden md:inline">
+                {maintenanceConfig?.enabled ? 'Manutenção Ativa' : 'App Online'}
+              </span>
+              <span className={`text-[9.5px] px-1.5 py-0.5 rounded font-black ${maintenanceConfig?.enabled ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-zinc-400'}`}>
+                {maintenanceConfig?.enabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+
             <div className="relative">
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-[9px] text-white font-black rounded-full flex items-center justify-center border border-[#0b0f19]">
                 8
@@ -2154,6 +2210,83 @@ export const AdminPanel: React.FC = () => {
                     <span className="w-9 h-9 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition-all text-base">🚀</span>
                     <span>Enviar Notificação</span>
                   </button>
+                </div>
+              </div>
+
+              {/* Real-time Global Maintenance Control Card on Dashboard */}
+              <div className={`border rounded-2xl p-6 space-y-5 transition-all shadow-xl ${
+                maintenanceConfig?.enabled
+                  ? 'bg-amber-950/20 border-amber-500/40'
+                  : 'bg-[#0F172A] border-slate-800'
+              }`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2.5 rounded-xl border ${
+                      maintenanceConfig?.enabled
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    }`}>
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="text-sm font-black text-white">Sistema de Manutenção Global</h4>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                          maintenanceConfig?.enabled
+                            ? 'bg-amber-500 text-slate-950 animate-pulse'
+                            : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        }`}>
+                          {maintenanceConfig?.enabled ? 'Ativo em Tempo Real' : 'Desativado (App Online)'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Bloqueia ou libera instantaneamente o acesso ao aplicativo para todos os utilizadores através do Firestore.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={isSavingMaintenance}
+                      onClick={() => handleSaveAndToggleMaintenance()}
+                      className={`px-5 py-2.5 rounded-xl text-xs font-black cursor-pointer transition-all flex items-center space-x-2 shadow-lg ${
+                        maintenanceConfig?.enabled
+                          ? 'bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-emerald-500/20'
+                          : 'bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 shadow-amber-500/20'
+                      }`}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSavingMaintenance ? 'animate-spin' : ''}`} />
+                      <span>
+                        {maintenanceConfig?.enabled ? 'Desativar Manutenção e Liberar App' : 'Ativar Modo de Manutenção'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsMaintenanceModalOpen(true)}
+                      className="px-3 py-2.5 bg-slate-800 hover:bg-slate-750 text-zinc-300 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-700/60"
+                      title="Personalizar mensagem e horário estimado"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider">Aviso aos Usuários</span>
+                    <p className="text-zinc-200 font-bold line-clamp-1">{maintenanceConfig?.message || 'Aplicativo temporariamente indisponível'}</p>
+                  </div>
+                  <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider">Previsão Informada</span>
+                    <p className="text-amber-400 font-bold">{maintenanceConfig?.estimatedEnd || 'Não informada (Em breve)'}</p>
+                  </div>
+                  <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider">Última Alteração</span>
+                    <p className="text-zinc-300 font-mono text-[11px]">
+                      {maintenanceConfig?.updatedAt ? new Date(maintenanceConfig.updatedAt).toLocaleString('pt-BR') : 'Nenhuma'} por {maintenanceConfig?.updatedBy || 'Sistema'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -7226,8 +7359,164 @@ export const AdminPanel: React.FC = () => {
             </div>
           )}
 
+          {/* CONFIGURAÇÕES DO SISTEMA & MANUTENÇÃO GLOBAL */}
+          {activeTab === 'configuracoes' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-3 bg-slate-800 text-emerald-400 rounded-xl border border-slate-700">
+                      <Settings className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white">Configurações Gerais & Modo de Manutenção</h3>
+                      <p className="text-xs text-zinc-400">Gerencie a disponibilidade do aplicativo e parâmetros do servidor mSoccer</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                      maintenanceConfig?.enabled
+                        ? 'bg-amber-500 text-slate-950 animate-pulse'
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`}>
+                      {maintenanceConfig?.enabled ? '🔴 Manutenção Ativa' : '🟢 Sistema Online'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Form to manage Maintenance Mode */}
+                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-white flex items-center space-x-2">
+                        <ShieldAlert className="w-4 h-4 text-amber-400" />
+                        <span>Controle do Modo de Manutenção Global</span>
+                      </h4>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Ao ativar, todos os utilizadores conectados ou que abrirem o app verão apenas a tela de manutenção em tempo real.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isSavingMaintenance}
+                      onClick={() => handleSaveAndToggleMaintenance()}
+                      className={`px-4 py-2 rounded-xl text-xs font-black cursor-pointer transition-all flex items-center space-x-2 shadow-lg ${
+                        maintenanceConfig?.enabled
+                          ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+                          : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/20'
+                      }`}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSavingMaintenance ? 'animate-spin' : ''}`} />
+                      <span>{maintenanceConfig?.enabled ? 'Desativar Manutenção' : 'Ativar Manutenção'}</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 pt-2 border-t border-slate-800/80">
+                    <div>
+                      <label className="text-[11px] font-bold text-zinc-300 block mb-1">
+                        Título Principal do Aviso
+                      </label>
+                      <input
+                        type="text"
+                        value={mTitleInput}
+                        onChange={(e) => setMTitleInput(e.target.value)}
+                        placeholder="Ex: Aplicativo temporariamente indisponível para manutenção"
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-zinc-300 block mb-1">
+                        Mensagem Explicativa / Subtítulo
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={mSubtitleInput}
+                        onChange={(e) => setMSubtitleInput(e.target.value)}
+                        placeholder="Ex: Estamos realizando atualizações técnicas no sistema..."
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-zinc-300 block mb-1">
+                        Previsão de Retorno (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={mEstimatedEndInput}
+                        onChange={(e) => setMEstimatedEndInput(e.target.value)}
+                        placeholder="Ex: 30 minutos / 15:00h / Em breve"
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-3 pt-2">
+                      <button
+                        type="button"
+                        disabled={isSavingMaintenance}
+                        onClick={() => handleSaveAndToggleMaintenance(maintenanceConfig?.enabled)}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center space-x-1.5"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Salvar Textos sem Alterar Estado</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSavingMaintenance}
+                        onClick={() => handleSaveAndToggleMaintenance(!maintenanceConfig?.enabled)}
+                        className={`px-5 py-2 rounded-xl text-xs font-black cursor-pointer transition-all flex items-center space-x-1.5 shadow-lg ${
+                          maintenanceConfig?.enabled
+                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+                            : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/20'
+                        }`}
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>
+                          Salvar e {maintenanceConfig?.enabled ? 'Liberar App' : 'Bloquear App'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Diagnostics & Database info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 text-xs">
+                    <h4 className="text-xs font-black text-white uppercase flex items-center space-x-2">
+                      <Database className="w-4 h-4 text-blue-400" />
+                      <span>Banco de Dados Firestore</span>
+                    </h4>
+                    <p className="text-zinc-400 text-[11px]">
+                      Sincronização em tempo real ativa com Firebase Firestore. Todos os documentos de sistema, partidas e classificação estão persistidos permanentemente.
+                    </p>
+                    <div className="text-[11px] font-mono text-emerald-400 pt-1">
+                      Status: Conectado e Operacional
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2 text-xs">
+                    <h4 className="text-xs font-black text-white uppercase flex items-center space-x-2">
+                      <Activity className="w-4 h-4 text-purple-400" />
+                      <span>Sincronização Multi-cliente</span>
+                    </h4>
+                    <p className="text-zinc-400 text-[11px]">
+                      Mudanças no estado de manutenção são transmitidas via WebSocket/Snapshot para todos os dispositivos simultaneamente.
+                    </p>
+                    <div className="text-[11px] font-mono text-purple-400 pt-1">
+                      Latência: ~0ms (Instantânea)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* PLACEHOLDER VIEWS */}
-          {['users', 'escalacoes', 'banners', 'financeiro', 'configuracoes', 'permissoes'].includes(activeTab) && (
+          {['users', 'escalacoes', 'banners', 'financeiro', 'permissoes'].includes(activeTab) && (
             <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 text-center space-y-4 animate-fade-in">
               <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto text-zinc-400 border border-slate-700">
                 <Sliders className="w-8 h-8" />
@@ -7732,6 +8021,111 @@ export const AdminPanel: React.FC = () => {
                 })()}
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* DIALOG: GLOBAL MAINTENANCE MANAGEMENT MODAL */}
+      {isMaintenanceModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+          <div className="w-full max-w-lg bg-[#0F172A] border border-slate-800 rounded-3xl p-6 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setIsMaintenanceModalOpen(false)}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3">
+              <div className={`p-3 rounded-2xl border ${
+                maintenanceConfig?.enabled
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              }`}>
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Controle de Manutenção Global</h3>
+                <p className="text-xs text-zinc-400">Transmissão em tempo real para todos os utilizadores</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between text-xs">
+              <span className="text-zinc-300 font-bold">Estado Atual do Sistema:</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                maintenanceConfig?.enabled
+                  ? 'bg-amber-500 text-slate-950 font-black animate-pulse'
+                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+              }`}>
+                {maintenanceConfig?.enabled ? '🔴 Manutenção Ativa (Bloqueado)' : '🟢 App Online (Liberado)'}
+              </span>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-zinc-300 block mb-1">
+                  Título do Aviso aos Usuários
+                </label>
+                <input
+                  type="text"
+                  value={mTitleInput}
+                  onChange={(e) => setMTitleInput(e.target.value)}
+                  placeholder="Ex: Aplicativo temporariamente indisponível para manutenção"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-zinc-300 block mb-1">
+                  Mensagem Explicativa / Subtítulo
+                </label>
+                <textarea
+                  rows={2}
+                  value={mSubtitleInput}
+                  onChange={(e) => setMSubtitleInput(e.target.value)}
+                  placeholder="Ex: Estamos realizando melhorias técnicas no sistema..."
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-zinc-300 block mb-1">
+                  Previsão de Retorno (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={mEstimatedEndInput}
+                  onChange={(e) => setMEstimatedEndInput(e.target.value)}
+                  placeholder="Ex: 30 minutos / 15:00h / Em breve"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsMaintenanceModalOpen(false)}
+                className="w-full sm:w-auto px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-zinc-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+              >
+                Fechar
+              </button>
+
+              <button
+                type="button"
+                disabled={isSavingMaintenance}
+                onClick={() => handleSaveAndToggleMaintenance()}
+                className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-black cursor-pointer transition-all flex items-center justify-center space-x-2 shadow-lg ${
+                  maintenanceConfig?.enabled
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+                    : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/20'
+                }`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSavingMaintenance ? 'animate-spin' : ''}`} />
+                <span>
+                  {maintenanceConfig?.enabled ? 'Desativar e Liberar Acesso' : 'Ativar Modo Manutenção Agora'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
