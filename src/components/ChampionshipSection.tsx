@@ -88,7 +88,7 @@ export const ChampionshipSection: React.FC = () => {
                   <div className="w-full bg-slate-50 dark:bg-[#0F172A] p-2.5 space-y-1.5 border-y border-slate-100 dark:border-slate-800/50">
                     <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Líderes</span>
                     <div className="space-y-1">
-                      {champ.standings.slice(0, 3).map((team, idx) => (
+                      {(champ.standings || []).slice(0, 3).map((team, idx) => (
                         <div key={team.clubId} className="flex items-center justify-between text-xs">
                           <div 
                             onClick={(e) => {
@@ -117,7 +117,7 @@ export const ChampionshipSection: React.FC = () => {
                   <div className="flex justify-between items-center text-xs font-semibold pt-0.5">
                     <span className="text-zinc-400 flex items-center space-x-1.5 text-[10px]">
                       <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>{champ.standings.length} clubes na disputa</span>
+                      <span>{(champ.standings || []).length} clubes na disputa</span>
                     </span>
                     <span className="text-blue-600 font-bold flex items-center space-x-0.5">
                       <span>Tabela Completa</span>

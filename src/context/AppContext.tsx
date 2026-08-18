@@ -14,6 +14,7 @@ import {
   SystemBackup,
   AuditLog,
   MaintenanceConfig,
+  StandingRow,
 } from '../types';
 import {
   INITIAL_CLUBS,
@@ -93,7 +94,13 @@ const setDoc = (ref: any, data: any, options: any = { merge: true }) => {
   return originalSetDoc(ref, cleanUndefined(data), options);
 };
 
+const inFlightTicksSet = new Set<string>();
+const inFlightHTSet = new Set<string>();
+
 const tickMatchWithTransaction = async (matchId: string, currentMinute: number, intervalTime: number) => {
+  if (inFlightTicksSet.has(matchId)) return;
+  inFlightTicksSet.add(matchId);
+
   const matchDocRef = doc(db, 'matches', matchId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -163,12 +170,19 @@ const tickMatchWithTransaction = async (matchId: string, currentMinute: number, 
         transaction.update(matchDocRef, cleanUndefined(updatedMatch));
       }
     });
-  } catch (e) {
-    console.error("Tick transaction failed:", e);
+  } catch (e: any) {
+    console.warn("Tick transaction notice:", e?.message || e);
+  } finally {
+    setTimeout(() => {
+      inFlightTicksSet.delete(matchId);
+    }, 1500);
   }
 };
 
 const transitionHTToLiveWithTransaction = async (matchId: string) => {
+  if (inFlightHTSet.has(matchId)) return;
+  inFlightHTSet.add(matchId);
+
   const matchDocRef = doc(db, 'matches', matchId);
   try {
     await runTransaction(db, async (transaction) => {
@@ -200,8 +214,12 @@ const transitionHTToLiveWithTransaction = async (matchId: string) => {
 
       transaction.update(matchDocRef, cleanUndefined(updatedMatch));
     });
-  } catch (e) {
-    console.error("HT transition transaction failed:", e);
+  } catch (e: any) {
+    console.warn("HT transition notice:", e?.message || e);
+  } finally {
+    setTimeout(() => {
+      inFlightHTSet.delete(matchId);
+    }, 1500);
   }
 };
 
@@ -391,7 +409,7 @@ const findBestPlayerMatchHelper = (allPlayers: Player[], name: string): Player |
   return matched || null;
 };
 
-const sanitizeClubStats = (stats: any) => ({
+export const sanitizeClubStats = (stats: any) => ({
   wins: typeof stats?.wins === 'number' && !isNaN(stats.wins) ? Math.max(0, stats.wins) : 0,
   draws: typeof stats?.draws === 'number' && !isNaN(stats.draws) ? Math.max(0, stats.draws) : 0,
   losses: typeof stats?.losses === 'number' && !isNaN(stats.losses) ? Math.max(0, stats.losses) : 0,
@@ -399,8 +417,103 @@ const sanitizeClubStats = (stats: any) => ({
   goalsConceded: typeof stats?.goalsConceded === 'number' && !isNaN(stats.goalsConceded) ? Math.max(0, stats.goalsConceded) : 0,
 });
 
+export const sanitizeStandingRow = (row: any, club?: Club): StandingRow => {
+  const played = typeof row?.played === 'number' && !isNaN(row.played) ? Math.max(0, row.played) : 0;
+  const won = typeof row?.won === 'number' && !isNaN(row.won) ? Math.max(0, row.won) : 0;
+  const drawn = typeof row?.drawn === 'number' && !isNaN(row.drawn) ? Math.max(0, row.drawn) : 0;
+  const lost = typeof row?.lost === 'number' && !isNaN(row.lost) ? Math.max(0, row.lost) : 0;
+  const goalsFor = typeof row?.goalsFor === 'number' && !isNaN(row.goalsFor) ? Math.max(0, row.goalsFor) : 0;
+  const goalsAgainst = typeof row?.goalsAgainst === 'number' && !isNaN(row.goalsAgainst) ? Math.max(0, row.goalsAgainst) : 0;
+  const goalDifference = typeof row?.goalDifference === 'number' && !isNaN(row.goalDifference) ? row.goalDifference : (goalsFor - goalsAgainst);
+  const calculatedPoints = (won * 3) + drawn;
+  const rawPoints = typeof row?.points === 'number' && !isNaN(row.points) ? row.points : calculatedPoints;
+  const pointsDeduction = typeof row?.pointsDeduction === 'number' && !isNaN(row.pointsDeduction) ? Math.max(0, row.pointsDeduction) : 0;
+  const finalPoints = Math.max(0, rawPoints);
+  const efficiency = played > 0 ? Math.round((finalPoints / (played * 3)) * 100) : 0;
+
+  return {
+    clubId: row?.clubId || club?.id || '',
+    clubName: club?.name || row?.clubName || 'Clube',
+    logoUrl: club?.logoUrl || row?.logoUrl || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=60',
+    played,
+    won,
+    drawn,
+    lost,
+    goalsFor,
+    goalsAgainst,
+    goalDifference,
+    points: finalPoints,
+    group: row?.group || '',
+    pointsDeduction,
+    deductionReason: row?.deductionReason || '',
+    recentForm: Array.isArray(row?.recentForm) && row.recentForm.length === 5 ? row.recentForm : ['?', '?', '?', '?', '?'],
+    efficiency,
+    baseStats: row?.baseStats ? {
+      played: typeof row.baseStats.played === 'number' ? row.baseStats.played : played,
+      won: typeof row.baseStats.won === 'number' ? row.baseStats.won : won,
+      drawn: typeof row.baseStats.drawn === 'number' ? row.baseStats.drawn : drawn,
+      lost: typeof row.baseStats.lost === 'number' ? row.baseStats.lost : lost,
+      goalsFor: typeof row.baseStats.goalsFor === 'number' ? row.baseStats.goalsFor : goalsFor,
+      goalsAgainst: typeof row.baseStats.goalsAgainst === 'number' ? row.baseStats.goalsAgainst : goalsAgainst,
+      points: typeof row.baseStats.points === 'number' ? row.baseStats.points : rawPoints,
+      pointsDeduction: typeof row.baseStats.pointsDeduction === 'number' ? row.baseStats.pointsDeduction : pointsDeduction,
+      deductionReason: row.baseStats.deductionReason || ''
+    } : undefined
+  };
+};
+
+export const sanitizeChampionship = (champ: any, availableClubs: Club[] = []): Championship => {
+  const standingsRaw = Array.isArray(champ?.standings) ? champ.standings : [];
+  let sanitizedStandings: StandingRow[] = [];
+
+  if (standingsRaw.length > 0) {
+    sanitizedStandings = standingsRaw.map((row: any) => {
+      const matchedClub = findMatchingClub(availableClubs, row.clubId, row.clubName);
+      return sanitizeStandingRow(row, matchedClub);
+    });
+  } else if (availableClubs.length > 0) {
+    // Auto-generate standings from available clubs if championship had empty standings to prevent blank table
+    sanitizedStandings = availableClubs.map((club) => sanitizeStandingRow({
+      clubId: club.id,
+      clubName: club.name,
+      logoUrl: club.logoUrl,
+      played: (club.stats?.wins || 0) + (club.stats?.draws || 0) + (club.stats?.losses || 0),
+      won: club.stats?.wins || 0,
+      drawn: club.stats?.draws || 0,
+      lost: club.stats?.losses || 0,
+      goalsFor: club.stats?.goalsScored || 0,
+      goalsAgainst: club.stats?.goalsConceded || 0,
+      goalDifference: (club.stats?.goalsScored || 0) - (club.stats?.goalsConceded || 0),
+      points: ((club.stats?.wins || 0) * 3) + (club.stats?.draws || 0)
+    }, club));
+  }
+
+  // Sort standings safely: Points DESC -> Wins DESC -> Goal Difference DESC -> Goals For DESC -> Name ASC
+  sanitizedStandings.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.won !== a.won) return b.won - a.won;
+    if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+    return a.clubName.localeCompare(b.clubName);
+  });
+
+  return {
+    ...champ,
+    id: champ?.id || 'champ_' + Date.now(),
+    name: champ?.name || 'Campeonato',
+    type: champ?.type || 'Liga',
+    season: champ?.season || '2026',
+    currentRound: typeof champ?.currentRound === 'number' ? champ.currentRound : 1,
+    roundsCount: typeof champ?.roundsCount === 'number' ? champ.roundsCount : 38,
+    standings: sanitizedStandings,
+    topScorers: Array.isArray(champ?.topScorers) ? champ.topScorers : [],
+    topAssists: Array.isArray(champ?.topAssists) ? champ.topAssists : [],
+    regulations: champ?.regulations || ''
+  };
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load initial states from local memory or defaults first to keep app working offline / during initial sync
+  // Load initial states from local memory or secondary backup first to keep app working offline / during initial sync
   const [clubs, setClubs] = useState<Club[]>(() => {
     try {
       const saved = safeLocalStorage.getItem('msoccer_clubs');
@@ -409,12 +522,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((c: any) => ({
             ...c,
-            stats: sanitizeClubStats(c.stats)
+            stats: sanitizeClubStats(c.stats),
+            titles: Array.isArray(c.titles) ? c.titles : []
+          }));
+        }
+      }
+      const backupSaved = safeLocalStorage.getItem('msoccer_clubs_backup');
+      if (backupSaved) {
+        const parsedBackup = JSON.parse(backupSaved);
+        if (Array.isArray(parsedBackup) && parsedBackup.length > 0) {
+          return parsedBackup.map((c: any) => ({
+            ...c,
+            stats: sanitizeClubStats(c.stats),
+            titles: Array.isArray(c.titles) ? c.titles : []
           }));
         }
       }
     } catch (e) {
-      // fallback
+      console.warn("[mSoccer Cache] Erro ao carregar clubes do cache local:", e);
     }
     return INITIAL_CLUBS;
   });
@@ -426,8 +551,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
+      const backup = safeLocalStorage.getItem('msoccer_players_backup');
+      if (backup) {
+        const parsedBackup = JSON.parse(backup);
+        if (Array.isArray(parsedBackup) && parsedBackup.length > 0) return parsedBackup;
+      }
     } catch (e) {
-      // fallback
+      console.warn("[mSoccer Cache] Erro ao carregar jogadores do cache:", e);
     }
     return INITIAL_PLAYERS;
   });
@@ -437,12 +567,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = safeLocalStorage.getItem('msoccer_championships');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((ch: any) => sanitizeChampionship(ch, clubs));
+        }
+      }
+      const backup = safeLocalStorage.getItem('msoccer_championships_backup');
+      if (backup) {
+        const parsedBackup = JSON.parse(backup);
+        if (Array.isArray(parsedBackup) && parsedBackup.length > 0) {
+          return parsedBackup.map((ch: any) => sanitizeChampionship(ch, clubs));
+        }
       }
     } catch (e) {
-      // fallback
+      console.warn("[mSoccer Cache] Erro ao carregar campeonatos do cache:", e);
     }
-    return INITIAL_CHAMPIONSHIPS;
+    return INITIAL_CHAMPIONSHIPS.map((ch) => sanitizeChampionship(ch, clubs));
   });
 
   const [matches, setMatches] = useState<Match[]>(() => {
@@ -452,8 +591,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
+      const backup = safeLocalStorage.getItem('msoccer_matches_backup');
+      if (backup) {
+        const parsedBackup = JSON.parse(backup);
+        if (Array.isArray(parsedBackup) && parsedBackup.length > 0) return parsedBackup;
+      }
     } catch (e) {
-      // fallback
+      console.warn("[mSoccer Cache] Erro ao carregar partidas do cache:", e);
     }
     return INITIAL_MATCHES;
   });
@@ -466,7 +610,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
-      // fallback
+      console.warn("[mSoccer Cache] Erro ao carregar notícias do cache:", e);
     }
     return INITIAL_NEWS;
   });
@@ -662,10 +806,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeSeedDatabase();
   }, [dbConfig]);
 
-  // Firestore Real-Time Synchronizations
+  // Firestore Real-Time Synchronizations with Anti-Data-Loss Guards
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'clubs'), (snapshot) => {
-      if (snapshot.empty) return;
+      if (snapshot.empty) {
+        console.warn("[mSoccer Data Protection] Snapshot vazio de clubes ignorado para preservar dados existentes.");
+        return;
+      }
       const items: Club[] = [];
       snapshot.forEach(docSnapshot => {
         const data = docSnapshot.data() as Club;
@@ -679,44 +826,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (items.length > 0) {
         setClubs(items);
       }
-    }, (error) => console.error("Firestore clubs error:", error));
+    }, (error) => console.warn("Firestore clubs sync notice (offline/latency):", error.message));
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'players'), (snapshot) => {
+      if (snapshot.empty) {
+        console.warn("[mSoccer Data Protection] Snapshot vazio de jogadores ignorado.");
+        return;
+      }
       const items: Player[] = [];
       snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as Player));
-      setPlayers(items);
-    }, (error) => console.error("Firestore players error:", error));
+      if (items.length > 0) {
+        setPlayers(items);
+      }
+    }, (error) => console.warn("Firestore players sync notice:", error.message));
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'championships'), (snapshot) => {
+      if (snapshot.empty) {
+        console.warn("[mSoccer Data Protection] Snapshot vazio de campeonatos ignorado para preservar tabela de classificação.");
+        return;
+      }
       const items: Championship[] = [];
-      snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as Championship));
-      setChampionships(items);
-    }, (error) => console.error("Firestore championships error:", error));
+      snapshot.forEach(docSnapshot => {
+        const data = docSnapshot.data();
+        items.push(sanitizeChampionship(data, clubs));
+      });
+      if (items.length > 0) {
+        setChampionships(items);
+      }
+    }, (error) => console.warn("Firestore championships sync notice:", error.message));
     return () => unsubscribe();
-  }, []);
+  }, [clubs]);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'matches'), (snapshot) => {
+      if (snapshot.empty) {
+        console.warn("[mSoccer Data Protection] Snapshot vazio de partidas ignorado.");
+        return;
+      }
       const items: Match[] = [];
       snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as Match));
-      setMatches(items);
-    }, (error) => console.error("Firestore matches error:", error));
+      if (items.length > 0) {
+        setMatches(items);
+      }
+    }, (error) => console.warn("Firestore matches sync notice:", error.message));
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'news'), (snapshot) => {
+      if (snapshot.empty) return;
       const items: NewsArticle[] = [];
       snapshot.forEach(docSnapshot => items.push(docSnapshot.data() as NewsArticle));
       items.sort((a, b) => parseDateString(b.publishedAt) - parseDateString(a.publishedAt));
-      setNews(items);
-    }, (error) => console.error("Firestore news error:", error));
+      if (items.length > 0) {
+        setNews(items);
+      }
+    }, (error) => console.warn("Firestore news sync notice:", error.message));
     return () => unsubscribe();
   }, []);
 
@@ -754,12 +925,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
-  // Sync remaining user preferences and core states to local storage
-  useEffect(() => { safeLocalStorage.setItem('msoccer_clubs', JSON.stringify(clubs)); }, [clubs]);
-  useEffect(() => { safeLocalStorage.setItem('msoccer_players', JSON.stringify(players)); }, [players]);
-  useEffect(() => { safeLocalStorage.setItem('msoccer_championships', JSON.stringify(championships)); }, [championships]);
-  useEffect(() => { safeLocalStorage.setItem('msoccer_matches', JSON.stringify(matches)); }, [matches]);
-  useEffect(() => { safeLocalStorage.setItem('msoccer_news', JSON.stringify(news)); }, [news]);
+  // Sync core states and backup keys to local storage with anti-wipe protections
+  useEffect(() => {
+    if (clubs && clubs.length > 0) {
+      safeLocalStorage.setItem('msoccer_clubs', JSON.stringify(clubs));
+      safeLocalStorage.setItem('msoccer_clubs_backup', JSON.stringify(clubs));
+    }
+  }, [clubs]);
+
+  useEffect(() => {
+    if (players && players.length > 0) {
+      safeLocalStorage.setItem('msoccer_players', JSON.stringify(players));
+      safeLocalStorage.setItem('msoccer_players_backup', JSON.stringify(players));
+    }
+  }, [players]);
+
+  useEffect(() => {
+    if (championships && championships.length > 0) {
+      safeLocalStorage.setItem('msoccer_championships', JSON.stringify(championships));
+      safeLocalStorage.setItem('msoccer_championships_backup', JSON.stringify(championships));
+    }
+  }, [championships]);
+
+  useEffect(() => {
+    if (matches && matches.length > 0) {
+      safeLocalStorage.setItem('msoccer_matches', JSON.stringify(matches));
+      safeLocalStorage.setItem('msoccer_matches_backup', JSON.stringify(matches));
+    }
+  }, [matches]);
+
+  useEffect(() => {
+    if (news && news.length > 0) {
+      safeLocalStorage.setItem('msoccer_news', JSON.stringify(news));
+    }
+  }, [news]);
 
   useEffect(() => { safeLocalStorage.setItem('msoccer_favorites', JSON.stringify(favorites)); }, [favorites]);
   useEffect(() => { 
@@ -1070,10 +1269,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOnline();
 
     const heartbeat = setInterval(() => {
-      setDoc(presenceRef, {
-        lastActive: serverTimestamp()
-      }, { merge: true }).catch(() => {});
-    }, 45000);
+      if (document.visibilityState === 'visible') {
+        setDoc(presenceRef, {
+          lastActive: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+      }
+    }, 60000);
 
     const handleUnload = () => {
       setOffline();
@@ -1629,6 +1830,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Initialize standings starting from baseStats (if set) or existing row values to permanently preserve manual edits
       const recalculated = sourceRows.map((row) => {
         const club = findMatchingClub(clubsToUse, row.clubId, row.clubName);
+        const pointsDeduction = row.pointsDeduction ?? row.baseStats?.pointsDeduction ?? 0;
+        const deductionReason = row.deductionReason ?? row.baseStats?.deductionReason ?? '';
+
         const base = row.baseStats || {
           played: row.played || 0,
           won: row.won || 0,
@@ -1636,13 +1840,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           lost: row.lost || 0,
           goalsFor: row.goalsFor || 0,
           goalsAgainst: row.goalsAgainst || 0,
-          points: row.points || 0,
-          pointsDeduction: row.pointsDeduction || 0,
-          deductionReason: row.deductionReason || ''
+          points: (row.points ?? 0) + pointsDeduction,
+          pointsDeduction,
+          deductionReason
         };
 
-        const pointsDeduction = row.pointsDeduction ?? base.pointsDeduction ?? 0;
-        const deductionReason = row.deductionReason ?? base.deductionReason ?? '';
+        // Gross base points (before finished match points and before deduction is applied)
+        const grossBasePoints = typeof base.points === 'number' && !isNaN(base.points)
+          ? base.points
+          : ((base.won || 0) * 3 + (base.drawn || 0));
 
         return {
           ...row,
@@ -1656,7 +1862,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           goalsFor: base.goalsFor || 0,
           goalsAgainst: base.goalsAgainst || 0,
           goalDifference: (base.goalsFor || 0) - (base.goalsAgainst || 0),
-          points: base.points ?? ((base.won || 0) * 3 + (base.drawn || 0)),
+          points: grossBasePoints,
           pointsDeduction,
           deductionReason,
           baseStats: {
@@ -1666,7 +1872,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             lost: base.lost || 0,
             goalsFor: base.goalsFor || 0,
             goalsAgainst: base.goalsAgainst || 0,
-            points: base.points ?? ((base.won || 0) * 3 + (base.drawn || 0)),
+            points: grossBasePoints,
             pointsDeduction,
             deductionReason
           }
@@ -2337,39 +2543,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const targetGC = row.goalsAgainst ?? club?.stats?.goalsConceded ?? 0;
 
           let baseWins = 0, baseDraws = 0, baseLosses = 0, baseGoalsFor = 0, baseGoalsAgainst = 0;
+          let basePoints: number;
+
+          const pointsDeduction = row.pointsDeduction ?? row.baseStats?.pointsDeduction ?? 0;
+          const deductionReason = row.deductionReason ?? row.baseStats?.deductionReason ?? '';
 
           if (row.baseStats) {
-            if (
-              row.baseStats.won + fWins === targetWins &&
-              row.baseStats.drawn + fDraws === targetDraws &&
-              row.baseStats.lost + fLosses === targetLosses &&
-              row.baseStats.goalsFor + fGP === targetGP &&
-              row.baseStats.goalsAgainst + fGC === targetGC
-            ) {
-              baseWins = row.baseStats.won;
-              baseDraws = row.baseStats.drawn;
-              baseLosses = row.baseStats.lost;
-              baseGoalsFor = row.baseStats.goalsFor;
-              baseGoalsAgainst = row.baseStats.goalsAgainst;
-            } else {
-              baseWins = Math.max(0, targetWins - fWins);
-              baseDraws = Math.max(0, targetDraws - fDraws);
-              baseLosses = Math.max(0, targetLosses - fLosses);
-              baseGoalsFor = Math.max(0, targetGP - fGP);
-              baseGoalsAgainst = Math.max(0, targetGC - fGC);
-            }
+            baseWins = typeof row.baseStats.won === 'number' ? row.baseStats.won : Math.max(0, targetWins - fWins);
+            baseDraws = typeof row.baseStats.drawn === 'number' ? row.baseStats.drawn : Math.max(0, targetDraws - fDraws);
+            baseLosses = typeof row.baseStats.lost === 'number' ? row.baseStats.lost : Math.max(0, targetLosses - fLosses);
+            baseGoalsFor = typeof row.baseStats.goalsFor === 'number' ? row.baseStats.goalsFor : Math.max(0, targetGP - fGP);
+            baseGoalsAgainst = typeof row.baseStats.goalsAgainst === 'number' ? row.baseStats.goalsAgainst : Math.max(0, targetGC - fGC);
+            basePoints = typeof row.baseStats.points === 'number'
+              ? row.baseStats.points
+              : (baseWins * 3 + baseDraws);
           } else {
             baseWins = Math.max(0, targetWins - fWins);
             baseDraws = Math.max(0, targetDraws - fDraws);
             baseLosses = Math.max(0, targetLosses - fLosses);
             baseGoalsFor = Math.max(0, targetGP - fGP);
             baseGoalsAgainst = Math.max(0, targetGC - fGC);
+            const currentGrossPoints = (row.points ?? (targetWins * 3 + targetDraws)) + pointsDeduction;
+            basePoints = Math.max(0, currentGrossPoints - (fWins * 3 + fDraws));
           }
 
           const basePlayed = baseWins + baseDraws + baseLosses;
-          const basePoints = baseWins * 3 + baseDraws;
-          const pointsDeduction = row.pointsDeduction ?? row.baseStats?.pointsDeduction ?? 0;
-          const deductionReason = row.deductionReason ?? row.baseStats?.deductionReason ?? '';
 
           return {
             ...row,
@@ -2589,6 +2787,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Keep track of previous matches to detect transitions to FINISHED and score changes
   const prevStandingsMatchesRef = React.useRef<Match[]>([]);
+  const isApplyingStatsRef = React.useRef(false);
 
   useEffect(() => {
     if (matches.length === 0) return;
@@ -2599,13 +2798,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const changedChamps = new Set<string>();
 
     if (prevStandingsMatchesRef.current.length === 0) {
-      // First load: check if any championship has finished matches
-      championships.forEach((champ) => {
-        const hasFinishedMatches = matches.some((m) => m.championshipId === champ.id && isFinishedMatch(m.status));
-        if (hasFinishedMatches) {
-          changedChamps.add(champ.id);
-        }
-      });
+      // First load: record baseline matches without triggering massive writes
+      prevStandingsMatchesRef.current = matches;
+      return;
     } else {
       matches.forEach((m) => {
         const prev = prevStandingsMatchesRef.current.find((p) => p.id === m.id);
@@ -2646,12 +2841,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Automatically apply finished match statistics to player season stats
   useEffect(() => {
     const applyPendingMatchStats = async () => {
+      if (isApplyingStatsRef.current) return;
       const pendingMatches = matches.filter(
-        (m) => m.status === MatchStatus.FINISHED && !m.statsApplied
+        (m) => (m.status === MatchStatus.FINISHED || (m.status as any) === 'FINISHED' || (m.status as any) === 'Encerrado') && !m.statsApplied
       );
       if (pendingMatches.length === 0) return;
 
-      for (const match of pendingMatches) {
+      isApplyingStatsRef.current = true;
+
+      try {
+        // Process at most 1 match per run with pause to protect write queue
+        const match = pendingMatches[0];
         console.log(`Applying stats for match ${match.id}...`);
         
         try {
@@ -2886,14 +3086,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
           
           console.log(`Successfully applied stats for match ${match.id}.`);
-          addNotification(
-            'Estatísticas Aplicadas',
-            `As estatísticas de ${match.homeClubName} vs ${match.awayClubName} foram computadas aos atletas com sucesso!`,
-            'sistema'
-          );
-        } catch (err) {
-          console.error("Failed to apply pending match stats:", err);
+        } catch (err: any) {
+          console.warn("Notice while applying match stats:", err?.message || err);
         }
+      } finally {
+        setTimeout(() => {
+          isApplyingStatsRef.current = false;
+        }, 3000);
       }
     };
 
@@ -2906,9 +3105,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (liveSimSpeed === 'off') return;
 
+    const hasLiveMatches = matches.some((m) => m.status === MatchStatus.LIVE && !m.isPaused);
+    if (!hasLiveMatches) return;
+
     const intervalTime = liveSimSpeed === 'fast' ? 2000 : 60000;
+    const checkFrequency = liveSimSpeed === 'fast' ? 1500 : 3000;
 
     const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+
       matches.forEach((m) => {
         if (m.status !== MatchStatus.LIVE || m.isPaused) return;
 
@@ -2921,7 +3126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           tickMatchWithTransaction(m.id, m.minute, intervalTime);
         }
       });
-    }, 1000); // Check every second for any match that needs a tick
+    }, checkFrequency);
 
     return () => clearInterval(timer);
   }, [liveSimSpeed, matches]);
@@ -2930,9 +3135,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (liveSimSpeed === 'off') return;
 
+    const hasHTMatches = matches.some((m) => m.status === MatchStatus.HT);
+    if (!hasHTMatches) return;
+
     const htDuration = liveSimSpeed === 'fast' ? 4000 : 15 * 60 * 1000; // 15 minutes halftime in normal mode (real time)
+    const checkFrequency = liveSimSpeed === 'fast' ? 2000 : 5000;
 
     const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+
       matches.forEach((m) => {
         if (m.status !== MatchStatus.HT) return;
 
@@ -2944,7 +3155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           transitionHTToLiveWithTransaction(m.id);
         }
       });
-    }, 1000); // Check every second
+    }, checkFrequency);
 
     return () => clearInterval(timer);
   }, [liveSimSpeed, matches]);

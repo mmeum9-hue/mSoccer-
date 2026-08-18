@@ -9,7 +9,7 @@ interface LeagueDetailsProps {
 }
 
 export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
-  const { championships, matches, players, favorites, toggleFavorite, navigateBack, navigateTo } = useApp();
+  const { championships, matches, clubs, players, favorites, toggleFavorite, navigateBack, navigateTo } = useApp();
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'stats' | 'regulations'>('standings');
 
   const league = championships.find((c) => c.id === leagueId);
@@ -60,9 +60,10 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
     return formSymbols;
   };
 
-  // Helper to render the standings table
+  // Helper to render the standings table safely with data loss protection
   const renderStandingsTable = (rows: StandingRow[]) => {
-    const maxPlayed = Math.max(...rows.map((r) => r.played));
+    const safeRows = Array.isArray(rows) ? rows : [];
+    const maxPlayed = safeRows.length > 0 ? Math.max(0, ...safeRows.map((r) => r?.played || 0)) : 0;
 
     return (
       <div className="w-full rounded-xl border border-zinc-150 dark:border-slate-800 overflow-hidden bg-white dark:bg-[#0F172A] shadow-xs">
@@ -246,7 +247,36 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
 
   const initialCupPhase = displayCupPhases.includes('Oitavos de Final') ? 'Oitavos de Final' : (displayCupPhases[0] || 'Oitavos de Final');
   const [selectedCupPhase, setSelectedCupPhase] = useState<string>(initialCupPhase);
-  const [cupTab, setCupTab] = useState<'bracket' | 'groups'>(league?.standings && league.standings.length > 0 ? 'groups' : 'bracket');
+  // Safe effective standings computation with automatic fallback to prevent blank tables
+  const effectiveStandings = React.useMemo(() => {
+    if (league?.standings && league.standings.length > 0) {
+      return league.standings;
+    }
+    // Auto-generate fallback standings from clubs list if missing
+    if (clubs && clubs.length > 0) {
+      return clubs.map((club) => ({
+        clubId: club.id,
+        clubName: club.name,
+        logoUrl: club.logoUrl,
+        played: (club.stats?.wins || 0) + (club.stats?.draws || 0) + (club.stats?.losses || 0),
+        won: club.stats?.wins || 0,
+        drawn: club.stats?.draws || 0,
+        lost: club.stats?.losses || 0,
+        goalsFor: club.stats?.goalsScored || 0,
+        goalsAgainst: club.stats?.goalsConceded || 0,
+        goalDifference: (club.stats?.goalsScored || 0) - (club.stats?.goalsConceded || 0),
+        points: ((club.stats?.wins || 0) * 3) + (club.stats?.draws || 0),
+        group: '',
+        recentForm: ['?', '?', '?', '?', '?'] as any,
+        efficiency: ((club.stats?.wins || 0) + (club.stats?.draws || 0) + (club.stats?.losses || 0)) > 0
+          ? Math.round(((((club.stats?.wins || 0) * 3) + (club.stats?.draws || 0)) / (((club.stats?.wins || 0) + (club.stats?.draws || 0) + (club.stats?.losses || 0)) * 3)) * 100)
+          : 0
+      })).sort((a, b) => b.points - a.points);
+    }
+    return [];
+  }, [league?.standings, clubs]);
+
+  const [cupTab, setCupTab] = useState<'bracket' | 'groups'>(effectiveStandings.length > 0 ? 'groups' : 'bracket');
 
   // Calculate unique round numbers available in matches or fallback to league round limit
   const roundsWithMatches = Array.from(new Set(leagueMatches.map((m) => m.round))).sort((a, b) => Number(a) - Number(b));
@@ -460,7 +490,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                     Fases Eliminatórias Diretas • Clique em um jogo para detalhes
                   </p>
                 </div>
-                {league.standings && league.standings.length > 0 && (
+                {effectiveStandings && effectiveStandings.length > 0 && (
                   <div className="flex space-x-1 bg-zinc-100 dark:bg-slate-950 p-1 rounded-lg self-start sm:self-auto">
                     <button
                       onClick={() => setCupTab('groups')}
@@ -486,8 +516,8 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
                 )}
               </div>
 
-              {cupTab === 'groups' && league.standings && league.standings.length > 0 ? (
-                renderStandingsWithGroups(league.standings)
+              {cupTab === 'groups' && effectiveStandings && effectiveStandings.length > 0 ? (
+                renderStandingsWithGroups(effectiveStandings)
               ) : (
                 /* PLAYOFF BRACKET (CHAVEAMENTO) */
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 overflow-x-auto pb-4">
@@ -558,7 +588,7 @@ export const LeagueDetails: React.FC<LeagueDetailsProps> = ({ leagueId }) => {
               )}
             </div>
           ) : (
-            renderStandingsWithGroups(league.standings)
+            renderStandingsWithGroups(effectiveStandings)
           )
         )}
 

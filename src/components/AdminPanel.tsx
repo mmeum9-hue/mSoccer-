@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getPlayerPhoto, handlePlayerImageError, DEFAULT_PLAYER_AVATAR } from '../utils/avatar';
 import { MatchStatus, Club, Player, Championship, Match, MatchEvent, NewsArticle, LineupPlayer, CONTINENTS_REGIONS_MAP } from '../types';
@@ -247,6 +247,8 @@ export const AdminPanel: React.FC = () => {
   const [quickDeduction, setQuickDeduction] = useState<number>(0);
   const [quickDeductionReason, setQuickDeductionReason] = useState<string>('');
 
+  const lastLoadedQuickKeyRef = useRef<string>('');
+
   // Auto-sync quick standings edit widget state
   useEffect(() => {
     if (!quickChampId && championships.length > 0) {
@@ -270,29 +272,33 @@ export const AdminPanel: React.FC = () => {
   }, [quickChampId, championships, clubs, quickClubId]);
 
   useEffect(() => {
+    const currentKey = `${quickChampId}_${quickClubId}`;
     if (quickChampId && quickClubId) {
       const champ = championships.find((c) => c.id === quickChampId);
       const row = champ?.standings.find((s) => s.clubId === quickClubId);
-      if (row) {
-        setQuickPoints(row.points);
-        setQuickWon(row.won);
-        setQuickDrawn(row.drawn);
-        setQuickLost(row.lost);
-        setQuickGoalsFor(row.goalsFor);
-        setQuickGoalsAgainst(row.goalsAgainst);
-        setQuickGroup(row.group || '');
-        setQuickDeduction(row.pointsDeduction || 0);
-        setQuickDeductionReason(row.deductionReason || '');
-      } else {
-        setQuickPoints(0);
-        setQuickWon(0);
-        setQuickDrawn(0);
-        setQuickLost(0);
-        setQuickGoalsFor(0);
-        setQuickGoalsAgainst(0);
-        setQuickGroup('');
-        setQuickDeduction(0);
-        setQuickDeductionReason('');
+      if (lastLoadedQuickKeyRef.current !== currentKey) {
+        lastLoadedQuickKeyRef.current = currentKey;
+        if (row) {
+          setQuickPoints(row.points);
+          setQuickWon(row.won);
+          setQuickDrawn(row.drawn);
+          setQuickLost(row.lost);
+          setQuickGoalsFor(row.goalsFor);
+          setQuickGoalsAgainst(row.goalsAgainst);
+          setQuickGroup(row.group || '');
+          setQuickDeduction(row.pointsDeduction || 0);
+          setQuickDeductionReason(row.deductionReason || '');
+        } else {
+          setQuickPoints(0);
+          setQuickWon(0);
+          setQuickDrawn(0);
+          setQuickLost(0);
+          setQuickGoalsFor(0);
+          setQuickGoalsAgainst(0);
+          setQuickGroup('');
+          setQuickDeduction(0);
+          setQuickDeductionReason('');
+        }
       }
     }
   }, [quickChampId, quickClubId, championships]);
@@ -1536,12 +1542,17 @@ export const AdminPanel: React.FC = () => {
 
     const club = clubs.find((c) => c.id === clubId);
     const clubName = club?.name || 'Clube';
+    const deduction = Math.max(0, pointsToDeduct);
 
     const updatedStandings = champ.standings.map((row) => {
       if (row.clubId === clubId) {
-        const deduction = Math.max(0, pointsToDeduct);
+        const prevDeduction = row.pointsDeduction || 0;
+        const currentGrossPoints = (row.points ?? 0) + prevDeduction;
+        const newNetPoints = Math.max(0, currentGrossPoints - deduction);
+
         return {
           ...row,
+          points: newNetPoints,
           pointsDeduction: deduction,
           deductionReason: reason.trim() || undefined,
           baseStats: {
@@ -1552,8 +1563,9 @@ export const AdminPanel: React.FC = () => {
               lost: row.lost,
               goalsFor: row.goalsFor,
               goalsAgainst: row.goalsAgainst,
-              points: row.points
+              points: currentGrossPoints
             }),
+            points: typeof row.baseStats?.points === 'number' ? row.baseStats.points : currentGrossPoints,
             pointsDeduction: deduction,
             deductionReason: reason.trim() || undefined
           }
@@ -1623,6 +1635,8 @@ export const AdminPanel: React.FC = () => {
     const targetGoalsAgainst = Number(editSGoalsAgainst);
     const targetPoints = Number(editSPoints);
     const deduction = Math.max(0, Number(editSDeduction));
+    const grossTargetPoints = targetPoints + deduction;
+    const basePts = Math.max(0, grossTargetPoints - fPts);
 
     const updatedStandings = champ.standings.map((row) => {
       if (row.clubId === clubId) {
@@ -1646,7 +1660,7 @@ export const AdminPanel: React.FC = () => {
             lost: Math.max(0, targetLost - fLosses),
             goalsFor: Math.max(0, targetGoalsFor - fGP),
             goalsAgainst: Math.max(0, targetGoalsAgainst - fGC),
-            points: Math.max(0, targetPoints - fPts),
+            points: basePts,
             pointsDeduction: deduction,
             deductionReason: editSDeductionReason.trim() || undefined
           }
@@ -1726,6 +1740,8 @@ export const AdminPanel: React.FC = () => {
     const targetGoalsAgainst = Number(quickGoalsAgainst);
     const targetPoints = Number(quickPoints);
     const deduction = Math.max(0, Number(quickDeduction));
+    const grossTargetPoints = targetPoints + deduction;
+    const basePts = Math.max(0, grossTargetPoints - fPts);
 
     let clubFound = false;
 
@@ -1752,7 +1768,7 @@ export const AdminPanel: React.FC = () => {
             lost: Math.max(0, targetLost - fLosses),
             goalsFor: Math.max(0, targetGoalsFor - fGP),
             goalsAgainst: Math.max(0, targetGoalsAgainst - fGC),
-            points: Math.max(0, targetPoints - fPts),
+            points: basePts,
             pointsDeduction: deduction,
             deductionReason: quickDeductionReason.trim() || undefined
           }
@@ -1784,7 +1800,7 @@ export const AdminPanel: React.FC = () => {
           lost: Math.max(0, targetLost - fLosses),
           goalsFor: Math.max(0, targetGoalsFor - fGP),
           goalsAgainst: Math.max(0, targetGoalsAgainst - fGC),
-          points: Math.max(0, targetPoints - fPts),
+          points: basePts,
           pointsDeduction: deduction,
           deductionReason: quickDeductionReason.trim() || undefined
         }
@@ -1804,6 +1820,7 @@ export const AdminPanel: React.FC = () => {
       standings: updatedStandings
     };
 
+    lastLoadedQuickKeyRef.current = `${quickChampId}_${quickClubId}`;
     await updateChampionship(updatedChamp);
 
     // Also update club general statistics to keep them in permanent sync

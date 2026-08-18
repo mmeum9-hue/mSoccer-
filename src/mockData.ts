@@ -519,6 +519,7 @@ export const INITIAL_MATCHES: Match[] = [
     time: '19:30',
     minute: 90,
     status: MatchStatus.FINISHED,
+    statsApplied: true,
     score: { home: 2, away: 1 },
     events: [
       { id: 'ev_y1', minute: 1, type: 'KickOff', team: 'neutral', player1: 'Início', detail: 'Partida iniciada no MorumBIS!' },
